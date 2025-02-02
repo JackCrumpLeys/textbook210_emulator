@@ -1,7 +1,7 @@
 [package]
-name = "eframe_template"
+name = "tools_for_110"
 version = "0.1.0"
-authors = ["Emil Ernerfeldt <emil.ernerfeldt@gmail.com>"]
+authors = ["Jack Crump-Leys <jackcrumpleys@gmail.com>"]
 edition = "2021"
 include = ["LICENSE-APACHE", "LICENSE-MIT", "**/*.rs", "Cargo.toml"]
 rust-version = "1.81"
@@ -12,6 +12,8 @@ targets = ["x86_64-unknown-linux-gnu", "wasm32-unknown-unknown"]
 
 [dependencies]
 egui = "0.30"
+egui_extras = "0.30"
+egui_code_editor = "0.2.11"
 eframe = { version = "0.30", default-features = false, features = [
     "accesskit",     # Make egui compatible with screen readers. NOTE: adds a lot of dependencies.
     "default_fonts", # Embed the default egui fonts.
@@ -20,6 +22,7 @@ eframe = { version = "0.30", default-features = false, features = [
     "wayland",       # To support Linux (and CI)
 ] }
 log = "0.4"
+egui_tiles = "0.11"
 
 # You only need serde if you want app persistence:
 serde = { version = "1", features = ["derive"] }
