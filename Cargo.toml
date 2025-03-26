@@ -1,5 +1,5 @@
 [package]
-name = "tools_for_110"
+name = "tools_for_210"
 version = "0.1.0"
 authors = ["Jack Crump-Leys <jackcrumpleys@gmail.com>"]
 edition = "2021"
@@ -11,21 +11,30 @@ all-features = true
 targets = ["x86_64-unknown-linux-gnu", "wasm32-unknown-unknown"]
 
 [dependencies]
-egui = "0.30"
-egui_extras = "0.30"
-egui_code_editor = "0.2.11"
-eframe = { version = "0.30", default-features = false, features = [
+egui = "0.31"
+egui_extras = "0.31"
+egui_code_editor = "0.2.12"
+eframe = { version = "0.31", default-features = false, features = [
     "accesskit",     # Make egui compatible with screen readers. NOTE: adds a lot of dependencies.
     "default_fonts", # Embed the default egui fonts.
     "glow",          # Use the glow rendering backend. Alternative: "wgpu".
     "persistence",   # Enable restoring app state when restarting the app.
     "wayland",       # To support Linux (and CI)
+    "x11",
 ] }
 log = "0.4"
-egui_tiles = "0.11"
+egui_tiles = "0.12"
+rustc-hash = "*"
+indexmap = "2.7"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-test = "0.2"
+tracing-web = "0.1"
+wasm-bindgen = "0.2"
 
 # You only need serde if you want app persistence:
 serde = { version = "1", features = ["derive"] }
+console_error_panic_hook = "0.1.7"
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
@@ -43,6 +52,16 @@ opt-level = 2 # fast and small wasm
 [profile.dev.package."*"]
 opt-level = 2
 
+[dev-dependencies]
+criterion = { version = "0.4", features = ["html_reports"] }
+
+[[bench]]
+name = "turing"
+harness = false
+
+[[bench]]
+name = "lc3"
+harness = false
 
 [patch.crates-io]
 

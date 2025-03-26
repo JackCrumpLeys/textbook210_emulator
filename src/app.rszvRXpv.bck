@@ -1,0 +1,291 @@
+use egui::RichText;
+use egui_tiles::{Behavior, SimplificationOptions};
+
+pub trait Window: Default {
+    fn render(&mut self, ui: &mut egui::Ui);
+    fn title(&self) -> String;
+}
+
+#[derive(Debug, Clone)]
+pub enum Pane {
+    BaseConverter(BaseConverter),
+}
+
+#[derive(Debug, Clone, Default)]
+struct BaseConverter {
+    input: String,
+    output_hist: Vec<String>,
+    alphabet: String,
+    base_in: u32,
+    base_out: u32,
+    case_sensitive: bool,
+    uppercase: bool,
+}
+
+impl Window for BaseConverter {
+    fn render(&mut self, ui: &mut egui::Ui) {
+        ui.label("This is a base converter. Enter a number, select the input and output bases, adjust the alphabet, and click 'Convert' to see the result. You can also toggle case sensitivity and choose between uppercase and lowercase conversion.");
+
+        if !self.case_sensitive {
+            ui.label(RichText::new("⚠ Note: Case insensitivity is enabled. ⚠")
+                            .small()
+                            .color(ui.visuals().warn_fg_color)).on_hover_text("Case insensitivity is enabled. This means that the input and alphabet will be converted to uppercase or lowercase before conversion. You can change this behavior by toggling the 'Case Sensitive' checkbox.");
+        }
+        ui.horizontal(|ui| {
+            ui.text_edit_singleline(&mut self.input);
+            ui.label("->");
+            if let Some(most_recent_output) = self.output_hist.last() {
+                ui.label(most_recent_output);
+            } else {
+                ui.label("");
+            }
+            if ui.button("Convert").clicked() {
+                // Call the stub function base_to_base
+                if !self.case_sensitive {
+                    if self.uppercase {
+                        self.input = self.input.to_uppercase();
+                    } else {
+                        self.input = self.input.to_lowercase();
+                    }
+                }
+                let mut output =
+                    base_to_base(self.base_in, self.base_out, &self.input, &self.alphabet);
+                self.output_hist.push(output);
+            }
+        });
+
+        ui.horizontal(|ui| {
+            ui.label("Alphabet:");
+            ui.text_edit_singleline(&mut self.alphabet);
+        });
+
+        let max_base = self.alphabet.len() as u32;
+
+        ui.horizontal(|ui| {
+            ui.add(egui::Slider::new(&mut self.base_in, 2..=max_base));
+            ui.add(egui::Slider::new(&mut self.base_out, 2..=max_base));
+        });
+
+        ui.horizontal(|ui| {
+            ui.checkbox(&mut self.case_sensitive, "Case Sensitive");
+            if !self.case_sensitive {
+                ui.checkbox(&mut self.uppercase, "Uppercase");
+            }
+        });
+
+        ui.separator();
+
+        egui::CollapsingHeader::new("History")
+            .default_open(true)
+            .show(ui, |ui| {
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    for line in self.output_hist.iter() {
+                        ui.label(line);
+                    }
+                });
+            });
+    }
+
+    fn title(&self) -> String {
+        "Base Converter".to_owned()
+    }
+}
+
+fn base_to_base(base_in: u32, base_out: u32, input: &str, alphabet: impl Into<String>) -> String {
+    let mut output = String::new();
+    let mut num = 0;
+    let mut place = 1;
+    for c in input.chars().rev() {
+        let digit = match c.to_digit(base_in) {
+            Some(d) => d,
+            None => {
+                return "Invalid input".to_owned();
+            }
+        };
+        num += digit * place;
+        place *= base_in;
+    }
+    while num > 0 {
+        let digit = num % base_out;
+        num /= base_out;
+        let c = match char::from_digit(digit, base_out) {
+            Some(c) => c,
+            None => {
+                return "Invalid input".to_owned();
+            }
+        };
+        output.push(c);
+    }
+    output.chars().rev().collect()
+}
+
+impl Default for Pane {
+    fn default() -> Self {
+        Pane::BaseConverter(BaseConverter {
+            input: "0".to_owned(),
+            output_hist: Vec::new(),
+            alphabet: "0123456789".to_owned(),
+            base_in: 10,
+            base_out: 2,
+            case_sensitive: true,
+            uppercase: true,
+        })
+    }
+}
+
+impl From<Pane> for String {
+    fn from(pane: Pane) -> String {
+        match pane {
+            Pane::BaseConverter(a) => a.title(),
+        }
+    }
+}
+
+impl Pane {
+    fn to_string(&self) -> String {
+        String::from(self.clone())
+    }
+
+    fn render(&mut self, ui: &mut egui::Ui, _tile_id: egui_tiles::TileId) {
+        match self {
+            Pane::BaseConverter(a) => a.render(ui),
+        };
+    }
+
+    fn iter_default() -> impl Iterator<Item = Pane> {
+        vec![Pane::BaseConverter(BaseConverter::default())].into_iter()
+    }
+
+}
+
+struct TreeBehavior {}
+
+impl egui_tiles::Behavior<Pane> for TreeBehavior {
+    fn tab_title_for_pane(&mut self, pane: &Pane) -> egui::WidgetText {
+        format!("Pane {:?}", pane).into()
+    }
+
+    fn pane_ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        tile_id: egui_tiles::TileId,
+        pane: &mut Pane,
+    ) -> egui_tiles::UiResponse {
+        // Give each pane a unique color:
+
+        pane.render(ui, tile_id);
+        egui_tiles::UiResponse::None
+    }
+
+    fn simplification_options(&self) -> egui_tiles::SimplificationOptions {
+        SimplificationOptions {
+            all_panes_must_have_tabs: true,
+            ..Default::default()
+        }
+    }
+}
+
+/// We derive Deserialize/Serialize so we can persist app state on shutdown.
+#[derive(serde::Deserialize, serde::Serialize)]
+#[serde(default)] // if we add new fields, give them default values when deserializing old state
+pub struct TemplateApp {
+    // Example stuff:
+    label: String,
+
+    #[serde(skip)]
+    value: f32,
+    #[serde(skip)]
+    tree: egui_tiles::Tree<Pane>,
+    #[serde(skip)]
+    tree_behavior: TreeBehavior,
+}
+
+impl Default for TemplateApp {
+    fn default() -> Self {
+        let mut next_view_nr = 0;
+        let mut gen_pane = || {
+            let pane = Pane::default();
+            next_view_nr += 1;
+            pane
+        };
+
+        let mut tiles = egui_tiles::Tiles::default();
+
+        let mut tabs = vec![];
+        tabs.push(tiles.insert_pane(gen_pane()));
+
+        let root = tiles.insert_tab_tile(tabs);
+
+        let tree = egui_tiles::Tree::new("my_tree", root, tiles);
+
+        Self {
+            // Example stuff:
+            label: "Hello World!".to_owned(),
+            value: 2.7,
+            tree,
+            tree_behavior: TreeBehavior {},
+        }
+    }
+}
+
+impl TemplateApp {
+    /// Called once before the first frame.
+    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        // This is also where you can customize the look and feel of egui using
+        // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
+
+        // Load previous app state (if any).
+        // Note that you must enable the `persistence` feature for this to work.
+        if let Some(storage) = cc.storage {
+            return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
+        }
+
+        Default::default()
+    }
+}
+
+impl eframe::App for TemplateApp {
+    /// Called by the frame work to save state before shutdown.
+    fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        eframe::set_value(storage, eframe::APP_KEY, self);
+    }
+
+    /// Called each time the UI needs repainting, which may be many times per second.
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`, `Window` or `Area`.
+        // For inspiration and more examples, go to https://emilk.github.io/egui
+
+        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
+            // The top panel is often a good place for a menu bar:
+
+            egui::menu::bar(ui, |ui| {
+                // NOTE: no File->Quit on web pages!
+                let is_web = cfg!(target_arch = "wasm32");
+                if !is_web {
+                    ui.menu_button("File", |ui| {
+                        if ui.button("Quit").clicked() {
+                            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                        }
+                    });
+                    ui.add_space(16.0);
+                }
+
+                ui.menu_button(windows, |ui| {
+                    for window in Pane
+                })
+
+                egui::widgets::global_theme_preference_buttons(ui);
+            });
+        });
+
+        egui::CentralPanel::default().show(ctx, |ui| {
+            // The central panel the region left after adding TopPanel's and SidePanel's
+
+            self.tree.ui(&mut self.tree_behavior, ui);
+
+            ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
+                egui::warn_if_debug_build(ui);
+            });
+        });
+    }
+}
