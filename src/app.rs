@@ -1,14 +1,12 @@
-use std::{any::Any, collections::BTreeSet, str::FromStr, vec::IntoIter};
+use std::{collections::BTreeSet, vec::IntoIter};
 
-use eframe::glow::LINEAR;
 use egui::{
     ahash::{HashMap, HashMapExt},
-    Label, OutputCommand, RichText,
+    OutputCommand, RichText,
 };
-use egui_extras::Column;
-use egui_tiles::{Behavior, SimplificationOptions, Tree};
+use egui_tiles::SimplificationOptions;
 
-use crate::emulator::{Emulator, EmulatorCell};
+use crate::emulator::Emulator;
 
 pub trait Window: Default {
     fn render(&mut self, ui: &mut egui::Ui);
@@ -133,7 +131,7 @@ fn base_to_base(base_in: u32, base_out: u32, input: &str, alphabet: impl Into<St
 }
 
 #[derive(Debug, Clone)]
-struct EmulatorPane {
+pub struct EmulatorPane {
     program: String,
     last_compiled: String,
     breakpoints: Vec<usize>,
@@ -1734,17 +1732,11 @@ impl EmulatorPane {
 
                     offset_selector(ui, &mut instruction_fields.offset9, 9, "PC Offset:");
 
-                    let n_text = if instruction_fields.n_bit { "N" } else { "" };
-                    let z_text = if instruction_fields.z_bit { "Z" } else { "" };
-                    let p_text = if instruction_fields.p_bit { "P" } else { "" };
-
-                    let br_type = format!("BR{}{}{}", n_text, z_text, p_text);
-
                     let pseudo_code = format!(
                         "if ({}{}{}) PC = PC + {}",
                         if instruction_fields.n_bit { "N=1 " } else { "" },
                         if instruction_fields.z_bit { "Z=1 " } else { "" },
-                        if instruction_fields.p_bit { "P=1 " } else { "" },
+                        if instruction_fields.p_bit { "P=1" } else { "" },
                         instruction_fields.offset9
                     );
 
@@ -2097,7 +2089,7 @@ impl EmulatorPane {
                         }
 
                         ui.add(egui::DragValue::new(&mut instruction_fields.trapvector)
-                            .clamp_range(0..=0xFF)
+                            .range(0..=0xFF)
                             .speed(0.1))
                             .on_hover_text("Trap vector (0-255)");
                     });
@@ -2237,14 +2229,14 @@ impl EmulatorPane {
             // compile
             if ui.button("Compile").clicked() {
                 let data_to_load = Emulator::parse_program(&self.program);
-                if let Ok((instructions, labels, orig_address)) = data_to_load {
+                if let Ok((instructions, _, orig_address)) = data_to_load {
                     self.line_to_address = instructions
                         .iter()
                         .enumerate()
                         .map(|(i, (x, _))| (*x, i + orig_address as usize))
                         .collect();
                     self.emulator.flash_memory(
-                        instructions.into_iter().map(|(x, y)| y).collect(),
+                        instructions.into_iter().map(|(_, y)| y).collect(),
                         orig_address,
                     );
                     self.error = None;
@@ -2256,14 +2248,14 @@ impl EmulatorPane {
         } else if ui.button("Reset & compile").clicked() {
             self.emulator = Emulator::new();
             let data_to_load = Emulator::parse_program(&self.program);
-            if let Ok((instructions, labels, orig_address)) = data_to_load {
+            if let Ok((instructions, _, orig_address)) = data_to_load {
                 self.line_to_address = instructions
                     .iter()
                     .enumerate()
                     .map(|(i, (x, _))| (*x, i + orig_address as usize))
                     .collect();
                 self.emulator.flash_memory(
-                    instructions.into_iter().map(|(x, y)| y).collect(),
+                    instructions.into_iter().map(|(_, y)| y).collect(),
                     orig_address,
                 );
                 self.error = None;
@@ -2526,9 +2518,9 @@ impl EmulatorPane {
                 ui.checkbox(&mut self.show_machine_code, "Show Machine Code");
                 if self.show_machine_code {
                     ui.label("Base:");
-                    ui.radio_value(&mut self.display_base, 2, "Binary");
-                    ui.radio_value(&mut self.display_base, 16, "Hex");
-                    ui.radio_value(&mut self.display_base, 10, "Decimal");
+                    ui.radio_value(&mut self.machine_code_base, 2, "Binary");
+                    ui.radio_value(&mut self.machine_code_base, 16, "Hex");
+                    ui.radio_value(&mut self.machine_code_base, 10, "Decimal");
                 }
             });
         });
@@ -2731,7 +2723,7 @@ impl EmulatorPane {
 
                 if self.show_machine_code {
                     if let Some(instruction) = self.emulator.memory.get(*address) {
-                        match self.display_base {
+                        match self.machine_code_base {
                             2 => label = format!("{:016b}", instruction.get()),
                             16 => label = format!("0x{:04X}", instruction.get()),
                             10 => label = format!("{}", instruction.get()),
@@ -3114,7 +3106,7 @@ impl egui_tiles::Behavior<Pane> for TreeBehavior {
     fn is_tab_closable(
         &self,
         _tiles: &egui_tiles::Tiles<Pane>,
-        tile_id: egui_tiles::TileId,
+        _tile_id: egui_tiles::TileId,
     ) -> bool {
         true
     }
@@ -3125,12 +3117,6 @@ impl egui_tiles::Behavior<Pane> for TreeBehavior {
         tile_id: egui_tiles::TileId,
         pane: &mut Pane,
     ) -> egui_tiles::UiResponse {
-        // Give each pane a unique color:
-        let pane_type = match pane {
-            Pane::BaseConverter(_) => "BaseConverter",
-            Pane::Emulator(_) => "Emulator",
-        };
-
         pane.render(ui, tile_id);
 
         egui_tiles::UiResponse::None
@@ -3174,7 +3160,6 @@ impl egui_tiles::Behavior<Pane> for TreeBehavior {
 pub struct TemplateApp {
     tree: egui_tiles::Tree<Pane>,
     tree_behavior: TreeBehavior,
-    emulator: EmulatorPane,
 }
 
 impl Default for TemplateApp {
@@ -3209,14 +3194,13 @@ impl Default for TemplateApp {
         Self {
             tree,
             tree_behavior: TreeBehavior::default(),
-            emulator: EmulatorPane::default(),
         }
     }
 }
 
 impl TemplateApp {
     /// Called once before the first frame.
-    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+    pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
         let span = tracing::info_span!("TemplateApp::new");
         let _guard = span.enter();
 
@@ -3231,7 +3215,7 @@ impl TemplateApp {
 
 impl eframe::App for TemplateApp {
     /// Called by the frame work to save state before shutdown.
-    fn save(&mut self, storage: &mut dyn eframe::Storage) {}
+    fn save(&mut self, _storage: &mut dyn eframe::Storage) {}
 
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {

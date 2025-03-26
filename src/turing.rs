@@ -36,7 +36,7 @@ impl TuringMachine {
     // outputs if halted
     pub fn step(&mut self) -> bool {
         let low_offset = (self.head & 0x00000003) << 1;
-        let low_index_mask = (0b11000000 >> low_offset);
+        let low_index_mask = 0b11000000 >> low_offset;
         // let rule = self.rules.iter().find(|rule| rule.state == self.state && rule.tape == self.tape[self.head >> 2 as usize] & low_index_mask);
         let rule = self.rules.get(&(
             self.state,

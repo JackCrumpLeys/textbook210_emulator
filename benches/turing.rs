@@ -1,4 +1,4 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{criterion_group, criterion_main, Criterion};
 use tools_for_210::turing::*;
 
 fn fibonacci(n: u64) -> u64 {

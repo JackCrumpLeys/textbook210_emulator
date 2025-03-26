@@ -17,6 +17,7 @@ impl EmulatorCell {
     }
 
     /// Sign extend from bit position to 16 bits
+    /// bits to the left of pos must be 0
     pub fn sext(&self, bit_pos: u8) -> Self {
         let value = self.0;
         let is_negative = (value >> bit_pos) & 1 == 1;
@@ -33,6 +34,8 @@ impl EmulatorCell {
 
 #[derive(Debug, Clone)]
 pub struct Emulator {
+    // why non an array? Becuase array sits on stack and takes alot of memory.
+    // wasm was unhappy so I put it on the heap using Vec
     pub memory: Vec<EmulatorCell>, // MUST be initialized with 65536 EmulatorCells
     // Registers
     pub r: [EmulatorCell; 8],
@@ -63,6 +66,7 @@ pub struct Emulator {
     pub running: bool,
 }
 
+// TODO: redp state system to use each state gone over in class
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum CpuState {
     Fetch,
@@ -770,7 +774,7 @@ impl Emulator {
                 }
             }
 
-            debug_first_pass_addr.insert(address, line_uncapped.clone());
+            debug_first_pass_addr.insert(address, line_uncapped);
         }
 
         if !orig_set {
@@ -1157,7 +1161,7 @@ impl Emulator {
                 }
             }
 
-            debug_second_pass_addr.insert(address, line_uncapped.clone());
+            debug_second_pass_addr.insert(address, line_uncapped);
         }
 
         // Log addresses from origin to current address
@@ -2017,7 +2021,7 @@ impl Emulator {
             width,
             (value as u16)
         );
-        Ok((value as u16))
+        Ok(value as u16)
     }
 
     /// Flash memory with parsed program at the given origin address
