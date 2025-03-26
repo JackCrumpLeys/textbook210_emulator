@@ -1,3 +1,5 @@
+#![allow(clippy::unusual_byte_groupings)] // so we can group bits by instruction parts
+
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use tools_for_210::emulator::*;
 
