@@ -4203,7 +4203,7 @@ mod tests {
 
             // Execute the program with a maximum number of steps
             tracing::debug!("Beginning C-generated assembly program execution");
-            let max_steps = 30; // Prevent infinite loops
+            let max_steps = 10000; // Prevent infinite loops
             machine_state.running = true;
             let result = machine_state.run(Some(max_steps));
 

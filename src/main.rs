@@ -1,7 +1,6 @@
 #![warn(clippy::all, rust_2018_idioms)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
-
 // When compiling natively:
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> eframe::Result {
@@ -28,6 +27,12 @@ fn main() -> eframe::Result {
 // When compiling to web using trunk:
 #[cfg(target_arch = "wasm32")]
 fn main() {
+    use tracing_subscriber::fmt::format::Pretty;
+    use tracing_subscriber::prelude::*;
+    use tracing_subscriber::EnvFilter;
+    use tracing_web::{performance_layer, MakeWebConsoleWriter};
+    use web_sys::wasm_bindgen::JsCast;
+
     // Set up comprehensive tracing for web
     std::panic::set_hook(Box::new(console_error_panic_hook::hook));
 
@@ -38,7 +43,7 @@ fn main() {
     let perf_layer = performance_layer().with_details_from_fields(Pretty::default());
 
     tracing_subscriber::registry()
-        .with(EnvFilter::new("trace"))
+        .with(EnvFilter::new("debug"))
         .with(perf_layer)
         .with(fmt_layer)
         .init();

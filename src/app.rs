@@ -212,6 +212,9 @@ impl Window for EmulatorPane {
                 .show(ui, |ui| self.render_reference(ui));
             egui::CollapsingHeader::new("LC-3 Cheatsheet and Examples")
                 .show(ui, render_cheatsheet_examples);
+
+            ui.separator();
+
             // TEXT EDITOR
             egui::CollapsingHeader::new("Code Editor")
                 .default_open(true)
