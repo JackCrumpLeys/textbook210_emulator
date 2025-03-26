@@ -160,6 +160,12 @@ impl OpCode {
     }
 }
 
+impl Default for Emulator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Emulator {
     pub fn new() -> Emulator {
         Self {
@@ -509,6 +515,8 @@ impl Emulator {
     }
 }
 
+// is the return type way too complex and hard to understand? Yes, Am I gonna give a fuck? No
+#[allow(clippy::type_complexity)]
 // parsing code
 impl Emulator {
     /// Parse LC-3 assembly code into machine instructions
@@ -728,14 +736,14 @@ impl Emulator {
                 orig_set = true;
             } else if line.starts_with(".") {
                 // Handle directives using the helper function
-                match get_directive_size(&line, line_uncapped, i) {
+                match get_directive_size(line, line_uncapped, i) {
                     Ok(size) => address += size,
                     Err(e) => return Err(e),
                 }
             } else {
                 // Check if this line might be a label without a colon
                 let parts: Vec<&str> = line.split_whitespace().collect();
-                if parts.len() >= 1
+                if !parts.is_empty()
                     && !parts[0].starts_with('.')
                     && !parts[0].starts_with('R')
                     && ![
@@ -1272,7 +1280,7 @@ impl Emulator {
                         "ADD (register mode): Generated instruction: {:04X}",
                         instruction
                     );
-                    return Ok(instruction);
+                    Ok(instruction)
                 } else {
                     // Immediate mode: ADD DR, SR1, #IMM5
                     let imm5 = match Self::parse_immediate(parts[3], 5) {
@@ -1292,7 +1300,7 @@ impl Emulator {
                         "ADD (immediate mode): Generated instruction: {:04X}",
                         instruction
                     );
-                    return Ok(instruction);
+                    Ok(instruction)
                 }
             }
             "AND" => {
@@ -1342,7 +1350,7 @@ impl Emulator {
                         "AND (register mode): Generated instruction: {:04X}",
                         instruction
                     );
-                    return Ok(instruction);
+                    Ok(instruction)
                 } else {
                     // Immediate mode: AND DR, SR1, #IMM5
                     let imm5 = match Self::parse_immediate(parts[3], 5) {
@@ -1362,7 +1370,7 @@ impl Emulator {
                         "AND (immediate mode): Generated instruction: {:04X}",
                         instruction
                     );
-                    return Ok(instruction);
+                    Ok(instruction)
                 }
             }
             "BR" | "BRN" | "BRZ" | "BRP" | "BRNZ" | "BRNP" | "BRZP" | "BRNZP" => {
@@ -1395,15 +1403,14 @@ impl Emulator {
                     }
                 }
 
-                if offset < -256 || offset > 255 {
+                if !(-256..=255).contains(&offset) {
                     tracing::error!("PCoffset9 out of range: {}", offset);
                     return Err(("PCoffset9 out of range".to_string(), 0));
                 }
 
-                let instruction =
-                    (0b0000 << 12) | (n << 11) | (z << 10) | (p << 9) | (offset as u16 & 0x1FF);
+                let instruction = (n << 11) | (z << 10) | (p << 9) | (offset as u16 & 0x1FF);
                 tracing::debug!("BR: Generated instruction: {:04X}", instruction);
-                return Ok(instruction);
+                Ok(instruction)
             }
             "JMP" => {
                 if parts.len() < 2 {
@@ -1424,7 +1431,7 @@ impl Emulator {
 
                 let instruction = (0b1100 << 12) | (base_r << 6);
                 tracing::debug!("JMP: Generated instruction: {:04X}", instruction);
-                return Ok(instruction);
+                Ok(instruction)
             }
             "JSR" => {
                 if parts.len() < 2 {
@@ -1451,14 +1458,14 @@ impl Emulator {
                     }
                 }
 
-                if offset < -1024 || offset > 1023 {
+                if !(-1024..=1023).contains(&offset) {
                     tracing::error!("PCoffset11 out of range: {}", offset);
                     return Err(("PCoffset11 out of range".to_string(), 0));
                 }
 
                 let instruction = (0b0100 << 12) | (1 << 11) | (offset as u16 & 0x7FF);
                 tracing::debug!("JSR: Generated instruction: {:04X}", instruction);
-                return Ok(instruction);
+                Ok(instruction)
             }
             "JSRR" => {
                 if parts.len() < 2 {
@@ -1479,7 +1486,7 @@ impl Emulator {
 
                 let instruction = (0b0100 << 12) | (base_r << 6);
                 tracing::debug!("JSRR: Generated instruction: {:04X}", instruction);
-                return Ok(instruction);
+                Ok(instruction)
             }
             "LD" => {
                 if parts.len() < 3 {
@@ -1517,14 +1524,14 @@ impl Emulator {
                     }
                 }
 
-                if offset < -256 || offset > 255 {
+                if !(-256..=255).contains(&offset) {
                     tracing::error!("PCoffset9 out of range: {}", offset);
                     return Err(("PCoffset9 out of range".to_string(), 0));
                 }
 
                 let instruction = (0b0010 << 12) | (dr << 9) | (offset as u16 & 0x1FF);
                 tracing::debug!("LD: Generated instruction: {:04X}", instruction);
-                return Ok(instruction);
+                Ok(instruction)
             }
             "LDI" => {
                 if parts.len() < 3 {
@@ -1562,14 +1569,14 @@ impl Emulator {
                     }
                 }
 
-                if offset < -256 || offset > 255 {
+                if !(-256..=255).contains(&offset) {
                     tracing::error!("PCoffset9 out of range: {}", offset);
                     return Err(("PCoffset9 out of range".to_string(), 0));
                 }
 
                 let instruction = (0b1010 << 12) | (dr << 9) | (offset as u16 & 0x1FF);
                 tracing::debug!("LDI: Generated instruction: {:04X}", instruction);
-                return Ok(instruction);
+                Ok(instruction)
             }
             "LDR" => {
                 if parts.len() < 4 {
@@ -1612,7 +1619,7 @@ impl Emulator {
 
                 let instruction = (0b0110 << 12) | (dr << 9) | (base_r << 6) | (offset6 & 0x3F);
                 tracing::debug!("LDR: Generated instruction: {:04X}", instruction);
-                return Ok(instruction);
+                Ok(instruction)
             }
             "LEA" => {
                 if parts.len() < 3 {
@@ -1650,14 +1657,14 @@ impl Emulator {
                     }
                 }
 
-                if offset < -256 || offset > 255 {
+                if !(-256..=255).contains(&offset) {
                     tracing::error!("PCoffset9 out of range: {}", offset);
                     return Err(("PCoffset9 out of range".to_string(), 0));
                 }
 
                 let instruction = (0b1110 << 12) | (dr << 9) | (offset as u16 & 0x1FF);
                 tracing::debug!("LEA: Generated instruction: {:04X}", instruction);
-                return Ok(instruction);
+                Ok(instruction)
             }
             "NOT" => {
                 if parts.len() < 3 {
@@ -1689,18 +1696,18 @@ impl Emulator {
 
                 let instruction = (0b1001 << 12) | (dr << 9) | (sr << 6) | 0x3F;
                 tracing::debug!("NOT: Generated instruction: {:04X}", instruction);
-                return Ok(instruction);
+                Ok(instruction)
             }
             "RET" => {
                 // RET is an alias for JMP R7
                 tracing::debug!("RET: Alias for JMP R7");
                 let instruction = (0b1100 << 12) | (7 << 6);
                 tracing::debug!("RET: Generated instruction: {:04X}", instruction);
-                return Ok(instruction);
+                Ok(instruction)
             }
             "RTI" => {
                 tracing::debug!("RTI: Generated instruction: {:04X}", 0b1000 << 12);
-                return Ok(0b1000 << 12);
+                Ok(0b1000 << 12)
             }
             "ST" => {
                 if parts.len() < 3 {
@@ -1738,14 +1745,14 @@ impl Emulator {
                     }
                 }
 
-                if offset < -256 || offset > 255 {
+                if !(-256..=255).contains(&offset) {
                     tracing::error!("PCoffset9 out of range: {}", offset);
                     return Err(("PCoffset9 out of range".to_string(), 0));
                 }
 
                 let instruction = (0b0011 << 12) | (sr << 9) | (offset as u16 & 0x1FF);
                 tracing::debug!("ST: Generated instruction: {:04X}", instruction);
-                return Ok(instruction);
+                Ok(instruction)
             }
             "STI" => {
                 if parts.len() < 3 {
@@ -1783,14 +1790,14 @@ impl Emulator {
                     }
                 }
 
-                if offset < -256 || offset > 255 {
+                if !(-256..=255).contains(&offset) {
                     tracing::error!("PCoffset9 out of range: {}", offset);
                     return Err(("PCoffset9 out of range".to_string(), 0));
                 }
 
                 let instruction = (0b1011 << 12) | (sr << 9) | (offset as u16 & 0x1FF);
                 tracing::debug!("STI: Generated instruction: {:04X}", instruction);
-                return Ok(instruction);
+                Ok(instruction)
             }
             "STR" => {
                 if parts.len() < 4 {
@@ -1833,7 +1840,7 @@ impl Emulator {
 
                 let instruction = (0b0111 << 12) | (sr << 9) | (base_r << 6) | (offset6 & 0x3F);
                 tracing::debug!("STR: Generated instruction: {:04X}", instruction);
-                return Ok(instruction);
+                Ok(instruction)
             }
             "TRAP" => {
                 if parts.len() < 2 {
@@ -1876,44 +1883,44 @@ impl Emulator {
 
                 let instruction = (0b1111 << 12) | trapvect8;
                 tracing::debug!("TRAP: Generated instruction: {:04X}", instruction);
-                return Ok(instruction);
+                Ok(instruction)
             }
             // Trap aliases
             "GETC" => {
                 tracing::debug!("GETC: Trap alias for vector 0x20");
                 let instruction = (0b1111 << 12) | 0x20;
                 tracing::debug!("GETC: Generated instruction: {:04X}", instruction);
-                return Ok(instruction);
+                Ok(instruction)
             }
             "OUT" => {
                 tracing::debug!("OUT: Trap alias for vector 0x21");
                 let instruction = (0b1111 << 12) | 0x21;
                 tracing::debug!("OUT: Generated instruction: {:04X}", instruction);
-                return Ok(instruction);
+                Ok(instruction)
             }
             "PUTS" => {
                 tracing::debug!("PUTS: Trap alias for vector 0x22");
                 let instruction = (0b1111 << 12) | 0x22;
                 tracing::debug!("PUTS: Generated instruction: {:04X}", instruction);
-                return Ok(instruction);
+                Ok(instruction)
             }
             "IN" => {
                 tracing::debug!("IN: Trap alias for vector 0x23");
                 let instruction = (0b1111 << 12) | 0x23;
                 tracing::debug!("IN: Generated instruction: {:04X}", instruction);
-                return Ok(instruction);
+                Ok(instruction)
             }
             "PUTSP" => {
                 tracing::debug!("PUTSP: Trap alias for vector 0x24");
                 let instruction = (0b1111 << 12) | 0x24;
                 tracing::debug!("PUTSP: Generated instruction: {:04X}", instruction);
-                return Ok(instruction);
+                Ok(instruction)
             }
             "HALT" => {
                 tracing::debug!("HALT: Trap alias for vector 0x25");
                 let instruction = (0b1111 << 12) | 0x25;
                 tracing::debug!("HALT: Generated instruction: {:04X}", instruction);
-                return Ok(instruction);
+                Ok(instruction)
             }
             _ => {
                 tracing::error!("Unknown opcode: {}", opcode);
@@ -1958,9 +1965,9 @@ impl Emulator {
 
         let value: i16;
 
-        if imm.starts_with("#") {
+        if let Some(imm) = imm.strip_prefix("#") {
             // Decimal immediate
-            match imm[1..].parse::<i16>() {
+            match imm.parse::<i16>() {
                 Ok(val) => {
                     value = val;
                     tracing::debug!("Parsed decimal immediate: {}", value);
@@ -1997,8 +2004,8 @@ impl Emulator {
         }
 
         // Check if the immediate fits in the specified bit width
-        let min_value = (-((1 << (width - 1)) as i32)) as i16;
-        let max_value = ((1 << (width - 1)) as i32 - 1) as i16;
+        let min_value = (-{ 1 << (width - 1) }) as i16;
+        let max_value = ((1 << (width - 1)) - 1) as i16;
 
         if value < min_value || value > max_value {
             tracing::error!(
@@ -2071,7 +2078,7 @@ trait BitAddressable {
 
 impl BitAddressable for EmulatorCell {
     fn index(&self, addr: u8) -> Self {
-        Self(((self.0 >> addr) & 1) as u16)
+        Self((self.0 >> addr) & 1)
     }
 
     fn range(&self, slice: Range<u8>) -> Self {
@@ -3995,7 +4002,7 @@ mod tests {
             assert!(result.is_ok(), "Program execution should succeed");
 
             // Verify the machine halted
-            assert_eq!(machine_state.running, false, "Machine should have halted");
+            assert!(!machine_state.running, "Machine should have halted");
 
             // Verify the results in memory
             let direct_result_address = *labels.get("RESULT").unwrap();
@@ -4204,7 +4211,7 @@ mod tests {
             assert!(result.is_ok(), "Assembly execution should succeed");
 
             // Verify the machine halted
-            assert_eq!(machine_state.running, false, "Machine should have halted");
+            assert!(!machine_state.running, "Machine should have halted");
 
             // Log the output
             tracing::debug!(output = machine_state.output, "Assembly program output");
