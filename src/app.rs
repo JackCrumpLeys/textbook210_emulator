@@ -125,7 +125,7 @@ fn base_to_base(base_in: u32, base_out: u32, input: &str, alphabet: impl Into<St
         output.push(c);
     }
     if output == String::new() {
-        output = alphabet.chars().nth(0).unwrap().to_string();
+        output = alphabet.chars().next().unwrap().to_string();
     }
     output.chars().rev().collect()
 }
@@ -207,11 +207,11 @@ impl Window for EmulatorPane {
     fn render(&mut self, ui: &mut egui::Ui) {
         self.tick = self.tick.wrapping_add(1);
         egui::ScrollArea::vertical().show(ui, |ui| {
-            egui::CollapsingHeader::new("LC-3 Emulator Help").show(ui, |ui| render_help_ui(ui));
+            egui::CollapsingHeader::new("LC-3 Emulator Help").show(ui, render_help_ui);
             egui::CollapsingHeader::new("LC-3 Instruction Reference")
                 .show(ui, |ui| self.render_reference(ui));
             egui::CollapsingHeader::new("LC-3 Cheatsheet and Examples")
-                .show(ui, |ui| render_cheatsheet_examples(ui));
+                .show(ui, render_cheatsheet_examples);
             // TEXT EDITOR
             egui::CollapsingHeader::new("Code Editor")
                 .default_open(true)
@@ -731,11 +731,9 @@ impl EmulatorPane {
                                 .color(egui::Color32::YELLOW),
                         );
 
-                        let add_reg = (0b0001 << 12) | // Opcode
+                        let add_reg = (((0b0001 << 12) | // Opcode
                                      ((instruction_fields.dr as u16) << 9) | // DR
-                                     ((instruction_fields.sr1 as u16) << 6) | // SR1
-                                     (0 << 5) | // Register mode bit (0)
-                                     (0 << 3) | // Unused bits
+                                     ((instruction_fields.sr1 as u16) << 6))) | // Unused bits
                                      (instruction_fields.sr2 as u16 & 0x7); // SR2
 
                         egui::CollapsingHeader::new("Binary Representation")
@@ -935,11 +933,9 @@ impl EmulatorPane {
                                 .color(egui::Color32::YELLOW),
                         );
 
-                        let and_reg = (0b0101 << 12) | // Opcode
+                        let and_reg = (((0b0101 << 12) | // Opcode
                                      ((instruction_fields.dr as u16) << 9) | // DR
-                                     ((instruction_fields.sr1 as u16) << 6) | // SR1
-                                     (0 << 5) | // Register mode bit (0)
-                                     (0 << 3) | // Unused bits
+                                     ((instruction_fields.sr1 as u16) << 6))) | // Unused bits
                                      (instruction_fields.sr2 as u16 & 0x7); // SR2
 
                         egui::CollapsingHeader::new("Binary Representation")
@@ -1746,8 +1742,7 @@ impl EmulatorPane {
                             .color(egui::Color32::YELLOW),
                     );
 
-                    let br_instr = (0b0000 << 12) | // Opcode
-                                 ((instruction_fields.n_bit as u16) << 11) | // N flag
+                    let br_instr = (((instruction_fields.n_bit as u16) << 11)) | // N flag
                                  ((instruction_fields.z_bit as u16) << 10) | // Z flag
                                  ((instruction_fields.p_bit as u16) << 9) | // P flag
                                  (instruction_fields.offset9 as u16 & 0x1FF); // PCoffset9
@@ -1765,26 +1760,17 @@ impl EmulatorPane {
                                     RichText::new("0000").monospace().color(egui::Color32::RED),
                                 );
                                 ui.label(
-                                    RichText::new(format!(
-                                        "{}",
-                                        if instruction_fields.n_bit { "1" } else { "0" }
-                                    ))
+                                    RichText::new((if instruction_fields.n_bit { "1" } else { "0" }).to_string())
                                     .monospace()
                                     .color(egui::Color32::from_rgb(33, 78, 211)),
                                 );
                                 ui.label(
-                                    RichText::new(format!(
-                                        "{}",
-                                        if instruction_fields.z_bit { "1" } else { "0" }
-                                    ))
+                                    RichText::new((if instruction_fields.z_bit { "1" } else { "0" }).to_string())
                                     .monospace()
                                     .color(egui::Color32::GREEN),
                                 );
                                 ui.label(
-                                    RichText::new(format!(
-                                        "{}",
-                                        if instruction_fields.p_bit { "1" } else { "0" }
-                                    ))
+                                    RichText::new((if instruction_fields.p_bit { "1" } else { "0" }).to_string())
                                     .monospace()
                                     .color(egui::Color32::YELLOW),
                                 );
@@ -1865,10 +1851,8 @@ impl EmulatorPane {
                         );
                     }
 
-                    let jmp_instr = (0b1100 << 12) | // Opcode
-                                 (0 << 9) | // Unused bits
-                                 ((instruction_fields.base_r as u16) << 6) | // BaseR
-                                 0; // Unused bits
+                    let jmp_instr = ((0b1100 << 12)) | // Unused bits
+                                 ((instruction_fields.base_r as u16) << 6); // Unused bits
 
                     egui::CollapsingHeader::new("Binary Representation")
                         .id_salt("jmp_binary")
@@ -2010,11 +1994,8 @@ impl EmulatorPane {
                                 .color(egui::Color32::YELLOW),
                         );
 
-                        let jsrr_instr = (0b0100 << 12) | // Opcode
-                                      (0 << 11) | // JSR bit = 0 (JSRR)
-                                      (0 << 9) | // Unused bits
-                                      ((instruction_fields.base_r as u16) << 6) | // BaseR
-                                      0; // Unused bits
+                        let jsrr_instr = (((0b0100 << 12))) | // Unused bits
+                                      ((instruction_fields.base_r as u16) << 6); // Unused bits
 
                         egui::CollapsingHeader::new("Binary Representation")
                             .id_salt("jsrr_binary")
@@ -2083,7 +2064,7 @@ impl EmulatorPane {
 
                         let mut trap_hex = format!("0x{:02X}", instruction_fields.trapvector);
                         if ui.text_edit_singleline(&mut trap_hex).changed() {
-                            if let Ok(value) = u8::from_str_radix(&trap_hex.trim_start_matches("0x"), 16) {
+                            if let Ok(value) = u8::from_str_radix(trap_hex.trim_start_matches("0x"), 16) {
                                 instruction_fields.trapvector = value;
                             }
                         }
@@ -2136,8 +2117,7 @@ impl EmulatorPane {
                     let pseudo_code = format!("R7 = PC\nPC = MEM[x{:02X}]", instruction_fields.trapvector);
                     ui.label(RichText::new(pseudo_code).monospace().color(egui::Color32::YELLOW));
 
-                    let trap_instr = (0b1111 << 12) | // Opcode
-                                   (0 << 8) | // Unused bits
+                    let trap_instr = ((0b1111 << 12)) | // Unused bits
                                    (instruction_fields.trapvector as u16); // trapvect8
 
                     egui::CollapsingHeader::new("Binary Representation")
@@ -2211,11 +2191,9 @@ impl EmulatorPane {
                         self.emulator.running = false;
                     }
 
-                    if self.emulator.await_input.is_some() && !self.emulator.await_input.unwrap() {
-                        if !self.input_stack.is_empty() {
-                            self.emulator.r[0].set(self.input_stack.remove(0) as u16);
-                            self.emulator.await_input = None;
-                        }
+                    if self.emulator.await_input.is_some() && !self.emulator.await_input.unwrap() && !self.input_stack.is_empty() {
+                        self.emulator.r[0].set(self.input_stack.remove(0) as u16);
+                        self.emulator.await_input = None;
                     }
                 }
             }
@@ -2282,7 +2260,7 @@ impl EmulatorPane {
         }
         ui.label(base_to_base(
             10,
-            self.display_base as u32,
+            self.display_base,
             &(self.emulator.ir.get() as u32).to_string(),
             "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ",
         ));
@@ -2529,7 +2507,7 @@ impl EmulatorPane {
         let mut longest_body = 0;
         let mut longest_operand = 0;
         for (i, line) in self.last_compiled.lines().enumerate() {
-            if !self.line_to_address.contains_key(&i) || line == "" {
+            if !self.line_to_address.contains_key(&i) || line.is_empty() {
                 continue;
             }
             // Check if line has a comment and split it off
@@ -2730,7 +2708,7 @@ impl EmulatorPane {
                             _ => {
                                 label = base_to_base(
                                     10,
-                                    self.display_base as u32,
+                                    self.display_base,
                                     &(instruction.get() as u32).to_string(),
                                     "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ",
                                 )
@@ -2747,7 +2725,7 @@ impl EmulatorPane {
 
                 ui.horizontal(|ui| {
                     if ui.button("🛑").clicked() {
-                        if self.breakpoints.contains(&address) {
+                        if self.breakpoints.contains(address) {
                             self.breakpoints.retain(|x| *x != *address);
                         } else {
                             self.breakpoints.push(*address);
@@ -2771,7 +2749,7 @@ impl EmulatorPane {
                                         .monospace(),
                                 );
                             }
-                        } else if self.error.as_ref().map_or(false, |(_, line)| *line == i) {
+                        } else if self.error.as_ref().is_some_and(|(_, line)| *line == i) {
                             // Extract the error text to highlight just that portion
                             if let Some((error_msg, _)) = &self.error {
                                 let parts: Vec<&str> =
@@ -2900,7 +2878,7 @@ impl EmulatorPane {
                         }
                     }
                 });
-            } else if self.error.as_ref().map_or(false, |(_, line)| *line == i) {
+            } else if self.error.as_ref().is_some_and(|(_, line)| *line == i) {
                 // For error lines that aren't in the address map
                 if let Some((error_msg, _)) = &self.error {
                     let parts: Vec<&str> =
@@ -3100,7 +3078,7 @@ struct TreeBehavior {
 impl egui_tiles::Behavior<Pane> for TreeBehavior {
     fn tab_title_for_pane(&mut self, pane: &Pane) -> egui::WidgetText {
         let pane_name = pane.to_string();
-        format!("{}", pane_name).into()
+        pane_name.to_string().into()
     }
 
     fn is_tab_closable(
@@ -3148,11 +3126,11 @@ impl egui_tiles::Behavior<Pane> for TreeBehavior {
 
     fn simplification_options(&self) -> egui_tiles::SimplificationOptions {
         tracing::trace!("Returning tile simplification options");
-        let options = SimplificationOptions {
+        
+        SimplificationOptions {
             all_panes_must_have_tabs: true,
             ..Default::default()
-        };
-        options
+        }
     }
 }
 
@@ -3231,7 +3209,7 @@ impl eframe::App for TemplateApp {
             if let Some(egui_tiles::Tile::Container(egui_tiles::Container::Tabs(tabs))) =
                 self.tree.tiles.get_mut(tile_id)
             {
-                let _new_tile_id = tabs.add_child(new_pane);
+                tabs.add_child(new_pane);
 
                 tabs.set_active(new_pane);
             }

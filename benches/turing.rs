@@ -79,7 +79,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     // }
 
     c.bench_function("forever machine", |b| b.iter(|| tm.step()));
-    assert!(tm.step() == false)
+    assert!(!tm.step())
 }
 
 criterion_group!(benches, criterion_benchmark);

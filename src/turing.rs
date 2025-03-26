@@ -19,6 +19,12 @@ pub struct Rule {
     pub next_state: u32,
 }
 
+impl Default for TuringMachine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TuringMachine {
     pub fn new() -> Self {
         Self {
@@ -46,18 +52,16 @@ impl TuringMachine {
             self.tape[(self.head >> 2) as usize] = (self.tape[(self.head >> 2) as usize]
                 & !low_index_mask)
                 | (rule.write << (6 - low_offset));
-            if rule.move_right == true {
+            if rule.move_right {
                 self.head += 1;
                 if (self.head >> 2) as usize >= self.tape.len() {
                     self.tape.push(0xAA); // Blank (bbbb)
                 }
+            } else if self.head == 0 {
+                self.tape.insert(0, 0xAA);
+                self.head = 3;
             } else {
-                if self.head == 0 {
-                    self.tape.insert(0, 0xAA);
-                    self.head = 3;
-                } else {
-                    self.head -= 1;
-                }
+                self.head -= 1;
             }
             self.state = rule.next_state;
             false

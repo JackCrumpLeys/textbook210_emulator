@@ -78,7 +78,8 @@ fn criterion_benchmark(c: &mut Criterion) {
             emulator.r[2].set(10);
             // ADD R3, R1, R2
             emulator.ir.set(0b0001_011_001_000_010);
-            black_box(AddOp.execute(&mut emulator));
+            AddOp.execute(&mut emulator);
+            black_box(());
         });
     });
 
@@ -89,7 +90,8 @@ fn criterion_benchmark(c: &mut Criterion) {
             emulator.r[2].set(0x0F0F);
             // AND R3, R1, R2
             emulator.ir.set(0b0101_011_001_000_010);
-            black_box(AndOp.execute(&mut emulator));
+            AndOp.execute(&mut emulator);
+            black_box(());
         });
     });
 
@@ -100,7 +102,8 @@ fn criterion_benchmark(c: &mut Criterion) {
             emulator.n.set(1);
             // BRn #10 (branch if negative)
             emulator.ir.set(0b0000_100_000001010);
-            black_box(BrOp.execute(&mut emulator));
+            BrOp.execute(&mut emulator);
+            black_box(());
         });
     });
 
@@ -113,7 +116,8 @@ fn criterion_benchmark(c: &mut Criterion) {
             emulator.ir.set(0b0010_011_000000101);
             emulator.mar.set(0x3005);
             emulator.mdr.set(0x1234);
-            black_box(LdOp.execute(&mut emulator));
+            LdOp.execute(&mut emulator);
+            black_box(());
         });
     });
 
@@ -123,7 +127,8 @@ fn criterion_benchmark(c: &mut Criterion) {
             emulator.pc.set(0x3000);
             // JSR #20
             emulator.ir.set(0b0100_1_00000010100);
-            black_box(JsrOp.execute(&mut emulator));
+            JsrOp.execute(&mut emulator);
+            black_box(());
         });
     });
 
@@ -133,7 +138,8 @@ fn criterion_benchmark(c: &mut Criterion) {
             emulator.pc.set(0x3000);
             // TRAP x25 (HALT)
             emulator.ir.set(0b1111_0000_00100101);
-            black_box(TrapOp.execute(&mut emulator));
+            TrapOp.execute(&mut emulator);
+            black_box(());
         });
     });
 
