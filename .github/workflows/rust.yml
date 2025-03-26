@@ -128,6 +128,10 @@ jobs:
     - name: Building ${{ matrix.TARGET }}
       run: echo "${{ matrix.TARGET }}"
 
+    # becuase otherwise overide settings passed to command
+    - name: Remove rustup settings
+      run: rm /home/runner/.rustup/settings.toml
+
     - uses: actions/checkout@master
     - name: Install build dependencies - Rustup
       run: |

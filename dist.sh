@@ -1,8 +1,6 @@
 cargo fmt --all
 trunk build --release
 
-git stage *
-git commit -m $1
 git push
 
 cp -r dist/* ../210_web_fella/
