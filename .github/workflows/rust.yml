@@ -138,6 +138,7 @@ jobs:
     # Ref: https://github.com/cross-rs/cross/issues/1510
     - name: Install cross for linux
       env:
+        # They have this in their own ci so I thibnk the skill issue is on their end
         RUSTFLAGS: -D errors
       if: contains(matrix.TARGET, 'linux')
       run: |
