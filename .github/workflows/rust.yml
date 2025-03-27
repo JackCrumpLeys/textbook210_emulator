@@ -130,6 +130,8 @@ jobs:
 
     - uses: actions/checkout@master
     - name: Install build dependencies - Rustup
+      env:
+        RUSTFLAGS: 
       run: |
         curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable -y
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
@@ -139,7 +141,7 @@ jobs:
     - name: Install cross for linux
       if: contains(matrix.TARGET, 'linux')
       run: |
-        cargo install cross --git https://github.com/cross-rs/cross 
+        cargo install cross --git https://github.com/cross-rs/cross
 
     - name: Install cross for mac and windows
       if: ${{ !contains(matrix.TARGET, 'linux') }}
