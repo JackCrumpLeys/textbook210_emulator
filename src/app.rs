@@ -1,10 +1,4 @@
-use std::{
-    any::Any,
-    collections::BTreeSet,
-    fmt::Display,
-    ops::{Deref, DerefMut},
-    vec::IntoIter,
-};
+use std::{collections::BTreeSet, fmt::Display, ops::DerefMut, vec::IntoIter};
 
 use egui::{
     ahash::{HashMap, HashMapExt},
@@ -31,7 +25,7 @@ pub enum Pane {
     Emulator(Box<EmulatorPane>),
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct BaseConverter {
     input: String,
     output_hist: Vec<String>,
@@ -40,6 +34,20 @@ pub struct BaseConverter {
     base_out: u32,
     case_sensitive: bool,
     uppercase: bool,
+}
+
+impl Default for BaseConverter {
+    fn default() -> Self {
+        Self {
+            input: String::new(),
+            output_hist: Vec::new(),
+            alphabet: "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ".to_owned(),
+            base_in: 10,
+            base_out: 16,
+            case_sensitive: false,
+            uppercase: false,
+        }
+    }
 }
 
 impl Window for BaseConverter {
@@ -3075,7 +3083,11 @@ impl Pane {
     }
 
     fn iter_default() -> IntoIter<Pane> {
-        vec![Pane::Emulator(Box::default())].into_iter()
+        vec![
+            Pane::Emulator(Box::default()),
+            Pane::BaseConverter(BaseConverter::default()),
+        ]
+        .into_iter()
     }
 }
 
