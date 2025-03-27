@@ -163,7 +163,7 @@ pub struct EmulatorPane {
     tick: u64,
     display_base: u32,
     instruction_fields: InstructionFields,
-    input_stack: String, // getc is ripped off the start of the string
+    input_queue: String, // getc is ripped off the start of the string
     shell_input: String,
     machine_code_base: u32,
 }
@@ -197,7 +197,7 @@ impl Default for EmulatorPane {
                 imm_mode: false,
                 jsr_mode: true,
             },
-            input_stack: String::new(),
+            input_queue: String::new(),
             shell_input: String::new(),
             machine_code_base: 16,
         }
@@ -280,8 +280,8 @@ impl Window for EmulatorPane {
             ui.horizontal(|ui| {
                 ui.label("Input:");
                 ui.add(
-                    egui::TextEdit::singleline(&mut self.input_stack)
-                        .hint_text("Enter getc input stack here."),
+                    egui::TextEdit::singleline(&mut self.input_queue)
+                        .hint_text("Enter getc input queue here."),
                 );
             });
 
@@ -2216,9 +2216,9 @@ impl EmulatorPane {
 
                     if emulator.await_input.is_some()
                         && !emulator.await_input.unwrap()
-                        && !self.input_stack.is_empty()
+                        && !self.input_queue.is_empty()
                     {
-                        emulator.r[0].set(self.input_stack.remove(0) as u16);
+                        emulator.r[0].set(self.input_queue.remove(0) as u16);
                         emulator.await_input = None;
                     }
                 }
@@ -2271,10 +2271,10 @@ impl EmulatorPane {
         }
         ui.separator();
         if emulator.await_input.is_some() && !emulator.await_input.unwrap() {
-            if self.input_stack.is_empty() {
+            if self.input_queue.is_empty() {
                 ui.label("No input available pls enter some");
             } else {
-                emulator.r[0].set(self.input_stack.remove(0) as u16);
+                emulator.r[0].set(self.input_queue.remove(0) as u16);
                 emulator.await_input = None;
             }
         }
@@ -2749,15 +2749,6 @@ impl EmulatorPane {
                                     .color(egui::Color32::BLACK)
                                     .monospace(),
                             );
-
-                            // Add the comment if it exists
-                            if !comment_part.is_empty() {
-                                ui.label(
-                                    RichText::new(comment_part)
-                                        .color(egui::Color32::GRAY)
-                                        .monospace(),
-                                );
-                            }
                         } else if self.error.as_ref().is_some_and(|(_, line)| *line == i) {
                             // Extract the error text to highlight just that portion
                             if let Some((error_msg, _)) = &self.error {
@@ -2772,6 +2763,7 @@ impl EmulatorPane {
                                                 .monospace(),
                                         );
 
+                                        // Error part with more faded red background
                                         ui.label(
                                             RichText::new(format!("(error: {})", error_msg))
                                                 .color(egui::Color32::DARK_RED)
@@ -2782,31 +2774,16 @@ impl EmulatorPane {
                                         if parts.len() > 1 && !parts[1].is_empty() {
                                             ui.label(RichText::new(parts[1]).monospace());
                                         }
-
-                                        // Add the comment if it exists
-                                        if !comment_part.is_empty() {
-                                            ui.label(
-                                                RichText::new(comment_part)
-                                                    .color(egui::Color32::GRAY)
-                                                    .monospace(),
-                                            );
-                                        }
                                     });
-                                } else if self.breakpoints.contains(address) {
+                                }
+                            }
+                        } else if self.breakpoints.contains(address) {
                             ui.label(
                                 RichText::new(label)
+                                    .background_color(egui::Color32::LIGHT_RED)
                                     .color(egui::Color32::BLACK)
                                     .monospace(),
                             );
-
-                            // Add the comment if it exists
-                            if !comment_part.is_empty() {
-                                ui.label(
-                                    RichText::new(comment_part)
-                                        .color(egui::Color32::GRAY)
-                                        .monospace(),
-                                );
-                            }
                         } else if is_directive {
                             ui.label(
                                 RichText::new(label)
@@ -2814,26 +2791,16 @@ impl EmulatorPane {
                                     .color(egui::Color32::BLACK)
                                     .monospace(),
                             );
-
-                            // Add the comment if it exists
-                            if !comment_part.is_empty() {
-                                ui.label(
-                                    RichText::new(comment_part)
-                                        .color(egui::Color32::GRAY)
-                                        .monospace(),
-                                );
-                            }
                         } else {
                             ui.label(RichText::new(label).monospace());
-
-                            // Add the comment if it exists
-                            if !comment_part.is_empty() {
-                                ui.label(
-                                    RichText::new(comment_part)
-                                        .color(egui::Color32::GRAY)
-                                        .monospace(),
-                                );
-                            }
+                        }
+                        // Add the comment if it exists
+                        if !comment_part.is_empty() {
+                            ui.label(
+                                RichText::new(comment_part)
+                                    .color(egui::Color32::GRAY)
+                                    .monospace(),
+                            );
                         }
                     }
 
