@@ -2772,14 +2772,8 @@ impl EmulatorPane {
                                                 .monospace(),
                                         );
 
-                                        // Error part with more faded red background
                                         ui.label(
                                             RichText::new(format!("(error: {})", error_msg))
-                                                .background_color(
-                                                    egui::Color32::from_rgba_premultiplied(
-                                                        255, 150, 150, 120,
-                                                    ),
-                                                )
                                                 .color(egui::Color32::DARK_RED)
                                                 .monospace(),
                                         );
@@ -2798,44 +2792,9 @@ impl EmulatorPane {
                                             );
                                         }
                                     });
-                                } else {
-                                    // Fallback if splitting didn't work
-                                    ui.label(
-                                        RichText::new(label)
-                                            .color(egui::Color32::YELLOW)
-                                            .monospace(),
-                                    );
-
-                                    // Add the comment if it exists
-                                    if !comment_part.is_empty() {
-                                        ui.label(
-                                            RichText::new(comment_part)
-                                                .color(egui::Color32::GRAY)
-                                                .monospace(),
-                                        );
-                                    }
-                                }
-                            } else {
-                                // Fallback if error message is not available
-                                ui.label(
-                                    RichText::new(label)
-                                        .color(egui::Color32::YELLOW)
-                                        .monospace(),
-                                );
-
-                                // Add the comment if it exists
-                                if !comment_part.is_empty() {
-                                    ui.label(
-                                        RichText::new(comment_part)
-                                            .color(egui::Color32::GRAY)
-                                            .monospace(),
-                                    );
-                                }
-                            }
-                        } else if self.breakpoints.contains(address) {
+                                } else if self.breakpoints.contains(address) {
                             ui.label(
                                 RichText::new(label)
-                                    .background_color(egui::Color32::LIGHT_RED)
                                     .color(egui::Color32::BLACK)
                                     .monospace(),
                             );
