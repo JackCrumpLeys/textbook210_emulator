@@ -3122,12 +3122,9 @@ impl egui_tiles::Behavior<Pane> for TreeBehavior {
         let combobox_span = tracing::info_span!("add_pane_combobox", tile_id = tile_id.0);
         let _combobox_guard = combobox_span.enter();
 
-        // Collect the default panes into a vector.
-        let default_panes: Vec<Pane> = Pane::iter_default().collect();
+            // Collect the default panes into a vector.
+    let default_panes: Vec<Pane> = Pane::iter_default().collect();
 
-        if default_panes.len() == 1 {
-            self.add_child_to = Some((tile_id, default_panes[0].clone()));
-        } else {
         egui::ComboBox::from_label("")
             .selected_text("➕")
             .show_ui(ui, |ui| {
@@ -3139,7 +3136,6 @@ impl egui_tiles::Behavior<Pane> for TreeBehavior {
                     }
                 }
             });
-        }    
     }
 
     fn simplification_options(&self) -> egui_tiles::SimplificationOptions {
