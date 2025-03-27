@@ -1,4 +1,4 @@
-use std::{collections::BTreeSet, fmt::Display, ops::DerefMut, vec::IntoIter};
+use std::{collections::BTreeSet, fmt::Display, sync::Mutex, vec::IntoIter};
 
 use egui::{
     ahash::{HashMap, HashMapExt},
@@ -8,7 +8,6 @@ use egui_tiles::SimplificationOptions;
 
 use crate::emulator::{CpuState, Emulator, EmulatorCell};
 use lazy_static::lazy_static;
-use std::sync::Mutex;
 
 lazy_static! {
     static ref EMULATOR: Mutex<Emulator> = Mutex::new(Emulator::new());
@@ -25,7 +24,7 @@ pub enum Pane {
     Emulator(Box<EmulatorPane>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct BaseConverter {
     input: String,
     output_hist: Vec<String>,
@@ -34,20 +33,6 @@ pub struct BaseConverter {
     base_out: u32,
     case_sensitive: bool,
     uppercase: bool,
-}
-
-impl Default for BaseConverter {
-    fn default() -> Self {
-        Self {
-            input: String::new(),
-            output_hist: Vec::new(),
-            alphabet: "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ".to_owned(),
-            base_in: 10,
-            base_out: 16,
-            case_sensitive: false,
-            uppercase: false,
-        }
-    }
 }
 
 impl Window for BaseConverter {
@@ -156,6 +141,7 @@ pub struct EmulatorPane {
     last_compiled: String,
     breakpoints: Vec<usize>,
     error: Option<(String, usize)>,
+    emulator: Emulator,
     line_to_address: HashMap<usize, usize>,
     show_machine_code: bool,
     speed: u32,
@@ -163,7 +149,7 @@ pub struct EmulatorPane {
     tick: u64,
     display_base: u32,
     instruction_fields: InstructionFields,
-    input_queue: String, // getc is ripped off the start of the string
+    input_stack: String, // getc is ripped off the start of the string
     shell_input: String,
     machine_code_base: u32,
 }
@@ -175,6 +161,7 @@ impl Default for EmulatorPane {
             last_compiled: String::new(),
             breakpoints: Vec::new(),
             error: None,
+            emulator: Emulator::new(),
             line_to_address: HashMap::new(),
             show_machine_code: false,
             speed: 1,
@@ -197,7 +184,7 @@ impl Default for EmulatorPane {
                 imm_mode: false,
                 jsr_mode: true,
             },
-            input_queue: String::new(),
+            input_stack: String::new(),
             shell_input: String::new(),
             machine_code_base: 16,
         }
@@ -223,9 +210,6 @@ struct InstructionFields {
 }
 impl Window for EmulatorPane {
     fn render(&mut self, ui: &mut egui::Ui) {
-        let mut binding = EMULATOR.lock().unwrap();
-        let emulator = &mut binding.deref_mut();
-
         self.tick = self.tick.wrapping_add(1);
         egui::ScrollArea::vertical().show(ui, |ui| {
             egui::CollapsingHeader::new("LC-3 Emulator Help").show(ui, render_help_ui);
@@ -280,14 +264,14 @@ impl Window for EmulatorPane {
             ui.horizontal(|ui| {
                 ui.label("Input:");
                 ui.add(
-                    egui::TextEdit::singleline(&mut self.input_queue)
-                        .hint_text("Enter getc input queue here."),
+                    egui::TextEdit::singleline(&mut self.input_stack)
+                        .hint_text("Enter getc input stack here."),
                 );
             });
 
             // BUTTONS
             // STEP - RUN - RESET - SUBMIT INPUT
-            ui.horizontal(|ui| self.render_control_buttons_and_run_emulator(ui, emulator));
+            ui.horizontal(|ui| self.render_control_buttons_and_run_emulator(ui));
 
             // STATE
             // Show LC-3 registers and flags
@@ -299,46 +283,55 @@ impl Window for EmulatorPane {
             egui::CollapsingHeader::new("Registers")
                 .default_open(false)
                 .show(ui, |ui| {
-                    self.render_register_editor(ui, emulator);
+                    self.render_register_editor(ui);
                 });
 
             egui::CollapsingHeader::new("Flags")
                 .default_open(false)
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
-                        if ui.selectable_label(emulator.n.get() == 1, "N").clicked() {
-                            emulator.n.set(1);
-                            emulator.z.set(0);
-                            emulator.p.set(0);
+                        if ui
+                            .selectable_label(self.emulator.n.get() == 1, "N")
+                            .clicked()
+                        {
+                            self.emulator.n.set(1);
+                            self.emulator.z.set(0);
+                            self.emulator.p.set(0);
                         }
 
-                        if ui.selectable_label(emulator.z.get() == 1, "Z").clicked() {
-                            emulator.z.set(1);
-                            emulator.n.set(0);
-                            emulator.p.set(0);
+                        if ui
+                            .selectable_label(self.emulator.z.get() == 1, "Z")
+                            .clicked()
+                        {
+                            self.emulator.z.set(1);
+                            self.emulator.n.set(0);
+                            self.emulator.p.set(0);
                         }
 
-                        if ui.selectable_label(emulator.p.get() == 1, "P").clicked() {
-                            emulator.p.set(1);
-                            emulator.n.set(0);
-                            emulator.z.set(0);
+                        if ui
+                            .selectable_label(self.emulator.p.get() == 1, "P")
+                            .clicked()
+                        {
+                            self.emulator.p.set(1);
+                            self.emulator.n.set(0);
+                            self.emulator.z.set(0);
                         }
                     });
                 });
 
             egui::CollapsingHeader::new("Processor Cycle")
                 .default_open(false)
-                .show(ui, |ui| self.render_cycle_view(ui, emulator));
+                .show(ui, |ui| self.render_cycle_view(ui));
 
             ui.separator();
 
             egui::CollapsingHeader::new("Output")
                 .default_open(true)
                 .show(ui, |ui| {
-                    self.render_output(ui, emulator);
+                    self.render_output(ui);
                 });
 
-            if emulator.await_input.is_some() && emulator.await_input.unwrap() {
+            if self.emulator.await_input.is_some() && self.emulator.await_input.unwrap() {
                 ui.vertical(|ui| {
                     ui.label(
                         RichText::new("TRAP IN Waiting for input:")
@@ -353,9 +346,9 @@ impl Window for EmulatorPane {
 
                         if ui.button("Submit").clicked() && !self.shell_input.is_empty() {
                             let c = self.shell_input.chars().next().unwrap();
-                            emulator.r[0].set(c as u16);
-                            emulator.output.push(c); // Echo the character
-                            emulator.await_input = None;
+                            self.emulator.r[0].set(c as u16);
+                            self.emulator.output.push(c); // Echo the character
+                            self.emulator.await_input = None;
                             self.shell_input.clear();
                         }
                     });
@@ -365,7 +358,7 @@ impl Window for EmulatorPane {
                 });
             }
 
-            self.compiled_view(ui, emulator);
+            self.compiled_view(ui);
         });
     }
 
@@ -2184,50 +2177,50 @@ impl EmulatorPane {
         });
     }
 
-    fn render_control_buttons_and_run_emulator(
-        &mut self,
-        ui: &mut egui::Ui,
-        emulator: &mut Emulator,
-    ) {
+    fn render_control_buttons_and_run_emulator(&mut self, ui: &mut egui::Ui) {
         if ui.button("Small Step").clicked() {
-            let _ = emulator.micro_step();
+            let _ = self.emulator.micro_step();
         }
         if ui.button("Step").clicked() {
-            let _ = emulator.step();
+            let _ = self.emulator.step();
         }
-        if emulator.running {
-            if emulator.await_input.is_none() && self.tick % self.ticks_between_updates as u64 == 0
+        if self.emulator.running {
+            if self.emulator.await_input.is_none()
+                && self.tick % self.ticks_between_updates as u64 == 0
             {
                 let mut i = 0;
-                while emulator.await_input.is_none() && emulator.running && i < self.speed {
-                    match emulator.micro_step() {
+                while self.emulator.await_input.is_none() && self.emulator.running && i < self.speed
+                {
+                    match self.emulator.micro_step() {
                         Ok(_) => {}
                         Err(_) => {
-                            emulator.running = false;
+                            self.emulator.running = false;
                             break;
                         }
                     }
                     i += 1;
-                    if self.breakpoints.contains(&(emulator.pc.get() as usize))
-                        && emulator.cpu_state == CpuState::Decode
+                    if self
+                        .breakpoints
+                        .contains(&(self.emulator.pc.get() as usize))
+                        && self.emulator.cpu_state == CpuState::Decode
                     {
-                        emulator.running = false;
+                        self.emulator.running = false;
                     }
 
-                    if emulator.await_input.is_some()
-                        && !emulator.await_input.unwrap()
-                        && !self.input_queue.is_empty()
+                    if self.emulator.await_input.is_some()
+                        && !self.emulator.await_input.unwrap()
+                        && !self.input_stack.is_empty()
                     {
-                        emulator.r[0].set(self.input_queue.remove(0) as u16);
-                        emulator.await_input = None;
+                        self.emulator.r[0].set(self.input_stack.remove(0) as u16);
+                        self.emulator.await_input = None;
                     }
                 }
             }
             if ui.button("Pause").clicked() {
-                emulator.running = false;
+                self.emulator.running = false;
             }
         } else if ui.button("Run").clicked() {
-            emulator.running = true;
+            self.emulator.running = true;
         }
         if self.last_compiled.is_empty() {
             // compile
@@ -2239,7 +2232,7 @@ impl EmulatorPane {
                         .enumerate()
                         .map(|(i, (x, _))| (*x, i + orig_address as usize))
                         .collect();
-                    emulator.flash_memory(
+                    self.emulator.flash_memory(
                         instructions.into_iter().map(|(_, y)| y).collect(),
                         orig_address,
                     );
@@ -2250,7 +2243,7 @@ impl EmulatorPane {
                 self.last_compiled = self.program.clone();
             }
         } else if ui.button("Reset & compile").clicked() {
-            *emulator = Emulator::new();
+            self.emulator = Emulator::new();
             let data_to_load = Emulator::parse_program(&self.program);
             if let Ok((instructions, _, orig_address)) = data_to_load {
                 self.line_to_address = instructions
@@ -2258,7 +2251,7 @@ impl EmulatorPane {
                     .enumerate()
                     .map(|(i, (x, _))| (*x, i + orig_address as usize))
                     .collect();
-                emulator.flash_memory(
+                self.emulator.flash_memory(
                     instructions.into_iter().map(|(_, y)| y).collect(),
                     orig_address,
                 );
@@ -2270,49 +2263,49 @@ impl EmulatorPane {
             self.last_compiled = self.program.clone();
         }
         ui.separator();
-        if emulator.await_input.is_some() && !emulator.await_input.unwrap() {
-            if self.input_queue.is_empty() {
+        if self.emulator.await_input.is_some() && !self.emulator.await_input.unwrap() {
+            if self.input_stack.is_empty() {
                 ui.label("No input available pls enter some");
             } else {
-                emulator.r[0].set(self.input_queue.remove(0) as u16);
-                emulator.await_input = None;
+                self.emulator.r[0].set(self.input_stack.remove(0) as u16);
+                self.emulator.await_input = None;
             }
         }
     }
 
-    fn render_register_editor(&mut self, ui: &mut egui::Ui, emulator: &mut Emulator) {
+    fn render_register_editor(&mut self, ui: &mut egui::Ui) {
         for i in 0..8 {
             ui.horizontal(|ui| {
                 ui.label(format!("R{}:", i));
-                register_view(ui, &mut emulator.r[i], self.display_base);
+                register_view(ui, &mut self.emulator.r[i], self.display_base);
             });
         }
 
         ui.horizontal(|ui| {
             ui.label("PC:");
-            register_view(ui, &mut emulator.pc, self.display_base);
+            register_view(ui, &mut self.emulator.pc, self.display_base);
         });
 
         ui.horizontal(|ui| {
             ui.label("MDR:");
-            register_view(ui, &mut emulator.mdr, self.display_base);
+            register_view(ui, &mut self.emulator.mdr, self.display_base);
         });
 
         ui.horizontal(|ui| {
             ui.label("MAR:");
-            register_view(ui, &mut emulator.mar, self.display_base);
+            register_view(ui, &mut self.emulator.mar, self.display_base);
         });
 
         ui.horizontal(|ui| {
             ui.label("IR:");
-            register_view(ui, &mut emulator.ir, self.display_base);
+            register_view(ui, &mut self.emulator.ir, self.display_base);
         });
     }
 
-    fn render_cycle_view(&mut self, ui: &mut egui::Ui, emulator: &mut Emulator) {
+    fn render_cycle_view(&mut self, ui: &mut egui::Ui) {
         let cycles = ["Fetch", "Decode", "Get memory", "Execute"];
-        let current_cycle = emulator.cpu_state as usize;
-        let instruction_text = match emulator.ir.get() {
+        let current_cycle = self.emulator.cpu_state as usize;
+        let instruction_text = match self.emulator.ir.get() {
             0x1000..=0x1FFF => "ADD - Addition Operation",
             0x5000..=0x5FFF => "AND - Bitwise AND Operation",
             0x0000..=0x0FFF => "BR - Branch Operation",
@@ -2333,7 +2326,7 @@ impl EmulatorPane {
         // Find the corresponding source line if available
         let source_line = self
             .line_to_address
-            .get(&(emulator.pc.get() as usize))
+            .get(&(self.emulator.pc.get() as usize))
             .and_then(|&line_num| self.last_compiled.lines().nth(line_num))
             .unwrap_or("Unknown instruction");
         let mut description = RichText::new("NO CURRENT CYCLE");
@@ -2354,27 +2347,27 @@ impl EmulatorPane {
                                     The PC (Program Counter) is used to determine which instruction to fetch. \
                                     The MAR is loaded with the PC value, and the MDR will receive the instruction from memory. \
                                     After fetching, PC is incremented to point to the next instruction."
-                        , emulator.pc.get())).color(egui::Color32::LIGHT_GREEN),
+                        , self.emulator.pc.get())).color(egui::Color32::LIGHT_GREEN),
 
                     1 => RichText::new(format!(
                         "DECODE: The processor is analyzing instruction {:#06x} to determine what operation to perform. \
                                     The IR (Instruction Register) contains the fetched instruction, with the 4 most significant bits \
                                     identifying the operation type. Current instruction appears to be {}. \
                                     Source and destination registers are being identified.",
-                        emulator.ir.get(), instruction_text)).color(egui::Color32::LIGHT_YELLOW),
+                        self.emulator.ir.get(), instruction_text)).color(egui::Color32::LIGHT_YELLOW),
 
                     2 => RichText::new(format!(
                         "MEMORY ACCESS: The processor is accessing memory to read required for execution. \
                                     The MAR contains address {:#06x} to be accessed and loaded into the MDR (the operation will change the value if it needs to read memory). \
                                     This step is necessary for instructions like LDI, ST, STI, and STR that read memory.",
-                        emulator.mar.get())).color(egui::Color32::LIGHT_BLUE),
+                        self.emulator.mar.get())).color(egui::Color32::LIGHT_BLUE),
 
                     3 => RichText::new(format!(
                         "EXECUTE: The processor is performing the actual operation specified by the instruction. \
                                     Instruction '{:#06x}' ({}), which corresponds to '{}' is being executed. \
                                     This may involve arithmetic/logic operations, updating registers, or modifying condition codes (N={}, Z={}, P={}).",
-                        emulator.ir.get(), instruction_text, source_line.trim(),
-                        emulator.n.get(), emulator.z.get(), emulator.p.get())).color(egui::Color32::GOLD),
+                        self.emulator.ir.get(), instruction_text, source_line.trim(),
+                        self.emulator.n.get(), self.emulator.z.get(), self.emulator.p.get())).color(egui::Color32::GOLD),
 
                     _ => RichText::new("UNKNOWN CYCLE").color(egui::Color32::RED),
                 };
@@ -2389,9 +2382,9 @@ impl EmulatorPane {
         ui.horizontal(|ui| {
             // Always show condition flags
             ui.label("Condition Flags:");
-            let n_text = format!("N={}", emulator.n.get());
-            let z_text = format!("Z={}", emulator.z.get());
-            let p_text = format!("P={}", emulator.p.get());
+            let n_text = format!("N={}", self.emulator.n.get());
+            let z_text = format!("Z={}", self.emulator.z.get());
+            let p_text = format!("P={}", self.emulator.p.get());
 
             // Highlight flags modified in the last cycle
             if current_cycle == 3 {
@@ -2408,8 +2401,8 @@ impl EmulatorPane {
         ui.horizontal(|ui| {
             // Always show memory access registers
             ui.label("Memory Access:");
-            let mar_text = format!("MAR={:#06x}", emulator.mar.get());
-            let mdr_text = format!("MDR={:#06x}", emulator.mdr.get());
+            let mar_text = format!("MAR={:#06x}", self.emulator.mar.get());
+            let mdr_text = format!("MDR={:#06x}", self.emulator.mdr.get());
 
             if current_cycle == 0 || current_cycle == 2 {
                 // Fetch or Memory Access cycle
@@ -2427,7 +2420,7 @@ impl EmulatorPane {
         ui.horizontal(|ui| {
             // Always show instruction register
             ui.label("Instruction:");
-            let ir_text = format!("IR={:#06x}", emulator.ir.get());
+            let ir_text = format!("IR={:#06x}", self.emulator.ir.get());
 
             // Highlight IR when it's being actively used
             if current_cycle == 0 {
@@ -2441,7 +2434,7 @@ impl EmulatorPane {
             }
 
             // Show PC as well
-            let pc_text = format!("PC={:#06x}", emulator.pc.get());
+            let pc_text = format!("PC={:#06x}", self.emulator.pc.get());
             if current_cycle == 0 {
                 // Fetch uses PC
                 ui.label(RichText::new(pc_text).color(egui::Color32::LIGHT_GREEN));
@@ -2451,13 +2444,13 @@ impl EmulatorPane {
         });
     }
 
-    fn render_output(&mut self, ui: &mut egui::Ui, emulator: &mut Emulator) {
+    fn render_output(&mut self, ui: &mut egui::Ui) {
         ui.label(RichText::new("Output from program:").strong());
 
         egui::ScrollArea::vertical()
             .max_height(150.0)
             .show(ui, |ui| {
-                if emulator.output.is_empty() {
+                if self.emulator.output.is_empty() {
                     ui.label(
                         RichText::new("No output yet")
                             .italics()
@@ -2465,7 +2458,7 @@ impl EmulatorPane {
                     );
                 } else {
                     ui.add(
-                        egui::TextEdit::multiline(&mut emulator.output.clone())
+                        egui::TextEdit::multiline(&mut self.emulator.output.clone())
                             .desired_width(f32::INFINITY)
                             .font(egui::TextStyle::Monospace)
                             .interactive(false),
@@ -2473,23 +2466,23 @@ impl EmulatorPane {
                 }
             });
 
-        if !emulator.output.is_empty() {
+        if !self.emulator.output.is_empty() {
             ui.horizontal(|ui| {
                 if ui.button("Clear Output").clicked() {
-                    emulator.output.clear();
+                    self.emulator.output.clear();
                 }
 
                 if ui.button("Copy to Clipboard").clicked() {
                     ui.output_mut(|o| {
                         o.commands
-                            .push(OutputCommand::CopyText(emulator.output.clone()))
+                            .push(OutputCommand::CopyText(self.emulator.output.clone()))
                     });
                 }
             });
         }
     }
 
-    fn compiled_view(&mut self, ui: &mut egui::Ui, emulator: &mut Emulator) {
+    fn compiled_view(&mut self, ui: &mut egui::Ui) {
         if let Some((error, line)) = &self.error {
             ui.label(
                 RichText::new(format!("Error on line {}: {}", line, error))
@@ -2709,7 +2702,7 @@ impl EmulatorPane {
                 log::info!("label: {}", label);
 
                 if self.show_machine_code {
-                    if let Some(instruction) = emulator.memory.get(*address) {
+                    if let Some(instruction) = self.emulator.memory.get(*address) {
                         match self.machine_code_base {
                             2 => label = format!("{:016b}", instruction.get()),
                             16 => label = format!("0x{:04X}", instruction.get()),
@@ -2726,7 +2719,7 @@ impl EmulatorPane {
                     }
                 }
 
-                if *address == 1 + emulator.pc.get() as usize {
+                if *address == 1 + self.emulator.pc.get() as usize {
                     label = format!("0x{:04X}: {} (pc)", address, label);
                 } else {
                     label = format!("0x{:04X}: {}", address, label);
@@ -2741,14 +2734,23 @@ impl EmulatorPane {
                         }
                     }
                     // Color coding
-                    if let Some(_instruction) = emulator.memory.get(*address) {
-                        if emulator.pc.get() as usize == *address {
+                    if let Some(_instruction) = self.emulator.memory.get(*address) {
+                        if self.emulator.pc.get() as usize == *address {
                             ui.label(
                                 RichText::new(label)
                                     .background_color(egui::Color32::GREEN)
                                     .color(egui::Color32::BLACK)
                                     .monospace(),
                             );
+
+                            // Add the comment if it exists
+                            if !comment_part.is_empty() {
+                                ui.label(
+                                    RichText::new(comment_part)
+                                        .color(egui::Color32::GRAY)
+                                        .monospace(),
+                                );
+                            }
                         } else if self.error.as_ref().is_some_and(|(_, line)| *line == i) {
                             // Extract the error text to highlight just that portion
                             if let Some((error_msg, _)) = &self.error {
@@ -2766,6 +2768,11 @@ impl EmulatorPane {
                                         // Error part with more faded red background
                                         ui.label(
                                             RichText::new(format!("(error: {})", error_msg))
+                                                .background_color(
+                                                    egui::Color32::from_rgba_premultiplied(
+                                                        255, 150, 150, 120,
+                                                    ),
+                                                )
                                                 .color(egui::Color32::DARK_RED)
                                                 .monospace(),
                                         );
@@ -2774,7 +2781,48 @@ impl EmulatorPane {
                                         if parts.len() > 1 && !parts[1].is_empty() {
                                             ui.label(RichText::new(parts[1]).monospace());
                                         }
+
+                                        // Add the comment if it exists
+                                        if !comment_part.is_empty() {
+                                            ui.label(
+                                                RichText::new(comment_part)
+                                                    .color(egui::Color32::GRAY)
+                                                    .monospace(),
+                                            );
+                                        }
                                     });
+                                } else {
+                                    // Fallback if splitting didn't work
+                                    ui.label(
+                                        RichText::new(label)
+                                            .color(egui::Color32::YELLOW)
+                                            .monospace(),
+                                    );
+
+                                    // Add the comment if it exists
+                                    if !comment_part.is_empty() {
+                                        ui.label(
+                                            RichText::new(comment_part)
+                                                .color(egui::Color32::GRAY)
+                                                .monospace(),
+                                        );
+                                    }
+                                }
+                            } else {
+                                // Fallback if error message is not available
+                                ui.label(
+                                    RichText::new(label)
+                                        .color(egui::Color32::YELLOW)
+                                        .monospace(),
+                                );
+
+                                // Add the comment if it exists
+                                if !comment_part.is_empty() {
+                                    ui.label(
+                                        RichText::new(comment_part)
+                                            .color(egui::Color32::GRAY)
+                                            .monospace(),
+                                    );
                                 }
                             }
                         } else if self.breakpoints.contains(address) {
@@ -2784,6 +2832,15 @@ impl EmulatorPane {
                                     .color(egui::Color32::BLACK)
                                     .monospace(),
                             );
+
+                            // Add the comment if it exists
+                            if !comment_part.is_empty() {
+                                ui.label(
+                                    RichText::new(comment_part)
+                                        .color(egui::Color32::GRAY)
+                                        .monospace(),
+                                );
+                            }
                         } else if is_directive {
                             ui.label(
                                 RichText::new(label)
@@ -2791,25 +2848,35 @@ impl EmulatorPane {
                                     .color(egui::Color32::BLACK)
                                     .monospace(),
                             );
+
+                            // Add the comment if it exists
+                            if !comment_part.is_empty() {
+                                ui.label(
+                                    RichText::new(comment_part)
+                                        .color(egui::Color32::GRAY)
+                                        .monospace(),
+                                );
+                            }
                         } else {
                             ui.label(RichText::new(label).monospace());
-                        }
-                        // Add the comment if it exists
-                        if !comment_part.is_empty() {
-                            ui.label(
-                                RichText::new(comment_part)
-                                    .color(egui::Color32::GRAY)
-                                    .monospace(),
-                            );
+
+                            // Add the comment if it exists
+                            if !comment_part.is_empty() {
+                                ui.label(
+                                    RichText::new(comment_part)
+                                        .color(egui::Color32::GRAY)
+                                        .monospace(),
+                                );
+                            }
                         }
                     }
 
                     // Allow editing memory values
                     if is_directive || code_part.contains(".FILL") {
-                        let value_u16 = emulator.memory[*address].get();
+                        let value_u16 = self.emulator.memory[*address].get();
                         let mut value = value_u16 as i16;
                         if ui.add(egui::DragValue::new(&mut value)).changed() {
-                            emulator.memory[*address].set(value as u16);
+                            self.emulator.memory[*address].set(value as u16);
                         }
                     }
                 });
@@ -3009,11 +3076,7 @@ impl Pane {
     }
 
     fn iter_default() -> IntoIter<Pane> {
-        vec![
-            Pane::Emulator(Box::default()),
-            Pane::BaseConverter(BaseConverter::default()),
-        ]
-        .into_iter()
+        vec![Pane::Emulator(Box::default())].into_iter()
     }
 }
 
@@ -3225,7 +3288,7 @@ impl eframe::App for TemplateApp {
         //     let tile_ui_span = tracing::info_span!("tile_tree_ui");
         //     let _tile_ui_guard = tile_ui_span.enter();
 
-        //     emulator.render(ui);
+        //     self.emulator.render(ui);
         //     tracing::trace!("Tile tree UI render complete");
         // });
 
