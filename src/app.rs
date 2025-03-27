@@ -6,7 +6,7 @@ use egui::{
 };
 use egui_tiles::SimplificationOptions;
 
-use crate::emulator::Emulator;
+use crate::emulator::{CpuState, Emulator, EmulatorCell};
 
 pub trait Window: Default {
     fn render(&mut self, ui: &mut egui::Ui);
@@ -266,7 +266,7 @@ impl Window for EmulatorPane {
 
             // BUTTONS
             // STEP - RUN - RESET - SUBMIT INPUT
-            ui.horizontal(|ui| self.render_control_buttons(ui));
+            ui.horizontal(|ui| self.render_control_buttons_and_run_emulator(ui));
 
             // STATE
             // Show LC-3 registers and flags
@@ -550,8 +550,6 @@ ARRAY:  .FILL #10           ; Array values
 
 impl EmulatorPane {
     fn render_reference(&mut self, ui: &mut egui::Ui) {
-        // AI should add state for binary representations and instruction fields
-        // This structure will hold the modifiable fields for each instruction
         let instruction_fields = &mut self.instruction_fields;
         let format_binary =
             |value: u16, width: usize| -> String { format!("{:0width$b}", value, width = width) };
@@ -2174,7 +2172,7 @@ impl EmulatorPane {
         });
     }
 
-    fn render_control_buttons(&mut self, ui: &mut egui::Ui) {
+    fn render_control_buttons_and_run_emulator(&mut self, ui: &mut egui::Ui) {
         if ui.button("Small Step").clicked() {
             let _ = self.emulator.micro_step();
         }
@@ -2199,6 +2197,7 @@ impl EmulatorPane {
                     if self
                         .breakpoints
                         .contains(&(self.emulator.pc.get() as usize))
+                        && self.emulator.cpu_state == CpuState::Decode
                     {
                         self.emulator.running = false;
                     }
@@ -2269,49 +2268,32 @@ impl EmulatorPane {
         }
     }
 
-    fn register_view(&mut self, ui: &mut egui::Ui, mut value: i16) {
-        if ui.add(egui::DragValue::new(&mut value)).changed() {
-            self.emulator.ir.set(value as u16);
-        }
-        ui.label(base_to_base(
-            10,
-            self.display_base,
-            &(self.emulator.ir.get() as u32).to_string(),
-            "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ",
-        ));
-    }
-
     fn render_register_editor(&mut self, ui: &mut egui::Ui) {
         for i in 0..8 {
             ui.horizontal(|ui| {
                 ui.label(format!("R{}:", i));
-                let value = self.emulator.r[i].get() as i16;
-                self.register_view(ui, value);
+                register_view(ui, &mut self.emulator.r[i], self.display_base);
             });
         }
 
         ui.horizontal(|ui| {
             ui.label("PC:");
-            let pc_value = self.emulator.pc.get() as i16;
-            self.register_view(ui, pc_value);
+            register_view(ui, &mut self.emulator.pc, self.display_base);
         });
 
         ui.horizontal(|ui| {
             ui.label("MDR:");
-            let mdr_value = self.emulator.mdr.get() as i16;
-            self.register_view(ui, mdr_value);
+            register_view(ui, &mut self.emulator.mdr, self.display_base);
         });
 
         ui.horizontal(|ui| {
             ui.label("MAR:");
-            let mar_value = self.emulator.mar.get() as i16;
-            self.register_view(ui, mar_value);
+            register_view(ui, &mut self.emulator.mar, self.display_base);
         });
 
         ui.horizontal(|ui| {
             ui.label("IR:");
-            let ir_value = self.emulator.ir.get() as i16;
-            self.register_view(ui, ir_value);
+            register_view(ui, &mut self.emulator.ir, self.display_base);
         });
     }
 
@@ -2981,6 +2963,18 @@ impl EmulatorPane {
             }
         }
     }
+}
+
+fn register_view(ui: &mut egui::Ui, value_cell: &mut EmulatorCell, base: u32) {
+    let mut value = value_cell.get() as i16;
+    ui.add(egui::DragValue::new(&mut value));
+    value_cell.set(value as u16);
+    ui.label(base_to_base(
+        10,
+        base,
+        &(value_cell.get() as u32).to_string(),
+        "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+    ));
 }
 
 fn render_help_ui(ui: &mut egui::Ui) {

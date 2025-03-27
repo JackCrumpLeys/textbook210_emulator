@@ -3837,13 +3837,6 @@ mod tests {
         tracing::info_span!("test_full_program_execution").in_scope(|| {
             tracing::info!("Starting comprehensive program execution test with all instructions");
 
-            // Create a complex program that exercises all LC-3 instructions:
-            // - Uses arithmetic operations (ADD, AND)
-            // - Tests branching (BR)
-            // - Uses memory operations (LD, LDI, LDR, LEA, ST, STI, STR)
-            // - Uses bitwise operations (NOT)
-            // - Uses subroutines (JSR, JSRR, RET)
-            // - Uses trap routines (TRAP)
             let program = r#"
             .ORIG x3000
 
