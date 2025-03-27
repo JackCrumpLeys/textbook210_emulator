@@ -1,18 +1,18 @@
-pub(super) use add::AddOp;
-pub(super) use and::AndOp;
-pub(super) use br::BrOp;
-pub(super) use jmp::JmpOp;
-pub(super) use jsr::JsrOp;
-pub(super) use ld::LdOp;
-pub(super) use ldi::LdiOp;
-pub(super) use ldr::LdrOp;
-pub(super) use lea::LeaOp;
-pub(super) use not::NotOp;
-pub(super) use rti::RtiOp;
-pub(super) use st::StOp;
-pub(super) use sti::StiOp;
-pub(super) use str_op::StrOp;
-pub(super) use trap::TrapOp;
+pub use add::AddOp;
+pub use and::AndOp;
+pub use br::BrOp;
+pub use jmp::JmpOp;
+pub use jsr::JsrOp;
+pub use ld::LdOp;
+pub use ldi::LdiOp;
+pub use ldr::LdrOp;
+pub use lea::LeaOp;
+pub use not::NotOp;
+pub use rti::RtiOp;
+pub use st::StOp;
+pub use sti::StiOp;
+pub use str_op::StrOp;
+pub use trap::TrapOp;
 
 use super::Emulator;
 

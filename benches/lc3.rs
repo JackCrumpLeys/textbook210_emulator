@@ -1,7 +1,8 @@
 #![allow(clippy::unusual_byte_groupings)] // so we can group bits by instruction parts
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use tools_for_210::emulator::*;
+use tools_for_210::emulator::ops::*;
+use tools_for_210::emulator::Emulator;
 
 fn criterion_benchmark(c: &mut Criterion) {
     // Test program that covers all LC-3 instructions

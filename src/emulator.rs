@@ -1,7 +1,7 @@
 #![allow(clippy::unusual_byte_groupings)] // so we can group bits by instruction parts
 #![allow(clippy::reversed_empty_ranges)] // We want to use ranges for bis like we have in class (big:small)
 
-mod ops;
+pub mod ops;
 pub mod parse;
 #[cfg(test)]
 mod tests;
