@@ -130,8 +130,6 @@ jobs:
 
     - uses: actions/checkout@master
     - name: Install build dependencies - Rustup
-      env:
-        RUSTFLAGS: -D errors
       run: |
         curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable -y
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
@@ -139,6 +137,8 @@ jobs:
     # For linux, it's necessary to use cross from the git repository to avoid glibc problems
     # Ref: https://github.com/cross-rs/cross/issues/1510
     - name: Install cross for linux
+      env:
+        RUSTFLAGS: -D errors
       if: contains(matrix.TARGET, 'linux')
       run: |
         cargo install cross --git https://github.com/cross-rs/cross
