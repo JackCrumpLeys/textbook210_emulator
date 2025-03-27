@@ -128,11 +128,6 @@ jobs:
     - name: Building ${{ matrix.TARGET }}
       run: echo "${{ matrix.TARGET }}"
 
-    # becuase otherwise overide settings passed to command
-    - name: Remove rustup settings
-      run: rm /home/runner/.rustup/settings.toml
-      continue-on-error: true
-
     - uses: actions/checkout@master
     - name: Install build dependencies - Rustup
       run: |
@@ -144,7 +139,7 @@ jobs:
     - name: Install cross for linux
       if: contains(matrix.TARGET, 'linux')
       run: |
-        cargo install cross
+        cargo install cross --git https://github.com/cross-rs/cross 
 
     - name: Install cross for mac and windows
       if: ${{ !contains(matrix.TARGET, 'linux') }}
