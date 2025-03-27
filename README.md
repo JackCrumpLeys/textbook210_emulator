@@ -8,7 +8,7 @@ A version of the website that is always up to date as long as the code compiles 
 
 # Important License Notice
 
-This LC-3 Emulator is licensed under the GNU Affero General Public License v3 (AGPL-3.0). This license requires that:
+This LC-3 Emulator & toolkit is licensed under the GNU Affero General Public License v3 (AGPL-3.0). This license requires that:
 
 1. **Any derivative works must also be released under the AGPL-3.0**
 2. **If you modify and use this software over a network (such as a web application), you MUST make the complete source code available to users**
