@@ -24,7 +24,7 @@ pub enum Pane {
     Emulator(Box<EmulatorPane>),
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct BaseConverter {
     input: String,
     output_hist: Vec<String>,
@@ -33,6 +33,20 @@ pub struct BaseConverter {
     base_out: u32,
     case_sensitive: bool,
     uppercase: bool,
+}
+
+impl Default for BaseConverter {
+    fn default() -> Self {
+        Self {
+            input: Default::default(),
+            output_hist: Default::default(),
+            alphabet: "0123456789ABCDEFGHIJCLMNOPQRSTUVWXYZ".to_owned(),
+            base_in: 10,
+            base_out: 16,
+            case_sensitive: Default::default(),
+            uppercase: Default::default(),
+        }
+    }
 }
 
 impl Window for BaseConverter {
