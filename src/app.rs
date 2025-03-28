@@ -3076,7 +3076,11 @@ impl Pane {
     }
 
     fn iter_default() -> IntoIter<Pane> {
-        vec![Pane::Emulator(Box::default())].into_iter()
+        vec![
+            Pane::Emulator(Box::default()),
+            Pane::BaseConverter(BaseConverter::default()),
+        ]
+        .into_iter()
     }
 }
 
