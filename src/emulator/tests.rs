@@ -1,5 +1,6 @@
 use super::*;
 use ops::*;
+use parse::ParseOutput;
 use tracing_test::traced_test;
 
 #[traced_test]
@@ -840,39 +841,17 @@ fn test_full_program_execution() {
         // Check if parsing was successful
         assert!(parse_result.is_ok(), "Program parsing should succeed");
 
-        let (instructions, labels, orig_address) = parse_result.unwrap();
-
-        tracing::debug!(
-            instruction_count = instructions.len(),
-            origin = format!("0x{:04X}", orig_address),
-            "Program parsed successfully"
-        );
-
-        // Dump parsed instructions
-        for (i, (_line_num, instruction)) in instructions.iter().enumerate() {
-            tracing::debug!(
-                address = format!("0x{:04X}", orig_address as usize + i),
-                instruction = format!("0x{:04X}", instruction),
-                "Parsed instruction"
-            );
-        }
-
-        // Dump labels
-        for (name, addr) in labels.iter() {
-            tracing::debug!(
-                label = name,
-                address = format!("0x{:04X}", addr),
-                "Label in program"
-            );
-        }
+        let ParseOutput {
+            labels,
+            orig_address,
+            machine_code,
+            ..
+        } = parse_result.unwrap();
 
         // Create an emulator and load the program
         let mut machine_state = Emulator::new();
         tracing::debug!("Loading program into emulator");
-        machine_state.flash_memory(
-            instructions.into_iter().map(|(_, instr)| instr).collect(),
-            orig_address,
-        );
+        machine_state.flash_memory(machine_code, orig_address);
 
         // Verify the program was loaded correctly
         assert_eq!(
@@ -1073,10 +1052,15 @@ fn test_c_println_assembly() {
         // Check if parsing was successful
         assert!(parse_result.is_ok(), "Assembly parsing should succeed");
 
-        let (instructions, labels, orig_address) = parse_result.unwrap();
+        let ParseOutput {
+            machine_code,
+            line_to_address,
+            labels,
+            orig_address,
+        } = parse_result.unwrap();
 
         tracing::debug!(
-            instruction_count = instructions.len(),
+            instruction_count = machine_code.len(),
             label_count = labels.len(),
             origin = format!("0x{:04X}", orig_address),
             "Assembly parsed successfully"
@@ -1085,10 +1069,7 @@ fn test_c_println_assembly() {
         // Create an emulator and load the program
         let mut machine_state = Emulator::new();
         tracing::debug!("Loading assembly program into emulator");
-        machine_state.flash_memory(
-            instructions.into_iter().map(|(_, instr)| instr).collect(),
-            orig_address,
-        );
+        machine_state.flash_memory(machine_code, orig_address);
 
         // Execute the program with a maximum number of steps
         tracing::debug!("Beginning C-generated assembly program execution");

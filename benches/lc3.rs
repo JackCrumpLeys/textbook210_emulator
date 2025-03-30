@@ -2,6 +2,7 @@
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use tools_for_210::emulator::ops::*;
+use tools_for_210::emulator::parse::ParseOutput;
 use tools_for_210::emulator::Emulator;
 
 fn criterion_benchmark(c: &mut Criterion) {
@@ -56,16 +57,17 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     // Parse the program
     let parse_result = Emulator::parse_program(test_program).unwrap();
-    let (instructions, _, orig_address) = parse_result;
+    let ParseOutput {
+        machine_code,
+        orig_address,
+        ..
+    } = parse_result;
 
     // Benchmark instruction execution
     group.bench_function("instruction_execution", |b| {
         b.iter(|| {
             let mut emulator = Emulator::new();
-            emulator.flash_memory(
-                black_box(instructions.iter().map(|(_, instr)| *instr).collect()),
-                black_box(orig_address),
-            );
+            emulator.flash_memory(black_box(machine_code.clone()), black_box(orig_address));
 
             // Run the program
             emulator.running = true;

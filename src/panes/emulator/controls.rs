@@ -1,4 +1,5 @@
 use crate::app::EMULATOR;
+use crate::emulator::parse::ParseOutput;
 use crate::emulator::{CpuState, Emulator, EmulatorCell};
 use crate::panes::emulator::editor::{CompilationArtifacts, COMPILATION_ARTIFACTS};
 use crate::panes::emulator::machine::BREAKPOINTS;
@@ -55,14 +56,12 @@ impl PaneDisplay for ControlsPane {
                 if let Err(e) = emulator.micro_step() {
                     emulator.running = false;
                     log::error!("Micro step error: {}", e);
-                    // Optionally display error in UI
                 }
             }
             if ui.button("Step").clicked() {
                 if let Err(e) = emulator.step() {
                     emulator.running = false;
                     log::error!("Step error: {}", e);
-                    // Optionally display error in UI
                 }
             }
             if emulator.running {
@@ -90,7 +89,6 @@ impl PaneDisplay for ControlsPane {
                             Err(e) => {
                                 emulator.running = false;
                                 log::error!("Emulator error during run: {}", e);
-                                // Optionally display error in UI
                                 break;
                             }
                         }
@@ -117,11 +115,12 @@ impl PaneDisplay for ControlsPane {
             // Optionally re-flash memory if needed, or clear it
             if !artifacts.last_compiled_source.is_empty() && artifacts.error.is_none() {
                 match Emulator::parse_program(&artifacts.last_compiled_source) {
-                    Ok((instructions, _, orig_address)) => {
-                        emulator.flash_memory(
-                            instructions.into_iter().map(|(_, y)| y).collect(),
-                            orig_address,
-                        );
+                    Ok(ParseOutput {
+                        machine_code,
+                        orig_address,
+                        ..
+                    }) => {
+                        emulator.flash_memory(machine_code, orig_address);
                     }
                     Err(_) => {
                         // Should not happen if artifacts are valid, but handle defensively

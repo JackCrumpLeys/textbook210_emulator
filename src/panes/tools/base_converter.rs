@@ -9,7 +9,7 @@ use crate::{
 
 use super::ToolPanes;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BaseConverter {
     input: String,
     output_hist: Vec<String>,
@@ -18,6 +18,20 @@ pub struct BaseConverter {
     base_out: u32,
     case_sensitive: bool,
     uppercase: bool,
+}
+
+impl Default for BaseConverter {
+    fn default() -> Self {
+        Self {
+            input: String::new(),
+            output_hist: Vec::new(),
+            alphabet: String::from("0123456789abcdefghijklmnopqrstuvwxyz"),
+            base_in: 10,
+            base_out: 16,
+            case_sensitive: false,
+            uppercase: false,
+        }
+    }
 }
 
 impl PaneDisplay for BaseConverter {

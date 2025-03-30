@@ -1,4 +1,5 @@
 use crate::app::EMULATOR;
+use crate::emulator::parse::ParseOutput;
 use crate::emulator::{Emulator, EmulatorCell};
 use crate::panes::{Pane, PaneDisplay, PaneTree};
 use egui::RichText;
@@ -82,23 +83,21 @@ impl PaneDisplay for EditorPane {
                     let mut emulator = EMULATOR.lock().unwrap();
                     *emulator = Emulator::new(); // Reset emulator state
 
-                    if let Ok((instructions, labels, orig_address)) = data_to_load {
-                        artifacts.line_to_address = instructions
-                            .iter()
-                            .map(|(line_num, addr)| {
-                                (*line_num, orig_address as usize + *addr as usize)
-                            })
-                            .collect();
+                    if let Ok(ParseOutput {
+                        machine_code,
+                        line_to_address,
+                        labels,
+                        orig_address,
+                    }) = data_to_load
+                    {
+                        artifacts.line_to_address = line_to_address;
                         artifacts.labels = labels;
                         artifacts.orig_address = orig_address;
                         artifacts.error = None;
                         artifacts.last_compiled_source = self.program.clone();
 
                         // Flash memory
-                        emulator.flash_memory(
-                            instructions.into_iter().map(|(_, y)| y).collect(),
-                            orig_address,
-                        );
+                        emulator.flash_memory(machine_code, orig_address);
                     } else {
                         artifacts.error = Some(data_to_load.unwrap_err());
                         artifacts.line_to_address.clear();

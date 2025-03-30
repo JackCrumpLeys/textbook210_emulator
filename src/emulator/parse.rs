@@ -4,691 +4,460 @@ use crate::emulator::EmulatorCell;
 
 use super::Emulator;
 
+/// Output structure for the `parse_program` function.
+#[derive(Debug)]
+pub struct ParseOutput {
+    /// Vector containing the generated machine code instructions/data.
+    pub machine_code: Vec<u16>,
+    /// Map from source code line number (0-based) to the memory address
+    /// where the corresponding instruction or data starts.
+    pub line_to_address: HashMap<usize, usize>,
+    /// Map from label names to their corresponding memory addresses.
+    pub labels: HashMap<String, u16>,
+    /// The starting memory address specified by the .ORIG directive.
+    pub orig_address: u16,
+}
 // is the return type way too complex and hard to understand? Yes, Am I gonna give a fuck? No
 #[allow(clippy::type_complexity)]
 // parsing code
 impl Emulator {
-    /// Parse LC-3 assembly code into machine instructions
-    pub fn parse_program(
-        program: &str,
-    ) -> Result<(Vec<(usize, u16)>, HashMap<String, u16>, u16), (String, usize)> {
+    /// Parse LC-3 assembly code into machine instructions and related artifacts.
+    ///
+    /// # Arguments
+    /// * `program` - A string slice containing the LC-3 assembly source code.
+    ///
+    /// # Returns
+    /// * `Ok(ParseOutput)` - Contains the generated machine code, line-to-address mapping,
+    ///   label map, and origin address if parsing is successful.
+    /// * `Err((String, usize))` - An error message and the line number (0-based) where
+    ///   the error occurred if parsing fails.
+    pub fn parse_program(program: &str) -> Result<ParseOutput, (String, usize)> {
         let span = tracing::info_span!("parse_program", program_length = program.len());
         let _guard = span.enter();
 
         tracing::info!("Starting to parse program");
-        let program = program.to_string();
+        let program_str = program.to_string(); // Keep original for string content
 
-        let mut instructions = vec![];
+        let mut machine_code = vec![];
         let mut labels = HashMap::new();
-        let mut orig_address: u16 = 0x3000; // Default starting address for LC-3 programs
+        let mut line_to_address: HashMap<usize, usize> = HashMap::new();
+        let mut orig_address: u16 = 0x3000; // Default starting address
         let mut address: u16 = 0x3000;
         let mut orig_set = false;
         let mut non_colon_labels = HashSet::new();
 
-        let mut debug_first_pass_addr = HashMap::new();
-        let mut debug_second_pass_addr = HashMap::new();
-
-        // First pass: collect labels and directives
+        // --- First Pass: Collect labels and determine addresses ---
         tracing::debug!("Starting first pass: collecting labels and directives");
-        for (i, line) in program.lines().enumerate() {
+        for (i, line) in program_str.lines().enumerate() {
             let span = tracing::trace_span!("parse_addr_pass1", line = line, address = address);
             let _guard = span.enter();
 
-            let line = line.trim();
-            let line_uncapped = line;
-            let line = line_uncapped.to_ascii_uppercase();
+            let line_trimmed = line.trim();
+            let line_uncapped = line_trimmed; // Keep original case for .STRINGZ
+            let line_upper = line_uncapped.to_ascii_uppercase();
 
             // Skip empty lines and comments
-            if line.is_empty() || line.starts_with(';') {
+            if line_upper.is_empty() || line_upper.starts_with(';') {
                 tracing::trace!("Line {}: Skipping empty line or comment", i);
                 continue;
             }
 
-            // Remove comments from the line
-            let line = line.split(';').next().unwrap().trim();
+            // Remove comments
+            let line_no_comment = line_upper.split(';').next().unwrap().trim();
+            let line_no_comment_uncapped = line_uncapped.split(';').next().unwrap().trim();
 
-            // Skip if line is still empty after comment removal
-            if line.is_empty() {
+            // Skip if line is still empty
+            if line_no_comment.is_empty() {
                 tracing::trace!("Line {}: Skipping empty line after comment removal", i);
                 continue;
             }
 
-            tracing::trace!("Line {}: Processing '{}'", i, line);
+            tracing::trace!("Line {}: Processing '{}'", i, line_no_comment);
 
-            // Process directives and labels
-            // Helper function to get the memory size of a directive
+            // Helper to get directive size
             fn get_directive_size(
                 line: &str,
                 line_uncapped: &str,
                 i: usize,
             ) -> Result<u16, (String, usize)> {
                 if line.starts_with(".ORIG") || line.starts_with(".END") {
-                    // These don't add to memory size
                     Ok(0)
                 } else if line.starts_with(".FILL") {
-                    // .FILL takes 1 memory location
-                    tracing::trace!("Line {}: Processing .FILL directive", i);
+                    tracing::trace!("Line {}: Directive .FILL (size 1)", i);
                     Ok(1)
                 } else if line.starts_with(".BLKW") {
                     let parts: Vec<&str> = line.split_whitespace().collect();
                     if parts.len() < 2 {
-                        tracing::error!("Line {}: Invalid .BLKW directive", i);
-                        return Err(("Invalid .BLKW directive".to_string(), i));
+                        return Err((format!("Invalid .BLKW directive on line {}", i), i));
                     }
-
-                    let count_str = parts[1].trim();
-                    tracing::trace!("Line {}: Processing .BLKW with count '{}'", i, count_str);
-
-                    let count = match count_str.parse::<u16>() {
+                    match parts[1].trim().parse::<u16>() {
                         Ok(count) => {
-                            tracing::debug!("Line {}: Reserving {} memory locations", i, count);
-                            count
-                        }
-                        Err(e) => {
-                            tracing::error!(
-                                "Line {}: Invalid block size '{}': {}",
+                            tracing::trace!(
+                                "Line {}: Directive .BLKW {} (size {})",
                                 i,
-                                count_str,
-                                e
+                                count,
+                                count
                             );
-                            return Err(("Invalid block size".to_string(), i));
+                            Ok(count)
                         }
-                    };
-
-                    Ok(count)
+                        Err(e) => Err((format!("Invalid block size '{}': {}", parts[1], e), i)),
+                    }
                 } else if line.starts_with(".STRINGZ") {
-                    // Find the string between quotes
-                    tracing::trace!("Line {}: Processing .STRINGZ directive", i);
-                    if let Some(string_content) = line_uncapped.find('"').and_then(|start| {
-                        line_uncapped[start + 1..]
-                            .find('"')
-                            .map(|end| &line_uncapped[start + 1..start + 1 + end])
-                    }) {
-                        // Count special escape sequences that only take up one character in memory
-                        let mut escape_sequences = 0;
-                        for i in 0..string_content.len() {
-                            if i < string_content.len() - 1 && &string_content[i..i + 2] == "\\n"
-                                || i < string_content.len() - 1
-                                    && &string_content[i..i + 2] == "\\t"
-                                || i < string_content.len() - 1
-                                    && &string_content[i..i + 2] == "\\r"
-                                || i < string_content.len() - 1
-                                    && &string_content[i..i + 2] == "\\0"
-                            {
-                                escape_sequences += 1;
+                    tracing::trace!("Line {}: Directive .STRINGZ", i);
+                    if let Some(start) = line_uncapped.find('"') {
+                        if let Some(end) = line_uncapped[start + 1..].find('"') {
+                            let content = &line_uncapped[start + 1..start + 1 + end];
+                            let mut effective_len = 0;
+                            let mut chars_iter = content.chars().peekable();
+                            while let Some(c) = chars_iter.next() {
+                                if c == '\\' && chars_iter.peek().is_some() {
+                                    chars_iter.next(); // Consume escaped character
+                                }
+                                effective_len += 1;
                             }
+                            tracing::trace!(
+                                "Line {}: .STRINGZ content '{}', effective length {}",
+                                i,
+                                content,
+                                effective_len
+                            );
+                            Ok(effective_len + 1) // +1 for null terminator
+                        } else {
+                            Err((format!("Unterminated string in .STRINGZ on line {}", i), i))
                         }
-                        // Adjust string length to account for escape sequences
-                        let string_len = string_content.len() - escape_sequences;
-                        tracing::debug!(
-                            "Line {}: String of length {} found: '{}'",
-                            i,
-                            string_len,
-                            string_content
-                        );
-                        // +1 for null terminator
-                        Ok((string_len + 1) as u16)
                     } else {
-                        tracing::error!(
-                            "Line {}: Invalid .STRINGZ directive, no quoted string found",
-                            i
-                        );
-                        Err(("Invalid .STRINGZ directive".to_string(), i))
+                        Err((format!("Invalid .STRINGZ directive on line {}", i), i))
                     }
                 } else {
-                    // Regular instruction
-                    tracing::trace!("Line {}: Regular instruction", i);
-                    Ok(1)
+                    tracing::trace!("Line {}: Regular instruction (size 1)", i);
+                    Ok(1) // Assume regular instruction takes 1 word
                 }
             }
 
-            if line.contains(':') {
-                // Label with colon format: LABEL: instruction
-                let parts: Vec<&str> = line.split(':').collect();
-                let label = parts[0].trim().to_string();
+            let mut current_line_size = 0;
 
-                // Add label to map
-                tracing::debug!(
-                    "Line {}: Found label '{}' (with colon) at address {:04X}",
-                    i,
-                    label,
-                    address
-                );
-                labels.insert(label, address);
-
-                // If there's content after the label, process it
-                if parts.len() > 1 && !parts[1].trim().is_empty() {
-                    let after_label = parts[1].trim();
-                    tracing::trace!("Line {}: Label has content after it", i);
-
-                    if after_label.starts_with(".") {
-                        // It's a directive, calculate its size
-                        match get_directive_size(after_label, line_uncapped, i) {
-                            Ok(size) => address += size,
-                            Err(e) => return Err(e),
-                        }
-                    } else {
-                        // Regular instruction
-                        address += 1; // Each instruction takes 1 memory location
+            if line_no_comment.contains(':') {
+                // Label with colon: LABEL: [instruction/directive]
+                let parts: Vec<&str> = line_no_comment.splitn(2, ':').collect();
+                let label = parts[0].trim();
+                if !label.is_empty() {
+                    if labels.contains_key(label) {
+                        return Err((format!("Duplicate label '{}' defined", label), i));
                     }
-                }
-            } else if line.starts_with(".ORIG") {
-                let parts: Vec<&str> = line.split_whitespace().collect();
-                if parts.len() < 2 {
-                    tracing::error!("Line {}: Invalid .ORIG directive", i);
-                    return Err(("Invalid .ORIG directive".to_string(), i));
-                }
-
-                // Parse origin address (supports hex with x prefix)
-                let addr_str = parts[1].trim();
-                tracing::trace!("Line {}: Processing .ORIG with address '{}'", i, addr_str);
-
-                if addr_str.starts_with("x") || addr_str.starts_with("X") {
-                    match u16::from_str_radix(&addr_str[1..], 16) {
-                        Ok(addr) => {
-                            orig_address = addr;
-                            tracing::debug!(
-                                "Line {}: Set origin address to 0x{:04X}",
-                                i,
-                                orig_address
-                            );
-                        }
-                        Err(e) => {
-                            tracing::error!(
-                                "Line {}: Invalid hex address '{}': {}",
-                                i,
-                                addr_str,
-                                e
-                            );
-                            return Err(("Invalid hex address".to_string(), i));
-                        }
-                    }
-                } else {
-                    match addr_str.parse::<u16>() {
-                        Ok(addr) => {
-                            orig_address = addr;
-                            tracing::debug!("Line {}: Set origin address to {}", i, orig_address);
-                        }
-                        Err(e) => {
-                            tracing::error!(
-                                "Line {}: Invalid decimal address '{}': {}",
-                                i,
-                                addr_str,
-                                e
-                            );
-                            return Err(("Invalid address".to_string(), i));
-                        }
-                    }
-                }
-
-                address = orig_address;
-                orig_set = true;
-            } else if line.starts_with(".") {
-                // Handle directives using the helper function
-                match get_directive_size(line, line_uncapped, i) {
-                    Ok(size) => address += size,
-                    Err(e) => return Err(e),
-                }
-            } else {
-                // Check if this line might be a label without a colon
-                let parts: Vec<&str> = line.split_whitespace().collect();
-                if !parts.is_empty()
-                    && !parts[0].starts_with('.')
-                    && !parts[0].starts_with('R')
-                    && ![
-                        "ADD", "AND", "BR", "BRN", "BRZ", "BRP", "BRNZ", "BRNP", "BRZP", "BRNZP",
-                        "JMP", "JSR", "JSRR", "LD", "LDI", "LDR", "LEA", "NOT", "RET", "RTI", "ST",
-                        "STI", "STR", "TRAP", "GETC", "OUT", "PUTS", "IN", "PUTSP", "HALT",
-                    ]
-                    .contains(&parts[0])
-                {
-                    // This looks like a label without a colon: LABEL instruction
-                    let label = parts[0].trim().to_string();
                     tracing::debug!(
-                        "Line {}: Found label '{}' (without colon) at address {:04X}",
+                        "Line {}: Found label '{}' (colon) at address {:04X}",
                         i,
                         label,
                         address
                     );
-                    labels.insert(label, address);
-                    non_colon_labels.insert(i);
-
-                    if parts.len() >= 2 {
-                        // Check if there's a directive after the label
-                        let after_label = line.strip_prefix(parts[0]).unwrap_or_default().trim();
-                        if after_label.starts_with(".") {
-                            // It's a directive, calculate its size
-                            match get_directive_size(after_label, line_uncapped, i) {
-                                Ok(size) => address += size,
-                                Err(e) => return Err(e),
-                            }
-                        } else {
-                            // Regular instruction
-                            address += 1;
-                        }
-                    }
+                    labels.insert(label.to_string(), address);
+                }
+                let instruction_part = parts.get(1).map_or("", |s| s.trim());
+                if !instruction_part.is_empty() {
+                    current_line_size =
+                        get_directive_size(instruction_part, line_no_comment_uncapped, i)?;
+                }
+            } else if line_no_comment.starts_with(".ORIG") {
+                // .ORIG directive
+                let parts: Vec<&str> = line_no_comment.split_whitespace().collect();
+                if parts.len() < 2 {
+                    return Err(("Invalid .ORIG directive".to_string(), i));
+                }
+                let addr_str = parts[1].trim();
+                let new_orig = if addr_str.starts_with('X') {
+                    u16::from_str_radix(&addr_str[1..], 16)
                 } else {
-                    // Regular instruction
-                    tracing::trace!("Line {}: Regular instruction", i);
-                    address += 1;
+                    addr_str.parse::<u16>()
+                };
+                match new_orig {
+                    Ok(addr) => {
+                        orig_address = addr;
+                        address = orig_address; // Update current address
+                        orig_set = true;
+                        tracing::debug!("Line {}: Set origin address to {:04X}", i, address);
+                    }
+                    Err(e) => {
+                        return Err((format!("Invalid .ORIG address '{}': {}", addr_str, e), i))
+                    }
+                }
+                // .ORIG itself doesn't take space in the final code
+            } else if line_no_comment.starts_with('.') {
+                // Other directives (.FILL, .BLKW, .STRINGZ, .END)
+                current_line_size =
+                    get_directive_size(line_no_comment, line_no_comment_uncapped, i)?;
+            } else {
+                // Potential label without colon OR just an instruction
+                let parts: Vec<&str> = line_no_comment.split_whitespace().collect();
+                if !parts.is_empty() {
+                    let first_word = parts[0];
+                    // Check if it's a known opcode/alias or starts with R (register)
+                    let is_opcode_or_reg = [
+                        "ADD", "AND", "BR", "BRN", "BRZ", "BRP", "BRNZ", "BRNP", "BRZP", "BRNZP",
+                        "JMP", "JSR", "JSRR", "LD", "LDI", "LDR", "LEA", "NOT", "RET", "RTI", "ST",
+                        "STI", "STR", "TRAP", "GETC", "OUT", "PUTS", "IN", "PUTSP", "HALT",
+                    ]
+                    .contains(&first_word)
+                        || first_word.starts_with('R');
+
+                    if !is_opcode_or_reg && parts.len() > 1 {
+                        // Assume it's a label without a colon
+                        let label = first_word;
+                        if labels.contains_key(label) {
+                            // Check if it was defined with a colon before
+                            if non_colon_labels.contains(&i) {
+                                // Ok, redefinition of no-colon label on same line is fine (though weird)
+                            } else {
+                                return Err((format!("Duplicate label '{}' defined", label), i));
+                            }
+                        }
+                        tracing::debug!(
+                            "Line {}: Found label '{}' (no colon) at address {:04X}",
+                            i,
+                            label,
+                            address
+                        );
+                        labels.insert(label.to_string(), address);
+                        non_colon_labels.insert(i);
+
+                        let instruction_part =
+                            line_no_comment.strip_prefix(label).unwrap_or("").trim();
+                        if !instruction_part.is_empty() {
+                            current_line_size =
+                                get_directive_size(instruction_part, line_no_comment_uncapped, i)?;
+                        }
+                    } else {
+                        // Just a regular instruction
+                        current_line_size = 1;
+                    }
                 }
             }
 
-            debug_first_pass_addr.insert(address, line_uncapped);
-        }
+            // Increment address for the next line
+            if current_line_size > 0 {
+                address = address
+                    .checked_add(current_line_size)
+                    .ok_or((format!("Address overflow past 0xFFFF on line {}", i), i))?;
+            }
+        } // End of first pass loop
 
         if !orig_set {
-            tracing::error!("No .ORIG directive found in program");
             return Err(("No .ORIG directive found".to_string(), 0));
         }
 
-        // Reset address for second pass
-        address = orig_address;
+        // --- Second Pass: Generate instructions ---
+        address = orig_address; // Reset address
         tracing::debug!("First pass completed, {} labels found", labels.len());
         tracing::debug!("Starting second pass with address at {:04X}", address);
-        // Second pass: generate instructions
-        tracing::debug!("Starting second pass: generating instructions");
-        for (i, line) in program.lines().enumerate() {
-            let line = line.trim();
-            let line_uncapped = line;
-            let line = line_uncapped.to_ascii_uppercase();
 
-            // Skip empty lines and comments
-            if line.is_empty() || line.starts_with(';') {
+        for (i, line) in program_str.lines().enumerate() {
+            let line_trimmed = line.trim();
+            let line_uncapped = line_trimmed;
+            let line_upper = line_uncapped.to_ascii_uppercase();
+
+            // Skip empty/comment lines
+            if line_upper.is_empty() || line_upper.starts_with(';') {
                 continue;
             }
 
-            // Remove comments from the line
-            let line = line.split(';').next().unwrap().trim();
+            // Remove comments
+            let line_no_comment = line_upper.split(';').next().unwrap().trim();
+            let line_no_comment_uncapped = line_uncapped.split(';').next().unwrap().trim();
 
-            // Skip if line is still empty after comment removal
-            if line.is_empty() {
+            if line_no_comment.is_empty() {
                 continue;
             }
 
-            tracing::trace!("Line {}: Processing '{}'", i, line);
+            tracing::trace!(
+                "Line {}: Processing '{}' at address {:04X}",
+                i,
+                line_no_comment,
+                address
+            );
 
-            // Helper function to process directives
-            fn process_directive(
+            // --- Record starting address for this line ---
+            // Do this *before* processing, so directives map to their start address
+            let start_address_for_line = address;
+            line_to_address.insert(i, start_address_for_line as usize);
+
+            // Helper to process directives during the second pass
+            fn process_directive_second_pass(
                 line: &str,
                 line_uncapped: &str,
                 i: usize,
                 address: &mut u16,
-                instructions: &mut Vec<(usize, u16)>,
+                machine_code: &mut Vec<u16>,
                 labels: &HashMap<String, u16>,
+                line_to_address: &mut HashMap<usize, usize>, // Pass this mutably
+                start_address_for_line: u16,                 // Pass the starting address
             ) -> Result<bool, (String, usize)> {
+                // Ensure mapping exists even if directive generates no code (like .END)
+                // Or if .ORIG changes the address before code generation
+                line_to_address
+                    .entry(i)
+                    .or_insert(start_address_for_line as usize);
+
                 if line.starts_with(".ORIG") {
-                    // Already processed in first pass, just update address
+                    // Update address, but generates no code here
                     let parts: Vec<&str> = line.split_whitespace().collect();
                     let addr_str = parts[1].trim();
-
-                    if addr_str.starts_with("x") || addr_str.starts_with("X") {
-                        match u16::from_str_radix(&addr_str[1..], 16) {
-                            Ok(addr) => {
-                                *address = addr;
-                                tracing::debug!("Line {}: Updated address to 0x{:04X}", i, address);
-                            }
-                            Err(e) => {
-                                tracing::error!(
-                                    "Line {}: Invalid hex address '{}': {}",
-                                    i,
-                                    addr_str,
-                                    e
-                                );
-                                return Err(("Invalid hex address".to_string(), i));
-                            }
-                        }
+                    let new_orig = if addr_str.starts_with('X') {
+                        u16::from_str_radix(&addr_str[1..], 16)
                     } else {
-                        match addr_str.parse::<u16>() {
-                            Ok(addr) => {
-                                *address = addr;
-                                tracing::debug!("Line {}: Updated address to {}", i, address);
-                            }
-                            Err(e) => {
-                                tracing::error!(
-                                    "Line {}: Invalid decimal address '{}': {}",
-                                    i,
-                                    addr_str,
-                                    e
-                                );
-                                return Err(("Invalid address".to_string(), i));
-                            }
-                        }
+                        addr_str.parse::<u16>()
+                    };
+                    match new_orig {
+                        Ok(addr) => *address = addr,
+                        Err(_) => unreachable!("Parse error should have been caught in first pass"),
                     }
-                    return Ok(true);
+                    return Ok(true); // Directive handled
                 } else if line.starts_with(".FILL") {
                     let parts: Vec<&str> = line.split_whitespace().collect();
                     let value_str = parts[1].trim();
-                    tracing::trace!("Line {}: Processing .FILL with value '{}'", i, value_str);
-
-                    let value: u16;
-
-                    if let Ok(imm) = Emulator::parse_immediate(value_str, 16) {
-                        value = imm;
-                    } else if labels.contains_key(value_str) {
-                        value = *labels.get(value_str).unwrap();
-                        tracing::debug!(
-                            "Line {}: Using label '{}' value: {:04X}",
-                            i,
-                            value_str,
-                            value
-                        );
+                    let value = if let Ok(imm) = Emulator::parse_immediate(value_str, 16) {
+                        imm
+                    } else if let Some(&label_addr) = labels.get(value_str) {
+                        label_addr
                     } else {
-                        tracing::error!("Line {}: Invalid .FILL value '{}'", i, value_str);
-                        return Err((
-                            "Invalid .FILL value, please provide a valid immediate value or label"
-                                .to_string(),
-                            i,
-                        ));
-                    }
-
-                    instructions.push((i, value));
+                        return Err((format!("Invalid .FILL value '{}'", value_str), i));
+                    };
+                    tracing::trace!("Line {}: .FILL value {:04X} at {:04X}", i, value, *address);
+                    machine_code.push(value);
                     *address += 1;
                     return Ok(true);
                 } else if line.starts_with(".BLKW") {
                     let parts: Vec<&str> = line.split_whitespace().collect();
                     let count_str = parts[1].trim();
-
                     let count = match count_str.parse::<u16>() {
-                        Ok(count) => count,
-                        Err(e) => {
-                            tracing::error!(
-                                "Line {}: Invalid block size '{}': {}",
-                                i,
-                                count_str,
-                                e
-                            );
-                            return Err(("Invalid block size".to_string(), i));
-                        }
+                        Ok(c) => c,
+                        Err(_) => unreachable!("Parse error should have been caught in first pass"),
                     };
-
-                    tracing::debug!(
-                        "Line {}: Adding {} zero words at address {:04X}",
-                        i,
-                        count,
-                        address
-                    );
-                    // Fill with zeros
+                    tracing::trace!("Line {}: .BLKW {} at {:04X}", i, count, *address);
                     for _ in 0..count {
-                        instructions.push((i, 0));
+                        machine_code.push(0); // Fill with zeros
                         *address += 1;
                     }
                     return Ok(true);
                 } else if line.starts_with(".STRINGZ") {
-                    // Find the string between quotes
-                    if let Some(string_content) = line_uncapped.find('"').and_then(|start| {
-                        line_uncapped[start + 1..]
-                            .find('"')
-                            .map(|end| &line_uncapped[start + 1..start + 1 + end])
-                    }) {
-                        tracing::debug!(
-                            "Line {}: Converting string '{}' to ASCII values",
-                            i,
-                            string_content
-                        );
-                        // Convert string to ASCII values
-                        let mut chars_iter = string_content.chars().peekable();
-                        while let Some(c) = chars_iter.next() {
-                            // Handle escape sequences
-                            if c == '\\' {
-                                if let Some(next_char) = chars_iter.next() {
-                                    match next_char {
-                                        'n' => {
-                                            tracing::trace!(
-                                                "Line {}: Adding escape character '\\n' (ASCII: 10) at address {:04X}",
-                                                i,
-                                                address
-                                            );
-                                            instructions.push((i, 10)); // ASCII newline
+                    tracing::trace!("Line {}: .STRINGZ at {:04X}", i, *address);
+                    if let Some(start) = line_uncapped.find('"') {
+                        if let Some(end) = line_uncapped[start + 1..].find('"') {
+                            let content = &line_uncapped[start + 1..start + 1 + end];
+                            let mut chars_iter = content.chars().peekable();
+                            while let Some(c) = chars_iter.next() {
+                                let char_val = if c == '\\' {
+                                    if let Some(escaped_char) = chars_iter.next() {
+                                        match escaped_char {
+                                            'n' => 10,
+                                            't' => 9,
+                                            'r' => 13,
+                                            '0' => 0,
+                                            '\\' => '\\' as u16,
+                                            '"' => '"' as u16,
+                                            _ => {
+                                                // Unrecognized escape, treat literally
+                                                machine_code.push('\\' as u16);
+                                                *address += 1;
+                                                escaped_char as u16
+                                            }
                                         }
-                                        't' => {
-                                            tracing::trace!(
-                                                "Line {}: Adding escape character '\\t' (ASCII: 9) at address {:04X}",
-                                                i,
-                                                address
-                                            );
-                                            instructions.push((i, 9)); // ASCII tab
-                                        }
-                                        'r' => {
-                                            tracing::trace!(
-                                                "Line {}: Adding escape character '\\r' (ASCII: 13) at address {:04X}",
-                                                i,
-                                                address
-                                            );
-                                            instructions.push((i, 13)); // ASCII carriage return
-                                        }
-                                        '0' => {
-                                            tracing::trace!(
-                                                "Line {}: Adding escape character '\\0' (ASCII: 0) at address {:04X}",
-                                                i,
-                                                address
-                                            );
-                                            instructions.push((i, 0)); // ASCII null
-                                        }
-                                        '\\' => {
-                                            tracing::trace!(
-                                                "Line {}: Adding escape character '\\\\' (ASCII: 92) at address {:04X}",
-                                                i,
-                                                address
-                                            );
-                                            instructions.push((i, 92)); // Backslash character
-                                        }
-                                        '"' => {
-                                            tracing::trace!(
-                                                "Line {}: Adding escape character '\\\"' (ASCII: 34) at address {:04X}",
-                                                i,
-                                                address
-                                            );
-                                            instructions.push((i, 34)); // Double quote character
-                                        }
-                                        _ => {
-                                            // Unrecognized escape, just include both characters
-                                            tracing::trace!(
-                                                "Line {}: Unrecognized escape sequence '\\{}', including backslash (ASCII: 92) at address {:04X}",
-                                                i,
-                                                next_char,
-                                                address
-                                            );
-                                            instructions.push((i, '\\' as u16));
-                                            *address += 1;
-                                            tracing::trace!(
-                                                "Line {}: Adding character '{}' (ASCII: {}) at address {:04X}",
-                                                i,
-                                                next_char,
-                                                next_char as u16,
-                                                address
-                                            );
-                                            instructions.push((i, next_char as u16));
-                                        }
-                                    }
+                                    } else {
+                                        '\\' as u16
+                                    } // Trailing backslash
                                 } else {
-                                    // Trailing backslash, just include it
-                                    tracing::trace!(
-                                        "Line {}: Adding trailing backslash (ASCII: 92) at address {:04X}",
-                                        i,
-                                        address
-                                    );
-                                    instructions.push((i, '\\' as u16));
-                                }
-                            } else {
-                                // Regular character
-                                tracing::trace!(
-                                    "Line {}: Adding character '{}' (ASCII: {}) at address {:04X}",
-                                    i,
-                                    c,
-                                    c as u16,
-                                    address
-                                );
-                                instructions.push((i, c as u16));
+                                    c as u16
+                                };
+                                machine_code.push(char_val);
+                                *address += 1;
                             }
+                            machine_code.push(0); // Null terminator
                             *address += 1;
-                        }
-                        // Add null terminator
-                        tracing::trace!(
-                            "Line {}: Adding null terminator at address {:04X}",
-                            i,
-                            address
-                        );
-                        instructions.push((i, 0));
-                        *address += 1;
-                    } else {
-                        tracing::error!(
-                            "Line {}: Invalid .STRINGZ directive, no quoted string found",
-                            i
-                        );
-                        return Err(("Invalid .STRINGZ directive".to_string(), i));
-                    }
+                        } // else: unreachable due to first pass check
+                    } // else: unreachable due to first pass check
                     return Ok(true);
                 } else if line.starts_with(".END") {
-                    // End of program, nothing to do
-                    tracing::trace!("Line {}: End of program marker (.END)", i);
-                    return Ok(true);
+                    tracing::trace!("Line {}: Encountered .END", i);
+                    // .END generates no code, address doesn't change here
+                    return Ok(true); // Indicates directive handled, stop processing this line
                 }
-                Ok(false)
+                Ok(false) // Not a directive we handle in the second pass code generation
             }
 
-            // Process directives and instructions
-            if line.contains(':') {
-                // Label with colon format: LABEL: instruction
-                let parts: Vec<&str> = line.split(':').collect();
-                let after_label = parts[1].trim();
+            // --- Process Line Content ---
+            let mut instruction_part = line_no_comment;
+            let mut instruction_part_uncapped = line_no_comment_uncapped; // Needed for .STRINGZ
 
-                // If there's content after the label, process it
-                if !after_label.is_empty() {
-                    if after_label.starts_with(".") {
-                        // Handle directives after labels
-                        match process_directive(
-                            after_label,
-                            line_uncapped,
-                            i,
-                            &mut address,
-                            &mut instructions,
-                            &labels,
-                        ) {
-                            Ok(_) => {}
-                            Err(e) => return Err(e),
-                        }
-                    } else {
-                        // Handle regular instructions after labels
-                        tracing::trace!(
-                            "Line {}: Processing instruction after label: '{}'",
-                            i,
-                            after_label
-                        );
-                        match Self::parse_instruction(after_label, address, &labels) {
-                            Ok(instruction) => {
-                                tracing::debug!("Line {}: Parsed instruction at address {:04X}: {:04X} (binary: {:016b})",
-                                               i, address, instruction, instruction);
-                                instructions.push((i, instruction));
-                                address += 1;
-                            }
-                            Err(e) => {
-                                tracing::error!("Line {}: Failed to parse instruction: {}", i, e.0);
-                                return Err((e.0, i));
-                            }
-                        }
-                    }
-                }
+            // Handle labels (they don't generate code themselves)
+            if line_no_comment.contains(':') {
+                let parts: Vec<&str> = line_no_comment.splitn(2, ':').collect();
+                instruction_part = parts.get(1).map_or("", |s| s.trim());
+                // Also update the uncapped version if necessary
+                let parts_uncapped: Vec<&str> = line_no_comment_uncapped.splitn(2, ':').collect();
+                instruction_part_uncapped = parts_uncapped.get(1).map_or("", |s| s.trim());
             } else if non_colon_labels.contains(&i) {
-                // Label without colon format: LABEL instruction
-                let parts: Vec<&str> = line.split_whitespace().collect();
-
-                // Skip the label and process the remaining instruction
-                if parts.len() > 1 {
-                    let instruction_part = line.strip_prefix(parts[0]).unwrap_or_default().trim();
-
-                    if instruction_part.starts_with(".") {
-                        // Handle directives after labels
-                        match process_directive(
-                            instruction_part,
-                            line_uncapped,
-                            i,
-                            &mut address,
-                            &mut instructions,
-                            &labels,
-                        ) {
-                            Ok(_) => {}
-                            Err(e) => return Err(e),
-                        }
-                    } else {
-                        // Handle regular instructions after labels
-                        tracing::trace!(
-                            "Line {}: Processing instruction after no-colon label: '{}'",
-                            i,
-                            instruction_part
-                        );
-                        match Self::parse_instruction(instruction_part, address, &labels) {
-                            Ok(instruction) => {
-                                tracing::debug!("Line {}: Parsed instruction at address {:04X}: {:04X} (binary: {:016b})",
-                                               i, address, instruction, instruction);
-                                instructions.push((i, instruction));
-                                address += 1;
-                            }
-                            Err(e) => {
-                                tracing::error!("Line {}: Failed to parse instruction: {}", i, e.0);
-                                return Err((e.0, i));
-                            }
-                        }
+                let parts: Vec<&str> = line_no_comment.split_whitespace().collect();
+                if !parts.is_empty() {
+                    instruction_part = line_no_comment.strip_prefix(parts[0]).unwrap_or("").trim();
+                    // Also update the uncapped version
+                    let parts_uncapped: Vec<&str> =
+                        line_no_comment_uncapped.split_whitespace().collect();
+                    if !parts_uncapped.is_empty() {
+                        instruction_part_uncapped = line_no_comment_uncapped
+                            .strip_prefix(parts_uncapped[0])
+                            .unwrap_or("")
+                            .trim();
                     }
                 }
-            } else if line.starts_with(".") {
-                // Process directives not after labels
-                match process_directive(
-                    line,
-                    line_uncapped,
+            }
+
+            // If instruction_part is empty after label handling, skip to next line
+            if instruction_part.is_empty() {
+                // Ensure mapping exists even for label-only lines
+                line_to_address
+                    .entry(i)
+                    .or_insert(start_address_for_line as usize);
+                continue;
+            }
+
+            // Process directive or instruction
+            if instruction_part.starts_with('.') {
+                // Process directive
+                match process_directive_second_pass(
+                    instruction_part,
+                    instruction_part_uncapped, // Pass the correct case version
                     i,
                     &mut address,
-                    &mut instructions,
+                    &mut machine_code,
                     &labels,
+                    &mut line_to_address,
+                    start_address_for_line,
                 ) {
-                    Ok(_) => {}
+                    Ok(_) => {} // Address updated inside helper
                     Err(e) => return Err(e),
                 }
             } else {
-                // Regular instruction
-                tracing::trace!("Line {}: Parsing regular instruction: '{}'", i, line);
-                match Self::parse_instruction(line, address, &labels) {
+                // Parse instruction
+                match Self::parse_instruction(instruction_part, start_address_for_line, &labels) {
+                    // Use start address for offset calcs
                     Ok(instruction) => {
-                        tracing::debug!("Line {}: Parsed instruction at address {:04X}: {:04X} (binary: {:016b})",
-                                       i, address, instruction, instruction);
-                        instructions.push((i, instruction));
-                        address += 1;
+                        tracing::trace!(
+                            "Line {}: Instruction {:04X} at {:04X}",
+                            i,
+                            instruction,
+                            address
+                        );
+                        machine_code.push(instruction);
+                        address += 1; // Instruction takes one word
                     }
-                    Err(e) => {
-                        tracing::error!("Line {}: Failed to parse instruction: {}", i, e.0);
-                        return Err((e.0, i));
-                    }
+                    Err(e) => return Err((e.0, i)),
                 }
             }
-
-            debug_second_pass_addr.insert(address, line_uncapped);
-        }
-
-        // Log addresses from origin to current address
-        for addr in orig_address..address {
-            if let Some(line) = debug_first_pass_addr.get(&addr) {
-                if let Some(second_line) = debug_second_pass_addr.get(&addr) {
-                    tracing::debug!(
-                        "Address 0x{:04X}: First pass: '{}' | Second pass: '{}'",
-                        addr,
-                        line,
-                        second_line
-                    );
-                } else {
-                    tracing::debug!(
-                        "Address 0x{:04X}: First pass: '{}' | No corresponding second pass line",
-                        addr,
-                        line
-                    );
-                }
-            }
-        }
-
-        tracing::info!(
-            "Program parsing completed: {} instructions generated",
-            instructions.len()
-        );
-        Ok((instructions, labels, orig_address))
+        } // End of second pass loop
+        Ok(ParseOutput {
+            machine_code,
+            line_to_address,
+            labels,
+            orig_address,
+        })
     }
     /// Parse a single instruction into machine code
     fn parse_instruction(
