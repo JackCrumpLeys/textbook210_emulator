@@ -1,53 +1,61 @@
-use crate::emulator::{BitAddressable, Emulator};
+use crate::emulator::{BitAddressable, Emulator, EmulatorCell};
 
 use super::Op;
-#[derive(Debug)]
-pub struct LeaOp;
+
+#[derive(Debug, Clone)]
+pub struct LeaOp {
+    dr: EmulatorCell,                // Destination Register index
+    pc_offset: EmulatorCell,         // PCoffset9 (sign-extended)
+    effective_address: EmulatorCell, // Calculated address
+}
 
 impl Op for LeaOp {
-    fn prepare_memory_access(&self, _machine_state: &mut Emulator) {
-        // LEA doesn't need extra memory access preparation
-        tracing::trace!("LEA: No memory access preparation needed");
+    fn decode(ir: EmulatorCell) -> Self {
+        // LAYOUT: 1110 | DR | PCoffset9
+        let dr = ir.range(11..9);
+        // Extract and sign-extend PCoffset9 during decode
+        let pc_offset = ir.range(8..0).sext(8);
+
+        Self {
+            dr,
+            pc_offset,
+            effective_address: EmulatorCell::new(0), // Initialize
+        }
     }
 
-    fn execute(&self, machine_state: &mut Emulator) {
-        let span = tracing::trace_span!("LEA_execute",
-            ir = ?machine_state.ir.get(),
-            pc = machine_state.pc.get()
-        );
-        let _enter = span.enter();
+    fn evaluate_address(&mut self, machine_state: &mut Emulator) {
+        // Calculate effective address: PC + SEXT(PCoffset9)
+        let current_pc = machine_state.pc;
+        let effective_addr_val = current_pc.get().wrapping_add(self.pc_offset.get());
+        self.effective_address.set(effective_addr_val);
+    }
 
-        // LAYOUT: 1110 | DR | PCoffset9
-        let ir = machine_state.ir;
-        let dr_index = ir.range(11..9).get() as usize;
+    fn fetch_operands(&mut self, _machine_state: &mut Emulator) -> bool {
+        // LEA does not fetch operands from memory or registers based on the address.
+        false
+    }
 
-        // Calculate effective address (PC + PCoffset9)
-        let pc_offset = ir.range(8..0).sext(8).get();
-        let curr_pc = machine_state.pc.get();
-        let effective_address = curr_pc.wrapping_add(pc_offset);
+    fn store_result(&mut self, machine_state: &mut Emulator) {
+        // Load the calculated effective address into the destination register.
+        let dr_index = self.dr.get() as usize;
+        machine_state.r[dr_index] = self.effective_address;
 
-        tracing::trace!(
-            pc = format!("0x{:04X}", curr_pc),
-            offset = format!("0x{:04X}", pc_offset),
-            effective_address = format!("0x{:04X}", effective_address),
-            "Calculating effective address for load effective address"
-        );
-
-        // Load effective address into DR
-        tracing::trace!(
-            address = format!("0x{:04X}", effective_address),
-            dest_register = dr_index,
-            "Loading effective address into register"
-        );
-        machine_state.r[dr_index].set(effective_address);
-
-        // Update condition codes
+        // Update condition codes based on the address loaded.
         machine_state.update_flags(dr_index);
-        tracing::trace!(
-            n = machine_state.n.get(),
-            z = machine_state.z.get(),
-            p = machine_state.p.get(),
-            "Updated condition flags after load effective address"
-        );
+    }
+}
+
+impl std::fmt::Display for LeaOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let dr_index = self.dr.get();
+        let offset_val = self.pc_offset.get() as i16; // Cast to signed for proper display
+
+        write!(
+            f,
+            "LEA R{}, #{} (x{:03X})",
+            dr_index,
+            offset_val,
+            self.pc_offset.get() & 0x1FF
+        )
     }
 }

@@ -1,102 +1,157 @@
-use crate::emulator::{BitAddressable, Emulator};
+use crate::emulator::{
+    area_from_address, BitAddressable, Emulator, EmulatorCell, Exception, PrivilegeLevel, PSR_ADDR,
+};
 
 use super::Op;
-#[derive(Debug)]
-pub struct TrapOp;
+
+// TRAP works like a special kind of jump instruction.
+// 1. Pushes the current PC (return address) onto the system stack
+// 2. Pushes PSR (processor status register) onto the system stack
+// 3. Switches the CPU to Supervisor mode.
+// 4. Switches the Stack Pointer (R6) from User SP (USP) to Supervisor SP (SSP).
+// 5. Reads the starting address of the trap handler routine from the Trap Vector Table (Memory[0x0000 + ZEXT(trapvect8)]).
+// 6. Jumps to that handler routine address.
+#[derive(Debug, Clone)]
+pub struct TrapOp {
+    trap_vector: EmulatorCell, // The 8-bit vector number from the instruction
+    vector_table_entry_addr: EmulatorCell, // Address in TVT (0x00XX) where handler addr is stored
+    target_handler_addr: EmulatorCell, // Actual address of the handler routine (read from TVT)
+    is_valid_read_vector: bool, // Can we read the entry from the TVT?
+    is_valid_jump_target: bool, // Can we jump to the handler address?
+}
 
 impl Op for TrapOp {
-    fn prepare_memory_access(&self, _machine_state: &mut Emulator) {
-        // TRAP doesn't need extra memory access preparation in this basic implementation
-        tracing::trace!("TRAP: No memory access preparation needed");
+    fn decode(ir: EmulatorCell) -> Self {
+        // LAYOUT: 1111 | 0000 | trapvect8
+        let trap_vector = ir.range(7..0); // ZEXT occurs implicitly via range + EmulatorCell
+
+        Self {
+            trap_vector,
+            vector_table_entry_addr: EmulatorCell::new(0),
+            target_handler_addr: EmulatorCell::new(0),
+            is_valid_read_vector: false,
+            is_valid_jump_target: false,
+        }
     }
 
-    fn execute(&self, machine_state: &mut Emulator) {
-        let span = tracing::trace_span!("TRAP_execute",
-            ir = ?machine_state.ir.get()
-        );
-        let _enter = span.enter();
+    fn evaluate_address(&mut self, machine_state: &mut Emulator) {
+        // Calculate the address in the Trap Vector Table.
+        // Address is 0x0000 + ZEXT(trapvect8).
+        let vector_addr_val = self.trap_vector.get(); // Range already zero-extends.
+        self.vector_table_entry_addr.set(vector_addr_val);
 
-        // LAYOUT: 1111 | 0000 | trapvect8
-        let ir = machine_state.ir;
-        let trap_vector = ir.range(7..0).get();
-        tracing::trace!(
-            trap_vector = format!("0x{:02X}", trap_vector),
-            "TRAP vector"
-        );
+        // Check if the vector area is readable and within TVT bounds.
+        let vector_area = area_from_address(&self.vector_table_entry_addr);
+        if vector_area.can_read(&machine_state.current_privilege_level)
+            && self.vector_table_entry_addr.get() <= 0x00FF
+        // Ensure it's within TVT
+        {
+            self.is_valid_read_vector = true;
+        } else {
+            // This indicates a potential issue with the TRAP vector itself or memory setup.
+            machine_state.exception = Some(Exception::new_access_control_violation()); // Or a specific Trap exception
+            tracing::error!(
+                "TRAP Warning: Cannot read Trap Vector Table entry at 0x{:04X}",
+                self.vector_table_entry_addr.get()
+            );
+            debug_assert!(false, "Invalid TRAP vector address");
+            self.is_valid_read_vector = false;
+        }
+    }
 
-        // Save the return address in R7
-        let curr_pc = machine_state.pc.get();
-        machine_state.r[7].set(curr_pc);
-        tracing::trace!(
-            return_address = format!("0x{:04X}", curr_pc),
-            "Saving return address in R7"
-        );
+    fn fetch_operands(&mut self, machine_state: &mut Emulator) -> bool {
+        // If the TVT address is valid, set MAR to read the handler address.
+        if self.is_valid_read_vector {
+            machine_state.mar = self.vector_table_entry_addr;
+        }
+        // The actual memory read (MDR <- Mem[MAR]) happens after this phase.
+        false // No second fetch phase needed for TRAP itself.
+    }
 
-        // Basic implementations for common trap vectors
-        match trap_vector {
-            0x20 => {
-                // GETC: Read a character from the keyboard
-                tracing::trace!("GETC - Requesting keyboard input");
-                machine_state.await_input = Some(false);
-            }
-            0x21 => {
-                // OUT: Output a character to the console
-                let char_code = machine_state.r[0].get();
-                let char = char_code as u8 as char;
-                tracing::trace!(
-                    char_code = format!("0x{:04X}", char_code),
-                    char = char.to_string(),
-                    "OUT - Outputting character"
-                );
-                machine_state.output.push(char);
-            }
-            0x22 => {
-                // PUTS: Output a null-terminated string starting at address in R0
-                let mut string_addr = machine_state.r[0].get() as usize;
-                tracing::trace!(
-                    start_address = format!("0x{:04X}", string_addr),
-                    "PUTS - Outputting null-terminated string"
-                );
+    fn execute_operation(&mut self, machine_state: &mut Emulator) {
+        // This phase executes after the memory read triggered by fetch_operands.
+        // MDR now holds the target handler address read from the TVT entry.
+        if !self.is_valid_read_vector {
+            return; // Skip if reading the TVT entry failed.
+        }
 
-                let mut output_str = String::new();
-                let mut char_count = 0;
+        // Store the handler address read from MDR.
+        self.target_handler_addr = machine_state.mdr;
 
-                loop {
-                    let char_value = machine_state.memory[string_addr].get();
-                    if char_value == 0 {
-                        break; // Null terminator found
-                    }
-                    let c = char_value as u8 as char;
-                    output_str.push(c);
-                    machine_state.output.push(c);
-                    string_addr += 1;
-                    char_count += 1;
-                }
+        // Check if the target handler address is valid to jump to (readable).
+        // Again, check as if we are supervisor, since that's the target state.
+        let target_area = area_from_address(&self.target_handler_addr);
+        if target_area.can_read(&PrivilegeLevel::Supervisor) {
+            self.is_valid_jump_target = true;
 
-                tracing::trace!(
-                    characters = char_count,
-                    string = output_str,
-                    "PUTS output string"
-                );
+            // --- Perform Mode and Stack Switch ---
+            // Only switch if not already in Supervisor mode (though TRAP usually comes from User)
+            if matches!(machine_state.current_privilege_level, PrivilegeLevel::User) {
+                // Save current R6 (USP) into saved_usp
+                machine_state.saved_usp = machine_state.r[6];
+                // Load R6 with the Supervisor Stack Pointer (SSP) from saved_ssp
+                // Assumes saved_ssp was initialized correctly elsewhere (e.g., OS boot)
+                machine_state.r[6] = machine_state.saved_ssp;
             }
-            0x23 => {
-                // IN: Prompt user for input and read character
-                tracing::trace!("IN - Prompting for keyboard input and waiting");
-                machine_state.output.push_str("\nInput a character> ");
-                machine_state.await_input = Some(true);
-            }
-            0x25 => {
-                tracing::trace!("HALT - Halting execution");
-                machine_state.running = false;
-            }
-            _ => {
-                // For other trap vectors, in a real implementation we would
-                // jump to the trap routine at the specified memory location
-                tracing::trace!(
-                    vector = format!("0x{:02X}", trap_vector),
-                    "Unrecognized trap vector"
-                );
-            }
+
+            // Set privilege level to Supervisor *after* potential stack swap
+            machine_state.current_privilege_level = PrivilegeLevel::Supervisor;
+
+            // --- Push PSR onto the stack ---
+            // This device stores the current PSR value
+            let psr_value = machine_state.memory[PSR_ADDR].get();
+            // Push PSR onto stack
+            let sp_val = machine_state.r[6].get().wrapping_sub(1);
+            machine_state.r[6].set(sp_val);
+            machine_state.mar.set(sp_val);
+            machine_state.mdr.set(psr_value);
+            machine_state.write_bit = true;
+
+            // SAFETY: this can only fail if we do not have write access to memory, but we are supervisor
+            machine_state.step_write_memory().unwrap(); // pretty botch but this instruction dosent need super detailed cycles
+
+            // --- Push PC onto the stack ---
+            // Push PC onto the stack
+            let sp_val = machine_state.r[6].get().wrapping_sub(1);
+            machine_state.r[6].set(sp_val);
+            machine_state.mar.set(sp_val);
+            machine_state.mdr = machine_state.pc;
+            // Memory write happens in system between cycles
+
+            // --- Update PC ---
+            // Set PC to the handler routine address.
+            machine_state.pc.set(self.target_handler_addr.get());
+        } else {
+            // Privilege/Access Violation: The address *read from* the TVT points somewhere invalid.
+            machine_state.exception = Some(Exception::new_access_control_violation()); // Or a specific Trap exception
+            self.is_valid_jump_target = false;
+            tracing::warn!(
+                "TRAP Privilege Violation: Handler address 0x{:04X} (from TVT[0x{:04X}]) is not readable/executable.",
+                self.target_handler_addr.get(), self.vector_table_entry_addr.get()
+            );
+        }
+    }
+
+    fn store_result(&mut self, machine_state: &mut Emulator) {
+        machine_state.write_bit = true; // so we write our pc
+    }
+}
+use std::fmt;
+
+impl fmt::Display for TrapOp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // The display implementation should reflect the state immediately after decode.
+        let vector_val = self.trap_vector.get(); // Get the 8-bit vector value
+
+        // Check for common trap aliases
+        match vector_val {
+            0x20 => write!(f, "GETC"),
+            0x21 => write!(f, "OUT"),
+            0x22 => write!(f, "PUTS"),
+            0x23 => write!(f, "IN"),
+            0x24 => write!(f, "PUTSP"),
+            0x25 => write!(f, "HALT"),
+            _ => write!(f, "TRAP x{:02X}", vector_val), // Fallback for unknown vectors
         }
     }
 }

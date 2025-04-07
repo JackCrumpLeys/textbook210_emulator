@@ -1,3 +1,5 @@
+/// This is easily the most botch file in this codebase. We just go line by line
+/// and assemble based on string matching. TODO: Make a tokenizer
 use std::collections::{HashMap, HashSet};
 
 use crate::emulator::EmulatorCell;
@@ -136,7 +138,11 @@ impl Emulator {
 
             let mut current_line_size = 0;
 
-            if line_no_comment.contains(':') {
+            if line_no_comment
+                .split_whitespace()
+                .next()
+                .is_some_and(|w| w.contains(':'))
+            {
                 // Label with colon: LABEL: [instruction/directive]
                 let parts: Vec<&str> = line_no_comment.splitn(2, ':').collect();
                 let label = parts[0].trim();
@@ -188,6 +194,7 @@ impl Emulator {
             } else {
                 // Potential label without colon OR just an instruction
                 let parts: Vec<&str> = line_no_comment.split_whitespace().collect();
+
                 if !parts.is_empty() {
                     let first_word = parts[0];
                     // Check if it's a known opcode/alias or starts with R (register)
@@ -199,7 +206,7 @@ impl Emulator {
                     .contains(&first_word)
                         || first_word.starts_with('R');
 
-                    if !is_opcode_or_reg && parts.len() > 1 {
+                    if !is_opcode_or_reg && parts.len() >= 1 {
                         // Assume it's a label without a colon
                         let label = first_word;
                         if labels.contains_key(label) {
@@ -387,7 +394,11 @@ impl Emulator {
             let mut instruction_part_uncapped = line_no_comment_uncapped; // Needed for .STRINGZ
 
             // Handle labels (they don't generate code themselves)
-            if line_no_comment.contains(':') {
+            if line_no_comment
+                .split_whitespace()
+                .next()
+                .is_some_and(|w| w.contains(':'))
+            {
                 let parts: Vec<&str> = line_no_comment.splitn(2, ':').collect();
                 instruction_part = parts.get(1).map_or("", |s| s.trim());
                 // Also update the uncapped version if necessary
@@ -1237,9 +1248,9 @@ impl Emulator {
             }
         } else if imm.starts_with("x") || imm.starts_with("X") {
             // Hex immediate
-            match i16::from_str_radix(&imm[1..], 16) {
+            match u16::from_str_radix(&imm[1..], 16) {
                 Ok(val) => {
-                    value = val;
+                    value = val as i16;
                     tracing::debug!("Parsed hex immediate: {:X} ({})", value, value);
                 }
                 Err(e) => {
@@ -1316,7 +1327,5 @@ impl Emulator {
             tracing::trace!("Setting memory[{:04X}] = {:04X}", addr, *instruction);
             self.memory[addr].set(*instruction);
         }
-
-        self.pc = EmulatorCell(start_address);
     }
 }

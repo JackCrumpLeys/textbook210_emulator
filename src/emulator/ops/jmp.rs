@@ -1,46 +1,65 @@
-use crate::emulator::{BitAddressable, Emulator};
+use crate::emulator::{area_from_address, BitAddressable, Emulator, EmulatorCell, Exception};
 
 use super::Op;
-#[derive(Debug)]
-pub struct JmpOp;
+#[derive(Debug, Clone)]
+pub struct JmpOp {
+    base_r: EmulatorCell,         // Base register index
+    target_address: EmulatorCell, // Calculated during evaluate_address
+    is_valid_jump: bool,          // Set during evaluate_address
+}
 
 impl Op for JmpOp {
-    fn prepare_memory_access(&self, _machine_state: &mut Emulator) {
-        // JMP doesn't need extra memory access preparation
-        tracing::trace!("JMP: No memory access preparation needed");
+    fn decode(ir: EmulatorCell) -> Self {
+        // LAYOUT: 1100 | 000 | BaseR | 000000
+        let base_r = ir.range(8..6);
+
+        Self {
+            base_r,
+            target_address: EmulatorCell::new(0), // Initialize to 0
+            is_valid_jump: false,                 // Initialize to false
+        }
     }
 
-    fn execute(&self, machine_state: &mut Emulator) {
-        let span = tracing::trace_span!("JMP_execute",
-            ir = ?machine_state.ir.get(),
-            pc = machine_state.pc.get()
-        );
-        let _enter = span.enter();
+    fn evaluate_address(&mut self, machine_state: &mut Emulator) {
+        let base_r_index = self.base_r.get() as usize;
+        self.target_address = machine_state.r[base_r_index]; // Get address from register
 
-        // LAYOUT: 1100 | 000 | BaseR | 000000
-        let ir = machine_state.ir;
+        // Check memory permissions for the target address
+        let target_area = area_from_address(&self.target_address);
+        if target_area.can_read(&machine_state.current_privilege_level) {
+            self.is_valid_jump = true;
+        } else {
+            // Privilege violation: Cannot jump to non-readable memory
+            machine_state.exception = Some(Exception::new_access_control_violation());
+            self.is_valid_jump = false;
+            tracing::warn!(
+                "JMP/RET Privilege Violation: Attempted jump to non-readable address 0x{:04X} from BaseR R{}",
+                self.target_address.get(), base_r_index
+            );
+        }
+    }
 
-        // Extract base register index
-        let base_r_index = ir.range(8..6).get() as usize;
-        tracing::trace!(
-            base_register = format!("0x{:X}", base_r_index),
-            "Using base register for jump"
-        );
+    fn execute_operation(&mut self, machine_state: &mut Emulator) {
+        // Only update PC if the jump is valid (checked in evaluate_address)
+        if self.is_valid_jump {
+            machine_state.pc.set(self.target_address.get());
+        }
+        // If !is_valid_jump, an exception should already be set,
+    }
+}
 
-        // Set PC to the value in the base register
-        let old_pc = machine_state.pc.get();
-        let new_pc = machine_state.r[base_r_index].get();
-        tracing::trace!(
-            old_pc = format!("0x{:X}", old_pc),
-            new_pc = format!("0x{:X}", new_pc),
-            from_register = format!("0x{:X}", base_r_index),
-            "Jumping to address in register"
-        );
-        machine_state.pc.set(new_pc);
+use std::fmt;
 
-        // Note: RET is a special case of JMP where BaseR is R7
-        if base_r_index == 0x7 {
-            tracing::trace!("This is a RET instruction (JMP R7)");
+impl fmt::Display for JmpOp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // The Display implementation should reflect the state immediately after decode.
+        // target_address and is_valid_jump are determined later.
+        let base_r_index = self.base_r.get();
+
+        if base_r_index == 7 {
+            write!(f, "RET")
+        } else {
+            write!(f, "JMP R{}", base_r_index)
         }
     }
 }

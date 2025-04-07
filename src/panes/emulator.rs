@@ -4,12 +4,14 @@ mod editor;
 mod help;
 mod io;
 mod machine;
+mod memory;
 mod registers;
 
 use super::Pane;
 use super::PaneDisplay;
 use super::PaneTree;
 use eframe::glow::INCR;
+use memory::MemoryPane;
 use serde::{Deserialize, Serialize};
 
 pub use controls::ControlsPane;
@@ -29,6 +31,7 @@ pub enum EmulatorPane {
     Help(HelpPane),
     Controls(ControlsPane),
     Cpu(CpuStatePane),
+    Memory(MemoryPane),
 }
 
 impl PaneDisplay for EmulatorPane {
@@ -41,6 +44,7 @@ impl PaneDisplay for EmulatorPane {
             EmulatorPane::Help(pane) => pane.title(),
             EmulatorPane::Controls(pane) => pane.title(),
             EmulatorPane::Cpu(pane) => pane.title(),
+            EmulatorPane::Memory(pane) => pane.title(),
         }
     }
 
@@ -53,6 +57,7 @@ impl PaneDisplay for EmulatorPane {
             EmulatorPane::Help(pane) => pane.render(ui),
             EmulatorPane::Controls(pane) => pane.render(ui),
             EmulatorPane::Cpu(pane) => pane.render(ui),
+            EmulatorPane::Memory(pane) => pane.render(ui),
         }
     }
 
@@ -60,36 +65,14 @@ impl PaneDisplay for EmulatorPane {
         PaneTree::Children(
             "Emulator".to_owned(),
             vec![
-                PaneTree::Pane(
-                    "Editor".to_string(),
-                    Pane::EmulatorPanes(Box::new(EmulatorPane::Editor(EditorPane::default()))),
-                ),
-                PaneTree::Pane(
-                    "Machine Code".to_string(),
-                    Pane::EmulatorPanes(Box::new(EmulatorPane::Machine(MachinePane::default()))),
-                ),
-                PaneTree::Pane(
-                    "Registers".to_string(),
-                    Pane::EmulatorPanes(Box::new(
-                        EmulatorPane::Registers(RegistersPane::default()),
-                    )),
-                ),
-                PaneTree::Pane(
-                    "Input/Output".to_string(),
-                    Pane::EmulatorPanes(Box::new(EmulatorPane::Output(IoPane::default()))),
-                ),
-                PaneTree::Pane(
-                    "Controls".to_string(),
-                    Pane::EmulatorPanes(Box::new(EmulatorPane::Controls(ControlsPane::default()))),
-                ),
-                PaneTree::Pane(
-                    "Debug".to_string(),
-                    Pane::EmulatorPanes(Box::new(EmulatorPane::Cpu(CpuStatePane::default()))),
-                ),
-                PaneTree::Pane(
-                    "Help".to_string(),
-                    Pane::EmulatorPanes(Box::new(EmulatorPane::Help(HelpPane::default()))),
-                ),
+                MemoryPane::children(),
+                RegistersPane::children(),
+                MachinePane::children(),
+                EditorPane::children(),
+                CpuStatePane::children(),
+                IoPane::children(),
+                HelpPane::children(),
+                ControlsPane::children(),
             ],
         )
     }

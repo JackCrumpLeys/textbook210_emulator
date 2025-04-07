@@ -69,21 +69,14 @@ impl PaneDisplay for ControlsPane {
                     emulator.running = false;
                 }
             } else if ui.button("Run").clicked() {
-                if artifacts.error.is_none() && !artifacts.last_compiled_source.is_empty() {
-                    emulator.running = true;
-                } else {
-                    log::warn!("Cannot run: Program not compiled or has errors.");
-                    // Optionally show warning in UI
-                }
+                emulator.running = true;
             }
 
             if emulator.running {
                 // Automatic stepping logic when running
-                if emulator.await_input.is_none()
-                    && self.tick % self.ticks_between_updates as u64 == 0
-                {
+                if self.tick % self.ticks_between_updates as u64 == 0 {
                     let mut i = 0;
-                    while emulator.await_input.is_none() && emulator.running && i < self.speed {
+                    while emulator.running && i < self.speed {
                         match emulator.micro_step() {
                             Ok(_) => {}
                             Err(e) => {
@@ -97,7 +90,7 @@ impl PaneDisplay for ControlsPane {
                         // Check for breakpoints
                         let current_pc = emulator.pc.get() as usize;
                         if breakpoints.contains(&current_pc)
-                            && emulator.cpu_state == CpuState::Fetch
+                            && matches!(emulator.cpu_state, CpuState::Fetch)
                         // Break *before* fetching the instruction at the breakpoint
                         {
                             emulator.running = false;

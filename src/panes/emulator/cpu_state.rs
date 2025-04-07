@@ -68,37 +68,63 @@ impl PaneDisplay for CpuStatePane {
 
 impl CpuStatePane {
     fn render_cycle_view(&mut self, ui: &mut egui::Ui, emulator: &mut Emulator) {
-        let cycles = ["Fetch", "Decode", "ReadMemory", "Execute"];
-        let current_cycle = emulator.cpu_state as usize;
-        let artifacts = COMPILATION_ARTIFACTS.lock().unwrap();
-
-        let instruction_text = match emulator.ir.get() >> 12 {
-            0x1 => "ADD",
-            0x5 => "AND",
-            0x0 => "BR",
-            0xC => "JMP/RET",
-            0x4 => "JSR/JSRR",
-            0x2 => "LD",
-            0xA => "LDI",
-            0x6 => "LDR",
-            0xE => "LEA",
-            0x9 => "NOT",
-            0x8 => "RTI",
-            0x3 => "ST",
-            0xB => "STI",
-            0x7 => "STR",
-            0xF => "TRAP",
-            _ => "Unknown",
+        let cycles = [
+            "Fetch",
+            "Decode",
+            "Evaluate Address",
+            "Fetch Operands",
+            "Execute Operation",
+            "Store Result",
+        ];
+        let current_cycle_index = match emulator.cpu_state {
+            CpuState::Fetch => 0,
+            CpuState::Decode => 1,
+            CpuState::EvaluateAddress(_) => 2,
+            CpuState::FetchOperands(_) => 3,
+            CpuState::ExecuteOperation(_) => 4,
+            CpuState::StoreResult(_) => 5,
         };
 
-        // Find the corresponding source line if available
-        // Find the line number associated with the current PC
-        let current_pc = emulator.pc.get() as usize;
+        let artifacts = COMPILATION_ARTIFACTS.lock().unwrap();
+
+        // Determine instruction text based on IR, even if state is Fetch/Decode
+        let instruction_text = if !matches!(emulator.cpu_state, CpuState::Fetch) {
+            match emulator.ir.get() >> 12 {
+                0x1 => "ADD",
+                0x5 => "AND",
+                0x0 => "BR",
+                0xC => "JMP/RET",
+                0x4 => "JSR/JSRR",
+                0x2 => "LD",
+                0xA => "LDI",
+                0x6 => "LDR",
+                0xE => "LEA",
+                0x9 => "NOT",
+                0x8 => "RTI",
+                0x3 => "ST",
+                0xB => "STI",
+                0x7 => "STR",
+                0xF => "TRAP",
+                _ => "Unknown",
+            }
+        } else {
+            "Loading..." // Or some placeholder while fetching
+        };
+
+        // Find the corresponding source line if available (based on PC before fetch completes)
+        let pc_for_source_lookup = if matches!(emulator.cpu_state, CpuState::Fetch) {
+            emulator.pc.get().wrapping_sub(0) // Show source for the instruction *being* fetched
+        } else {
+            // For other states, the instruction is already fetched, PC points to the *next* instruction.
+            // So, look up the source for PC-1.
+            emulator.pc.get().wrapping_sub(1)
+        };
+
         let source_line_num = artifacts
             .line_to_address
             .iter()
             .find_map(|(line_num, &addr)| {
-                if addr == current_pc {
+                if addr == pc_for_source_lookup as usize {
                     Some(*line_num)
                 } else {
                     None
@@ -113,39 +139,52 @@ impl CpuStatePane {
         let mut description = RichText::new("NO CURRENT CYCLE");
 
         // Display cycle information
-        for (i, cycle) in cycles.iter().enumerate() {
-            if i == current_cycle {
+        for (i, cycle_name) in cycles.iter().enumerate() {
+            if i == current_cycle_index {
                 ui.label(
-                    RichText::new(format!("-> {}", cycle))
+                    RichText::new(format!("-> {}", cycle_name))
                         .strong()
                         .color(egui::Color32::GREEN),
                 );
 
                 // Provide specific description based on the current cycle
-                description = match emulator.cpu_state {
+                description = match &emulator.cpu_state {
                     CpuState::Fetch => RichText::new(format!(
-                        "FETCH: Fetching instruction at PC={:#06x}. MAR set to PC. MDR will load from memory. PC incremented.",
-                        emulator.pc.get()
+                        "FETCH: Reading instruction from Mem[PC={:#06x}] into IR. Incrementing PC.",
+                        emulator.pc.get() // PC holds the *address* being fetched now
                     )).color(egui::Color32::LIGHT_GREEN),
 
                     CpuState::Decode => RichText::new(format!(
-                        "DECODE: Analyzing instruction IR={:#06x} (Opcode: {:X} -> {}). Identifying registers/operands.",
+                        "DECODE: Analyzing instruction IR={:#06x} (Opcode: {:X} -> {}). Preparing for next phase.",
                         emulator.ir.get(), emulator.ir.get() >> 12, instruction_text
                     )).color(egui::Color32::LIGHT_YELLOW),
 
-                    CpuState::ReadMemory => RichText::new(format!(
-                        "MEMORY ACCESS: Accessing memory. MAR={:#06x}. MDR will load if read. Relevant for LD, LDI, ST, STI, STR.",
+                    CpuState::EvaluateAddress(op) => RichText::new(format!(
+                        "EVAL ADDR: Calculating memory/target address for {}. MAR may be set.",
+                        instruction_text // or op.to_string() if implemented
+                    )).color(egui::Color32::from_rgb(65, 105, 225)),
+
+                    CpuState::FetchOperands(op) => RichText::new(format!(
+                        "FETCH OPS: Reading operands for {} from registers or memory (via MAR={:#06x}). MDR may load.",
+                        instruction_text, // or op.to_string()
                         emulator.mar.get()
                     )).color(egui::Color32::LIGHT_BLUE),
 
-                    CpuState::Execute => RichText::new(format!(
-                        "EXECUTE: Performing operation for IR={:#06x} ('{}', from line: '{}'). May update registers/flags (N={}, Z={}, P={}).",
-                        emulator.ir.get(), instruction_text, source_line_text,
+                    CpuState::ExecuteOperation(op) => RichText::new(format!(
+                        "EXECUTE: Performing operation for {} ('{}', from line: '{}'). ALU computes, PC may change. Flags (N={}, Z={}, P={}) may update.",
+                        instruction_text, // or op.to_string()
+                         instruction_text, source_line_text,
                         emulator.n.get(), emulator.z.get(), emulator.p.get()
                     )).color(egui::Color32::GOLD),
+
+                    CpuState::StoreResult(op) => RichText::new(format!(
+                         "STORE RESULT: Writing result for {} to register or setting up memory write (MAR={:#06x}, MDR={:#06x}). Flags may update.",
+                        instruction_text, // or op.to_string()
+                        emulator.mar.get(), emulator.mdr.get()
+                    )).color(egui::Color32::LIGHT_RED),
                 };
             } else {
-                ui.label(RichText::new(format!("  {}", cycle)).color(egui::Color32::GRAY));
+                ui.label(RichText::new(format!("  {}", cycle_name)).color(egui::Color32::GRAY));
             }
         }
         ui.label(description);
@@ -157,8 +196,18 @@ impl CpuStatePane {
             let n_text = format!("N={}", emulator.n.get());
             let z_text = format!("Z={}", emulator.z.get());
             let p_text = format!("P={}", emulator.p.get());
-            let flag_color = if emulator.cpu_state == CpuState::Execute {
-                egui::Color32::LIGHT_GREEN
+            // Flags might be updated in Execute or StoreResult
+            let flag_color = if matches!(emulator.cpu_state, CpuState::ExecuteOperation(_))
+                || matches!(emulator.cpu_state, CpuState::StoreResult(_))
+            {
+                if emulator.n.changed_peek()
+                    || emulator.z.changed_peek()
+                    || emulator.p.changed_peek()
+                {
+                    egui::Color32::LIGHT_GREEN // Highlight if changed this cycle
+                } else {
+                    ui.visuals().text_color()
+                }
             } else {
                 ui.visuals().text_color()
             };
@@ -171,33 +220,59 @@ impl CpuStatePane {
             ui.label("Memory:");
             let mar_text = format!("MAR={:#06x}", emulator.mar.get());
             let mdr_text = format!("MDR={:#06x}", emulator.mdr.get());
-            let mem_color = if emulator.cpu_state == CpuState::Fetch
-                || emulator.cpu_state == CpuState::ReadMemory
+            let mar_color = if matches!(emulator.cpu_state, CpuState::Fetch)
+                || matches!(emulator.cpu_state, CpuState::EvaluateAddress(_))
+                || matches!(emulator.cpu_state, CpuState::FetchOperands(_))
+                || matches!(emulator.cpu_state, CpuState::StoreResult(_))
             {
-                egui::Color32::YELLOW
-            } else if emulator.cpu_state == CpuState::Execute {
-                // Highlight potential write in execute if applicable (though write happens after)
-                egui::Color32::LIGHT_GREEN
+                if emulator.mar.changed_peek() {
+                    egui::Color32::LIGHT_GREEN
+                } else {
+                    ui.visuals().text_color()
+                }
             } else {
                 ui.visuals().text_color()
             };
-            ui.label(RichText::new(mar_text).color(mem_color));
-            ui.label(RichText::new(mdr_text).color(mem_color));
+            let mdr_color = if matches!(emulator.cpu_state, CpuState::Fetch)
+                || matches!(emulator.cpu_state, CpuState::FetchOperands(_))
+                || matches!(emulator.cpu_state, CpuState::StoreResult(_))
+            {
+                if emulator.mdr.changed_peek() {
+                    egui::Color32::LIGHT_GREEN
+                } else {
+                    ui.visuals().text_color()
+                }
+            } else {
+                ui.visuals().text_color()
+            };
+            ui.label(RichText::new(mar_text).color(mar_color));
+            ui.label(RichText::new(mdr_text).color(mdr_color));
         });
 
         ui.horizontal(|ui| {
             ui.label("Control:");
             let ir_text = format!("IR={:#06x}", emulator.ir.get());
             let pc_text = format!("PC={:#06x}", emulator.pc.get());
-            let ir_color = if emulator.cpu_state == CpuState::Decode {
-                egui::Color32::LIGHT_GREEN
-            } else if emulator.cpu_state == CpuState::Fetch {
-                egui::Color32::YELLOW // IR will be loaded next
+            let ir_color = if matches!(emulator.cpu_state, CpuState::Fetch) {
+                if emulator.ir.changed_peek() {
+                    egui::Color32::LIGHT_GREEN
+                } else {
+                    egui::Color32::YELLOW
+                } // Highlight if loaded, yellow if about to load
+            } else if matches!(emulator.cpu_state, CpuState::Decode) {
+                egui::Color32::LIGHT_GREEN // Being used in Decode
             } else {
                 ui.visuals().text_color()
             };
-            let pc_color = if emulator.cpu_state == CpuState::Fetch {
-                egui::Color32::LIGHT_GREEN // PC is being used
+            let pc_color = if matches!(emulator.cpu_state, CpuState::Fetch)
+                || matches!(emulator.cpu_state, CpuState::EvaluateAddress(_))
+                || matches!(emulator.cpu_state, CpuState::ExecuteOperation(_))
+            {
+                if emulator.pc.changed_peek() {
+                    egui::Color32::LIGHT_GREEN
+                } else {
+                    ui.visuals().text_color()
+                } // PC used in Fetch, EvalAddr (for offsets), Execute (for jumps)
             } else {
                 ui.visuals().text_color()
             };

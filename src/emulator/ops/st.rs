@@ -1,56 +1,77 @@
-use crate::emulator::{BitAddressable, Emulator};
+use crate::emulator::{area_from_address, BitAddressable, Emulator, EmulatorCell, Exception};
 
 use super::Op;
-#[derive(Debug)]
-pub struct StOp;
+
+#[derive(Debug, Clone)]
+pub struct StOp {
+    sr: EmulatorCell,                // Source Register index
+    pc_offset: EmulatorCell,         // PCoffset9 (sign-extended)
+    effective_address: EmulatorCell, // Calculated address
+    is_valid_store: bool,            // Flag if the address is valid to write to
+}
 
 impl Op for StOp {
-    fn prepare_memory_access(&self, _machine_state: &mut Emulator) {
-        // ST doesn't need to prepare memory access as we handle it in execute
-        tracing::trace!("ST: Memory access preparation handled in execute phase");
+    fn decode(ir: EmulatorCell) -> Self {
+        // LAYOUT: 0011 | SR | PCoffset9
+        let sr = ir.range(11..9);
+        let pc_offset = ir.range(8..0).sext(8);
+
+        Self {
+            sr,
+            pc_offset,
+            effective_address: EmulatorCell::new(0),
+            is_valid_store: false,
+        }
     }
 
-    fn execute(&self, machine_state: &mut Emulator) {
-        let span = tracing::trace_span!("ST_execute",
-            ir = ?machine_state.ir.get(),
-            pc = machine_state.pc.get()
-        );
-        let _enter = span.enter();
+    fn evaluate_address(&mut self, machine_state: &mut Emulator) {
+        // Calculate effective address: PC + SEXT(PCoffset9)
+        // PC was already incremented during the fetch phase
+        let current_pc = machine_state.pc;
+        let effective_addr_val = current_pc.get().wrapping_add(self.pc_offset.get());
+        self.effective_address.set(effective_addr_val);
 
-        // LAYOUT: 0011 | SR | PCoffset9
-        let ir = machine_state.ir;
-        let sr_index = ir.range(11..9).get() as usize;
+        // Check memory write permissions
+        let target_area = area_from_address(&self.effective_address);
+        if target_area.can_write(&machine_state.current_privilege_level) {
+            self.is_valid_store = true;
+        } else {
+            // Privilege violation: Cannot write to this memory location
+            machine_state.exception = Some(Exception::new_access_control_violation());
+            self.is_valid_store = false;
+            tracing::warn!(
+                address = format!("0x{:04X}", self.effective_address.get()),
+                "ST Privilege Violation: Cannot write to address"
+            );
+        }
+    }
 
-        // Calculate effective address
-        let pc_offset = ir.range(8..0).sext(8).get();
-        let curr_pc = machine_state.pc.get();
-        let effective_address = curr_pc.wrapping_add(pc_offset);
+    fn store_result(&mut self, machine_state: &mut Emulator) {
+        if self.is_valid_store {
+            // Set MAR to the target address
+            machine_state.mar = self.effective_address;
+            // Fetch the value from the source register into MDR
+            let sr_index = self.sr.get() as usize;
+            machine_state.mdr = machine_state.r[sr_index];
+            // we are writing mem[mar] <- mdr
+            machine_state.write_bit = true;
+        }
+    }
+}
+use std::fmt;
 
-        tracing::trace!(
-            pc = format!("0x{:04X}", curr_pc),
-            offset = format!("0x{:04X}", pc_offset),
-            effective_address = format!("0x{:04X}", effective_address),
-            "Calculating effective address for store"
-        );
+impl fmt::Display for StOp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let sr_index = self.sr.get();
+        // pc_offset is already sign-extended during decode.
+        let offset_val = self.pc_offset.get() as i16; // Cast to signed for display
 
-        // Set MAR to the effective address and MDR to the value to store
-        machine_state.mar.set(effective_address);
-        let sr_value = machine_state.r[sr_index].get();
-        machine_state.mdr.set(sr_value);
-        tracing::trace!(
-            mar = format!("0x{:04X}", effective_address),
-            mdr = format!("0x{:04X}", sr_value),
-            source_register = sr_index,
-            "Setting memory registers for store operation"
-        );
-
-        // Store value from MDR to memory at address in MAR
-        let address = machine_state.mar.get() as usize;
-        tracing::trace!(
-            address = format!("0x{:04X}", address),
-            value = format!("0x{:04X}", sr_value),
-            "Storing value in memory"
-        );
-        machine_state.memory[address].set(machine_state.mdr.get());
+        write!(
+            f,
+            "ST R{}, #{} (x{:03X})",
+            sr_index,
+            offset_val,
+            self.pc_offset.get() & 0x1FF // Mask to 9 bits for hex
+        )
     }
 }

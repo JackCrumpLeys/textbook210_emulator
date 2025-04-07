@@ -549,6 +549,9 @@
 ;------------------------------------------------------------------------------
 
 OS_START    ; machine starts executing at x0200
+        ; Initialize stack pointer
+        LD R6, OS_SP
+
         LEA R0, OS_START_MSG     ; print welcome message
         PUTS
 
@@ -556,28 +559,29 @@ OS_START    ; machine starts executing at x0200
         LDI R0, OS_KBSR
         LD  R1, KB_IE_MASK
 
-
         ; Perform bitwise or R2 <- R0 OR R1
-        ST  R2, OS_R2        ; Save R2 temporarily
-        NOT R0, R0           ; R0 = ~R0
-        NOT R1, R1           ; R1 = ~R1
-        AND R2, R0, R1       ; R2 = ~R0 AND ~R1
-        NOT R2, R2           ; R2 = ~(~R0 AND ~R1) = R0 OR R1 (De Morgan's Law)
-        ADD R0, R2, #0       ; Move result to R0
-        NOT R1, R1           ; Restore R1
-        LD  R2, OS_R2        ; Restore R2
-
+        JSR BITWISE_OR
         STI R0, OS_KBSR
 
         ; Enable interrupts globally
         LD  R0, PSR_MASK_ENABLE_INT
-        STI R0, OS_PSR
+        JSR STACK_PUSH
 
-        ; Load user program from x3000 and start
-        LD  R0, USER_START
-        JMP R0
+        ; Push starting PSR onto stack
+        LD R0, STARTING_PSR
+        JSR STACK_PUSH
 
-OS_START_MSG    .STRINGZ "\nSimple LC-3 OS v1.0\n\n"
+        ; Push the first address of the user program onto stack
+        LD R0, USER_START
+        JSR STACK_PUSH
+
+        ; clear r0 and r1
+        AND R0, R0, #0
+        AND R1, R1, #0
+
+        RTI ; This will pop our pc and psr and use it to run the program
+
+OS_START_MSG    .STRINGZ "Simple LC-3 OS v1.0\n\n"
 
 ; Device register addresses
 OS_KBSR     .FILL xFE00  ; keyboard status register
@@ -592,11 +596,12 @@ MASK_HI         .FILL x7FFF
 LOW_8_BITS      .FILL x00FF
 PSR_MASK_ENABLE_INT   .FILL x8000  ; enable all interrupts
 KB_IE_MASK      .FILL x4000  ; keyboard interrupt enable
+STARTING_PSR    .FILL x8001  ; starting PSR value (Z=1, USERMODE)
 
 USER_START      .FILL x3000  ; default user program start
 
 ; OS stack at the end of OS space (note init with 0 size
-; so then pushing we will actually store at 0x2FFF
+; so then pushing we will actually store at 0x2FFF)
 OS_SP       .FILL x3000
 
 ; Temporary storage for registers
@@ -623,9 +628,22 @@ BITWISE_OR ; R0 IS INPUT1/OUTPUT, R1 IS INPUT2
         NOT R1, R1      ; Restore R1
         RET
 
+STACK_PUSH ; R0 IS INPUT
+        ADD R6, R6, #-1
+        STR R0, R6, #0
+        RET
+
+STACK_POP ; R0 IS OUTPUT
+        LDR R0, R6, #0
+        ADD R6, R6 , #1
+        RET
+
 ;------------------------------------------------------------------------------
 ; Standard LC-3 Trap Routines (from original OS)
 ;------------------------------------------------------------------------------
+
+; TODO: investigate the use of RTI in traps and consider implementing the trap
+; setup as a function for compatibility
 
 TRAP_GETC
         LDI R0, OS_KBSR      ; wait for a keystroke
@@ -691,9 +709,7 @@ TRAP_HALT
         ; an infinite loop of lowering OS_MCR's MSB
         LEA R0, TRAP_HALT_MSG    ; give a warning
         PUTS
-        LDI R0, OS_MCR       ; halt the machine
-        LD R1, MASK_HI
-        AND R0, R0, R1
+        AND R0, R0, #0           ; clear the MCR
         STI R0, OS_MCR
         BRnzp TRAP_HALT      ; HALT again...
 
@@ -771,7 +787,7 @@ NEWLINE         .FILL x000A  ; newline character
 NEG_SIGN        .FILL x002D  ; ASCII '-'
 ZERO_CHAR       .FILL x0030  ; ASCII '0
 
-ERROR_TEMPLATE  .STRINGZ "\n [OS] Error in program: "
+ERROR_TEMPLATE  .STRINGZ "\n[OS] Error in program: "
 ERROR_PRIV	  .STRINGZ "Attempted to run op `RTI` in user mode."
 
 ; TODO: The os should collect some more info here and print more usefully

@@ -83,7 +83,8 @@ fn criterion_benchmark(c: &mut Criterion) {
             emulator.r[2].set(10);
             // ADD R3, R1, R2
             emulator.ir.set(0b0001_011_001_000_010);
-            AddOp.execute(&mut emulator);
+            emulator.cpu_state = CpuState::Decode;
+            emulator.step();
             black_box(());
         });
     });
@@ -95,7 +96,8 @@ fn criterion_benchmark(c: &mut Criterion) {
             emulator.r[2].set(0x0F0F);
             // AND R3, R1, R2
             emulator.ir.set(0b0101_011_001_000_010);
-            AndOp.execute(&mut emulator);
+            emulator.cpu_state = CpuState::Decode;
+            emulator.step();
             black_box(());
         });
     });
@@ -107,7 +109,8 @@ fn criterion_benchmark(c: &mut Criterion) {
             emulator.n.set(1);
             // BRn #10 (branch if negative)
             emulator.ir.set(0b0000_100_000001010);
-            BrOp.execute(&mut emulator);
+            emulator.cpu_state = CpuState::Decode;
+            emulator.step();
             black_box(());
         });
     });
@@ -121,7 +124,8 @@ fn criterion_benchmark(c: &mut Criterion) {
             emulator.ir.set(0b0010_011_000000101);
             emulator.mar.set(0x3005);
             emulator.mdr.set(0x1234);
-            LdOp.execute(&mut emulator);
+            emulator.cpu_state = CpuState::Decode;
+            emulator.step();
             black_box(());
         });
     });
@@ -131,8 +135,8 @@ fn criterion_benchmark(c: &mut Criterion) {
             let mut emulator = Emulator::new();
             emulator.pc.set(0x3000);
             // JSR #20
-            emulator.ir.set(0b0100_1_00000010100);
-            JsrOp.execute(&mut emulator);
+            emulator.cpu_state = CpuState::Decode;
+            emulator.step();
             black_box(());
         });
     });
@@ -142,8 +146,8 @@ fn criterion_benchmark(c: &mut Criterion) {
             let mut emulator = Emulator::new();
             emulator.pc.set(0x3000);
             // TRAP x25 (HALT)
-            emulator.ir.set(0b1111_0000_00100101);
-            TrapOp.execute(&mut emulator);
+            emulator.cpu_state = CpuState::Decode;
+            emulator.step();
             black_box(());
         });
     });

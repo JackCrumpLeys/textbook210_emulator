@@ -1,44 +1,87 @@
-use crate::emulator::{BitAddressable, Emulator};
+use crate::emulator::{AluOp, BitAddressable, Emulator, EmulatorCell};
 
 use super::Op;
-#[derive(Debug)]
-pub struct NotOp;
+
+#[derive(Debug, Clone)]
+pub enum NotOp {
+    Decoded {
+        dr: EmulatorCell, // Destination register index
+        sr: EmulatorCell, // Source register index
+    },
+    Ready {
+        dr: EmulatorCell, // Destination register index
+        op: EmulatorCell, // Fetched source operand
+    },
+}
 
 impl Op for NotOp {
-    fn prepare_memory_access(&self, _machine_state: &mut Emulator) {
-        // NOT doesn't need extra memory access preparation
-        tracing::trace!("NOT: No memory access preparation needed");
+    fn decode(ir: EmulatorCell) -> Self {
+        // LAYOUT: 1001 | DR | SR | 111111
+        let dr = ir.range(11..9);
+        let sr = ir.range(8..6);
+
+        NotOp::Decoded { dr, sr }
     }
 
-    fn execute(&self, machine_state: &mut Emulator) {
-        let span = tracing::trace_span!("NOT_execute",
-            ir = ?machine_state.ir.get()
-        );
-        let _enter = span.enter();
+    fn fetch_operands(&mut self, machine_state: &mut Emulator) -> bool {
+        let mut new_op = None;
+        if let NotOp::Decoded { dr, sr } = *self {
+            let op = machine_state.r[sr.get() as usize];
+            new_op = Some(NotOp::Ready { dr, op });
+        } else {
+            // Should not be in Ready state when fetch_operands is called again
+            tracing::warn!("NOT: fetch_operands called when already in Ready state");
+            debug_assert!(false, "Unexpected state flow in NOT fetch_operands");
+        }
 
-        // LAYOUT: 1001 | DR | SR | 111111
-        let ir = machine_state.ir;
-        let dr_index = ir.range(11..9).get() as usize;
-        let sr_index = ir.range(8..6).get() as usize;
+        if let Some(op) = new_op {
+            *self = op;
+        }
+        // No second fetch phase needed for NOT.
+        false
+    }
 
-        // Perform bitwise NOT operation
-        let sr_value = machine_state.r[sr_index].get();
-        let result = !sr_value;
-        tracing::trace!(
-            source_register = sr_index,
-            source_value = format!("0x{:04X}", sr_value),
-            result = format!("0x{:04X}", result),
-            "Performing bitwise NOT operation"
-        );
-        machine_state.r[dr_index].set(result);
+    fn execute_operation(&mut self, machine_state: &mut Emulator) {
+        if let NotOp::Ready { op, .. } = *self {
+            // Set the ALU operation to NOT with the fetched operand
+            machine_state.alu.op = Some(AluOp::Not(op));
+        } else {
+            // Should be in the Ready state by now
+            tracing::warn!("NOT: execute_operation called before operands were fetched");
+            debug_assert!(false, "NOT execute_operation called in unexpected state");
+        }
+    }
 
-        // Update condition codes
-        machine_state.update_flags(dr_index);
-        tracing::trace!(
-            n = machine_state.n.get(),
-            z = machine_state.z.get(),
-            p = machine_state.p.get(),
-            "Updated condition flags after NOT"
-        );
+    fn store_result(&mut self, machine_state: &mut Emulator) {
+        if let NotOp::Ready { dr, .. } = *self {
+            // Result is available in alu_out after the ALU cycle completes implicitly
+            let result = machine_state.alu.alu_out;
+            let dr_idx = dr.get() as usize;
+
+            // Store the result in the destination register
+            machine_state.r[dr_idx] = result;
+
+            // Update condition codes based on the result stored in DR
+            machine_state.update_flags(dr_idx);
+        } else {
+            // Should be in the Ready state by now
+            tracing::warn!("NOT: store_result called before operands were fetched");
+            debug_assert!(false, "NOT store_result called in unexpected state");
+        }
+    }
+}
+use std::fmt;
+
+impl fmt::Display for NotOp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            NotOp::Decoded { dr, sr } => {
+                write!(f, "NOT R{}, R{}", dr.get(), sr.get())
+            }
+            NotOp::Ready { .. } => {
+                // This state represents an internal step, not a directly displayable instruction
+                write!(f, "INVALID READ")
+            }
+        }
     }
 }

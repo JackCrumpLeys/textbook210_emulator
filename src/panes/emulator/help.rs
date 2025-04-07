@@ -72,6 +72,8 @@ impl PaneDisplay for HelpPane {
 }
 
 fn render_help_ui(ui: &mut egui::Ui) {
+    egui::ScrollArea::vertical().show(ui, |ui| {
+
     ui.add(egui::Label::new(
         RichText::new("Welcome to the LC-3 Emulator")
             .heading()
@@ -139,6 +141,7 @@ fn render_help_ui(ui: &mut egui::Ui) {
             ui.label("Z: Zero flag - Set when the result of an operation is zero");
             ui.label("P: Positive flag - Set when the result of an operation is positive");
         });
+    });
 }
 
 fn render_cheatsheet_examples(ui: &mut egui::Ui) {

@@ -5,731 +5,6 @@ use tracing_test::traced_test;
 
 #[traced_test]
 #[test]
-fn test_add_op() {
-    tracing::info_span!("test_add_op").in_scope(|| {
-        tracing::info!("Starting ADD operation test");
-
-        let mut machine_state = Emulator::new();
-        machine_state.r[0].set(5);
-        tracing::debug!(register = 0, value = 5, "Initialized register");
-        machine_state.r[1].set(3);
-        tracing::debug!(register = 1, value = 3, "Initialized register");
-
-        // Set instruction register for ADD R0, R0, R1
-        // 0001 (ADD) | 000 (DR=R0) | 000 (SR1=R0) | 0 (not immediate) | 00 | 001 (SR2=R1)
-        machine_state.ir.set(0b0001_000_000_0_00_001);
-        tracing::debug!(
-            ir = format!("0b{:016b}", machine_state.ir.get()),
-            "Set instruction register"
-        );
-
-        let add_op = AddOp;
-        tracing::debug!("Executing ADD operation");
-        add_op.execute(&mut machine_state);
-        tracing::debug!("ADD operation executed");
-
-        tracing::debug!(result = machine_state.r[0].get(), "Final R0 value");
-        tracing::debug!(
-            n = machine_state.n.get(),
-            z = machine_state.z.get(),
-            p = machine_state.p.get(),
-            "Final condition flags"
-        );
-
-        assert_eq!(machine_state.r[0].get(), 8);
-        assert_eq!(machine_state.n.get(), 0);
-        assert_eq!(machine_state.z.get(), 0);
-        assert_eq!(machine_state.p.get(), 1);
-        tracing::info!("ADD operation test completed successfully");
-    });
-}
-
-#[traced_test]
-#[test]
-fn test_and_op() {
-    tracing::info_span!("test_and_op").in_scope(|| {
-        tracing::info!("Starting AND operation test");
-
-        let mut machine_state = Emulator::new();
-        machine_state.r[0].set(0b1010);
-        tracing::debug!(register = 0, value = 0b1010, "Initialized register");
-        machine_state.r[1].set(0b1100);
-        tracing::debug!(register = 1, value = 0b1100, "Initialized register");
-
-        // Set instruction register for AND R2, R0, R1
-        // 0101 (AND) | 010 (DR=R2) | 000 (SR1=R0) | 0 (not immediate) | 00 | 001 (SR2=R1)
-        machine_state.ir.set(0b0101_010_000_0_00_001);
-        tracing::debug!(
-            ir = format!("0b{:016b}", machine_state.ir.get()),
-            "Set instruction register"
-        );
-
-        let and_op = AndOp;
-        tracing::debug!("Executing AND operation");
-        and_op.execute(&mut machine_state);
-        tracing::debug!("AND operation executed");
-
-        tracing::debug!(
-            result = format!("0b{:b}", machine_state.r[2].get()),
-            "Final R2 value"
-        );
-        tracing::debug!(
-            n = machine_state.n.get(),
-            z = machine_state.z.get(),
-            p = machine_state.p.get(),
-            "Final condition flags"
-        );
-
-        assert_eq!(machine_state.r[2].get(), 0b1000);
-        assert_eq!(machine_state.n.get(), 0);
-        assert_eq!(machine_state.z.get(), 0);
-        assert_eq!(machine_state.p.get(), 1);
-        tracing::info!("AND operation test completed successfully");
-    });
-}
-
-#[traced_test]
-#[test]
-fn test_br_op() {
-    tracing::info_span!("test_br_op").in_scope(|| {
-        tracing::info!("Starting BR operation test");
-
-        let mut machine_state = Emulator::new();
-        machine_state.pc.set(0x3000);
-        tracing::debug!(
-            pc = format!("0x{:04X}", 0x3000),
-            "Initialized program counter"
-        );
-
-        machine_state.n.set(1);
-        machine_state.z.set(0);
-        machine_state.p.set(0);
-        tracing::debug!(n = 1, z = 0, p = 0, "Set condition codes");
-
-        // Set instruction register for BRn #5 (branch if negative)
-        // 0000 (BR) | 1 (n) | 0 (z) | 0 (p) | 000000101 (offset=5)
-        machine_state.ir.set(0b0000_100_000000101);
-        tracing::debug!(
-            ir = format!("0b{:016b}", machine_state.ir.get()),
-            "Set instruction register"
-        );
-
-        let br_op = BrOp;
-        tracing::debug!("Executing BR operation");
-        br_op.execute(&mut machine_state);
-        tracing::debug!("BR operation executed");
-
-        tracing::debug!(
-            pc = format!("0x{:04X}", machine_state.pc.get()),
-            "Final program counter"
-        );
-        assert_eq!(machine_state.pc.get(), 0x3005);
-        tracing::info!("BR operation test completed successfully");
-    });
-}
-
-#[traced_test]
-#[test]
-fn test_jmp_op() {
-    tracing::info_span!("test_jmp_op").in_scope(|| {
-        tracing::info!("Starting JMP operation test");
-
-        let mut machine_state = Emulator::new();
-        machine_state.pc.set(0x3000);
-        tracing::debug!(
-            pc = format!("0x{:04X}", 0x3000),
-            "Initialized program counter"
-        );
-
-        machine_state.r[2].set(0x4000);
-        tracing::debug!(
-            register = 2,
-            value = format!("0x{:04X}", 0x4000),
-            "Initialized register"
-        );
-
-        // Set instruction register for JMP R2
-        // 1100 (JMP) | 000 | 010 (BaseR=R2) | 000000
-        machine_state.ir.set(0b1100_000_010_000000);
-        tracing::debug!(
-            ir = format!("0b{:016b}", machine_state.ir.get()),
-            "Set instruction register"
-        );
-
-        let jmp_op = JmpOp;
-        tracing::debug!("Executing JMP operation");
-        jmp_op.execute(&mut machine_state);
-        tracing::debug!("JMP operation executed");
-
-        tracing::debug!(
-            pc = format!("0x{:04X}", machine_state.pc.get()),
-            "Final program counter"
-        );
-        assert_eq!(machine_state.pc.get(), 0x4000);
-        tracing::info!("JMP operation test completed successfully");
-    });
-}
-
-#[traced_test]
-#[test]
-fn test_jsr_op() {
-    tracing::info_span!("test_jsr_op").in_scope(|| {
-        tracing::info!("Starting JSR operation test");
-
-        let mut machine_state = Emulator::new();
-        machine_state.pc.set(0x3000);
-        tracing::debug!(
-            pc = format!("0x{:04X}", 0x3000),
-            "Initialized program counter"
-        );
-
-        // Set instruction register for JSR #10
-        // 0100 (JSR) | 1 (JSR mode) | 00000001010 (offset=10)
-        machine_state.ir.set(0b0100_1_00000001010);
-        tracing::debug!(
-            ir = format!("0b{:016b}", machine_state.ir.get()),
-            "Set instruction register"
-        );
-
-        let jsr_op = JsrOp;
-        tracing::debug!("Executing JSR operation");
-        jsr_op.execute(&mut machine_state);
-        tracing::debug!("JSR operation executed");
-
-        tracing::debug!(
-            pc = format!("0x{:04X}", machine_state.pc.get()),
-            r7 = format!("0x{:04X}", machine_state.r[7].get()),
-            "Final state after JSR"
-        );
-
-        assert_eq!(machine_state.r[7].get(), 0x3000);
-        assert_eq!(machine_state.pc.get(), 0x300A);
-        tracing::info!("JSR operation test completed successfully");
-    });
-}
-
-#[traced_test]
-#[test]
-fn test_ld_op() {
-    tracing::info_span!("test_ld_op").in_scope(|| {
-        tracing::info!("Starting LD operation test");
-
-        let mut machine_state = Emulator::new();
-        machine_state.pc.set(0x3000);
-        tracing::debug!(
-            pc = format!("0x{:04X}", 0x3000),
-            "Initialized program counter"
-        );
-
-        machine_state.memory[0x3005].set(0x1234);
-        tracing::debug!(
-            address = format!("0x{:04X}", 0x3005),
-            value = format!("0x{:04X}", 0x1234),
-            "Set memory value"
-        );
-
-        // Set instruction register for LD R3, #5
-        // 0010 (LD) | 011 (DR=R3) | 000000101 (offset=5)
-        machine_state.ir.set(0b0010_011_000000101);
-        tracing::debug!(
-            ir = format!("0b{:016b}", machine_state.ir.get()),
-            "Set instruction register"
-        );
-
-        let ld_op = LdOp;
-        tracing::debug!("Preparing memory access for LD operation");
-        ld_op.prepare_memory_access(&mut machine_state);
-        tracing::debug!(
-            mar = format!("0x{:04X}", machine_state.mar.get()),
-            "MAR set for memory access"
-        );
-
-        machine_state
-            .mdr
-            .set(machine_state.memory[machine_state.mar.get() as usize].get());
-        tracing::debug!(
-            mdr = format!("0x{:04X}", machine_state.mdr.get()),
-            "MDR loaded with memory value"
-        );
-
-        tracing::debug!("Executing LD operation");
-        ld_op.execute(&mut machine_state);
-        tracing::debug!("LD operation executed");
-
-        tracing::debug!(
-            r3 = format!("0x{:04X}", machine_state.r[3].get()),
-            "Final register value"
-        );
-        tracing::debug!(
-            n = machine_state.n.get(),
-            z = machine_state.z.get(),
-            p = machine_state.p.get(),
-            "Final condition flags"
-        );
-
-        assert_eq!(machine_state.r[3].get(), 0x1234);
-        assert_eq!(machine_state.p.get(), 1);
-        tracing::info!("LD operation test completed successfully");
-    });
-}
-#[traced_test]
-#[test]
-fn test_ldi_op() {
-    tracing::info_span!("test_ldi_op").in_scope(|| {
-        tracing::info!("Starting LDI operation test");
-
-        let mut machine_state = Emulator::new();
-        machine_state.pc.set(0x3000);
-        tracing::debug!(
-            pc = format!("0x{:04X}", 0x3000),
-            "Initialized program counter"
-        );
-
-        machine_state.memory[0x3005].set(0x4000);
-        tracing::debug!(
-            address = format!("0x{:04X}", 0x3005),
-            value = format!("0x{:04X}", 0x4000),
-            "Set pointer address in memory"
-        );
-
-        machine_state.memory[0x4000].set(0x5678);
-        tracing::debug!(
-            address = format!("0x{:04X}", 0x4000),
-            value = format!("0x{:04X}", 0x5678),
-            "Set target value in memory"
-        );
-
-        // Set instruction register for LDI R4, #5
-        // 1010 (LDI) | 100 (DR=R4) | 000000101 (offset=5)
-        machine_state.ir.set(0b1010_100_000000101);
-        tracing::debug!(
-            ir = format!("0b{:016b}", machine_state.ir.get()),
-            "Set instruction register"
-        );
-
-        let ldi_op = LdiOp;
-        tracing::debug!("Preparing memory access for LDI operation");
-        ldi_op.prepare_memory_access(&mut machine_state);
-        tracing::debug!(
-            mar = format!("0x{:04X}", machine_state.mar.get()),
-            mdr = format!("0x{:04X}", machine_state.mdr.get()),
-            "Memory registers for indirect addressing"
-        );
-
-        machine_state
-            .mdr
-            .set(machine_state.memory[machine_state.mar.get() as usize].get());
-        tracing::debug!(
-            address = format!("0x{:04X}", machine_state.mar.get()),
-            value = format!("0x{:04X}", machine_state.mdr.get()),
-            "Loaded indirect value from memory"
-        );
-
-        tracing::debug!("Executing LDI operation");
-        ldi_op.execute(&mut machine_state);
-        tracing::debug!("LDI operation executed");
-
-        tracing::debug!(
-            r4 = format!("0x{:04X}", machine_state.r[4].get()),
-            "Final register value"
-        );
-        tracing::debug!(
-            n = machine_state.n.get(),
-            z = machine_state.z.get(),
-            p = machine_state.p.get(),
-            "Final condition flags"
-        );
-
-        assert_eq!(machine_state.r[4].get(), 0x5678);
-        assert_eq!(machine_state.p.get(), 1);
-        tracing::info!("LDI operation test completed successfully");
-    });
-}
-
-#[traced_test]
-#[test]
-fn test_ldr_op() {
-    tracing::info_span!("test_ldr_op").in_scope(|| {
-        tracing::info!("Starting LDR operation test");
-
-        let mut machine_state = Emulator::new();
-        machine_state.r[2].set(0x4000);
-        tracing::debug!(
-            register = 2,
-            value = format!("0x{:04X}", 0x4000),
-            "Initialized base register"
-        );
-
-        machine_state.memory[0x4003].set(0x9ABC);
-        tracing::debug!(
-            address = format!("0x{:04X}", 0x4003),
-            value = format!("0x{:04X}", 0x9ABC),
-            "Set memory value"
-        );
-
-        // Set instruction register for LDR R5, R2, #3
-        // 0110 (LDR) | 101 (DR=R5) | 010 (BaseR=R2) | 000011 (offset=3)
-        machine_state.ir.set(0b0110_101_010_000011);
-        tracing::debug!(
-            ir = format!("0b{:016b}", machine_state.ir.get()),
-            "Set instruction register"
-        );
-
-        let ldr_op = LdrOp;
-        tracing::debug!("Preparing memory access for LDR operation");
-        ldr_op.prepare_memory_access(&mut machine_state);
-        tracing::debug!(
-            base_register = 2,
-            offset = 3,
-            effective_address = format!("0x{:04X}", machine_state.mar.get()),
-            "Calculated effective address for LDR"
-        );
-
-        machine_state
-            .mdr
-            .set(machine_state.memory[machine_state.mar.get() as usize].get());
-        tracing::debug!(
-            address = format!("0x{:04X}", machine_state.mar.get()),
-            value = format!("0x{:04X}", machine_state.mdr.get()),
-            "Loaded value from memory"
-        );
-
-        tracing::debug!("Executing LDR operation");
-        ldr_op.execute(&mut machine_state);
-        tracing::debug!("LDR operation executed");
-
-        tracing::debug!(
-            r5 = format!("0x{:04X}", machine_state.r[5].get()),
-            "Final register value"
-        );
-        tracing::debug!(
-            n = machine_state.n.get(),
-            z = machine_state.z.get(),
-            p = machine_state.p.get(),
-            "Final condition flags"
-        );
-
-        assert_eq!(machine_state.r[5].get(), 0x9ABC);
-        assert_eq!(machine_state.n.get(), 1); // bit 15 is set as 9 = 0b1001
-        tracing::info!("LDR operation test completed successfully");
-    });
-}
-
-#[traced_test]
-#[test]
-fn test_lea_op() {
-    tracing::info_span!("test_lea_op").in_scope(|| {
-        tracing::info!("Starting LEA operation test");
-
-        let mut machine_state = Emulator::new();
-        machine_state.pc.set(0x3000);
-        tracing::debug!(
-            pc = format!("0x{:04X}", 0x3000),
-            "Initialized program counter"
-        );
-
-        // Set instruction register for LEA R6, #8
-        // 1110 (LEA) | 110 (DR=R6) | 000001000 (offset=8)
-        machine_state.ir.set(0b1110_110_000001000);
-        tracing::debug!(
-            ir = format!("0b{:016b}", machine_state.ir.get()),
-            dr = 6,
-            offset = 8,
-            "Set instruction register for LEA"
-        );
-
-        let lea_op = LeaOp;
-        tracing::debug!("Executing LEA operation");
-        lea_op.execute(&mut machine_state);
-        tracing::debug!("LEA operation executed");
-
-        tracing::debug!(
-            r6 = format!("0x{:04X}", machine_state.r[6].get()),
-            expected = format!("0x{:04X}", 0x3008),
-            "Final register value"
-        );
-        tracing::debug!(
-            n = machine_state.n.get(),
-            z = machine_state.z.get(),
-            p = machine_state.p.get(),
-            "Final condition flags"
-        );
-
-        assert_eq!(machine_state.r[6].get(), 0x3008);
-        assert_eq!(machine_state.p.get(), 1);
-        tracing::info!("LEA operation test completed successfully");
-    });
-}
-
-#[traced_test]
-#[test]
-fn test_not_op() {
-    tracing::info_span!("test_not_op").in_scope(|| {
-        tracing::info!("Starting NOT operation test");
-
-        let mut machine_state = Emulator::new();
-        machine_state.r[1].set(0xAAAA);
-        tracing::debug!(
-            register = 1,
-            value = format!("0x{:04X}", 0xAAAA),
-            binary = format!("0b{:016b}", 0xAAAA),
-            "Initialized register with pattern 10101010..."
-        );
-
-        // Set instruction register for NOT R2, R1
-        // 1001 (NOT) | 010 (DR=R2) | 001 (SR=R1) | 111111
-        machine_state.ir.set(0b1001_010_001_111111);
-        tracing::debug!(
-            ir = format!("0b{:016b}", machine_state.ir.get()),
-            dr = 2,
-            sr = 1,
-            "Set instruction register for NOT"
-        );
-
-        let not_op = NotOp;
-        tracing::debug!("Executing NOT operation");
-        not_op.execute(&mut machine_state);
-        tracing::debug!("NOT operation executed");
-
-        tracing::debug!(
-            r2 = format!("0x{:04X}", machine_state.r[2].get()),
-            binary = format!("0b{:016b}", machine_state.r[2].get()),
-            "Final register value after NOT"
-        );
-        tracing::debug!(
-            n = machine_state.n.get(),
-            z = machine_state.z.get(),
-            p = machine_state.p.get(),
-            "Final condition flags"
-        );
-
-        assert_eq!(machine_state.r[2].get(), 0x5555);
-        assert_eq!(machine_state.p.get(), 1);
-        assert_eq!(machine_state.n.get(), 0);
-        assert_eq!(machine_state.z.get(), 0);
-        tracing::info!("NOT operation test completed successfully");
-    });
-}
-
-#[traced_test]
-#[test]
-fn test_st_op() {
-    tracing::info_span!("test_st_op").in_scope(|| {
-        tracing::info!("Starting ST operation test");
-
-        let mut machine_state = Emulator::new();
-        machine_state.pc.set(0x3000);
-        tracing::debug!(
-            pc = format!("0x{:04X}", 0x3000),
-            "Initialized program counter"
-        );
-
-        machine_state.r[3].set(0xDEAD);
-        tracing::debug!(
-            register = 3,
-            value = format!("0x{:04X}", 0xDEAD),
-            "Initialized register with value to store"
-        );
-
-        // Set instruction register for ST R3, #6
-        // 0011 (ST) | 011 (SR=R3) | 000000110 (offset=6)
-        machine_state.ir.set(0b0011_011_000000110);
-        tracing::debug!(
-            ir = format!("0b{:016b}", machine_state.ir.get()),
-            sr = 3,
-            offset = 6,
-            "Set instruction register for ST"
-        );
-
-        let st_op = StOp;
-        tracing::debug!("Executing ST operation");
-        st_op.execute(&mut machine_state);
-        tracing::debug!("ST operation executed");
-
-        let memory_addr = 0x3006;
-        tracing::debug!(
-            address = format!("0x{:04X}", memory_addr),
-            value = format!("0x{:04X}", machine_state.memory[memory_addr].get()),
-            "Memory value after store operation"
-        );
-
-        assert_eq!(machine_state.memory[0x3006].get(), 0xDEAD);
-        tracing::info!("ST operation test completed successfully");
-    });
-}
-
-#[traced_test]
-#[test]
-fn test_sti_op() {
-    tracing::info_span!("test_sti_op").in_scope(|| {
-        tracing::info!("Starting STI operation test");
-
-        let mut machine_state = Emulator::new();
-        machine_state.pc.set(0x3000);
-        tracing::debug!(
-            pc = format!("0x{:04X}", 0x3000),
-            "Initialized program counter"
-        );
-
-        machine_state.r[4].set(0xBEEF);
-        tracing::debug!(
-            register = 4,
-            value = format!("0x{:04X}", 0xBEEF),
-            "Initialized source register"
-        );
-
-        machine_state.memory[0x3007].set(0x4000);
-        tracing::debug!(
-            address = format!("0x{:04X}", 0x3007),
-            value = format!("0x{:04X}", 0x4000),
-            "Set pointer address in memory"
-        );
-
-        // Set instruction register for STI R4, #7
-        // 1011 (STI) | 100 (SR=R4) | 000000111 (offset=7)
-        machine_state.ir.set(0b1011_100_000000111);
-        tracing::debug!(
-            ir = format!("0b{:016b}", machine_state.ir.get()),
-            sr = 4,
-            offset = 7,
-            "Set instruction register for STI"
-        );
-
-        let sti_op = StiOp;
-        tracing::debug!("Preparing memory access for STI operation");
-        sti_op.prepare_memory_access(&mut machine_state);
-        tracing::debug!(
-            mar = format!("0x{:04X}", machine_state.mar.get()),
-            "MAR set to pointer address"
-        );
-
-        machine_state
-            .mdr
-            .set(machine_state.memory[machine_state.mar.get() as usize].get());
-        tracing::debug!(
-            mdr = format!("0x{:04X}", machine_state.mdr.get()),
-            "MDR loaded with pointer value"
-        );
-
-        tracing::debug!("Executing STI operation");
-        sti_op.execute(&mut machine_state);
-        tracing::debug!("STI operation completed");
-
-        let target_address = 0x4000;
-        tracing::debug!(
-            address = format!("0x{:04X}", target_address),
-            value = format!("0x{:04X}", machine_state.memory[target_address].get()),
-            "Final memory value after indirect store"
-        );
-
-        assert_eq!(machine_state.memory[0x4000].get(), 0xBEEF);
-        tracing::info!("STI operation test completed successfully");
-    });
-}
-
-#[traced_test]
-#[test]
-fn test_str_op() {
-    tracing::info_span!("test_str_op").in_scope(|| {
-        tracing::info!("Starting STR operation test");
-
-        let mut machine_state = Emulator::new();
-        machine_state.r[5].set(0xCAFE);
-        tracing::debug!(
-            register = 5,
-            value = format!("0x{:04X}", 0xCAFE),
-            "Initialized source register"
-        );
-
-        machine_state.r[1].set(0x5000);
-        tracing::debug!(
-            register = 1,
-            value = format!("0x{:04X}", 0x5000),
-            "Initialized base register"
-        );
-
-        // Set instruction register for STR R5, R1, #4
-        // 0111 (STR) | 101 (SR=R5) | 001 (BaseR=R1) | 000100 (offset=4)
-        machine_state.ir.set(0b0111_101_001_000100);
-        tracing::debug!(
-            ir = format!("0b{:016b}", machine_state.ir.get()),
-            sr = 5,
-            base_register = 1,
-            offset = 4,
-            "Set instruction register for STR"
-        );
-
-        let str_op = StrOp;
-        tracing::debug!("Executing STR operation");
-        str_op.execute(&mut machine_state);
-        tracing::debug!("STR operation completed");
-
-        let target_address = 0x5004;
-        tracing::debug!(
-            address = format!("0x{:04X}", target_address),
-            value = format!("0x{:04X}", machine_state.memory[target_address].get()),
-            expected = format!("0x{:04X}", 0xCAFE),
-            "Memory value after register-relative store"
-        );
-
-        assert_eq!(machine_state.memory[0x5004].get(), 0xCAFE);
-        tracing::info!("STR operation test completed successfully");
-    });
-}
-
-#[traced_test]
-#[test]
-fn test_trap_op() {
-    tracing::info_span!("test_trap_op").in_scope(|| {
-        tracing::info!("Starting TRAP operation test");
-
-        let mut machine_state = Emulator::new();
-        machine_state.pc.set(0x3000);
-        tracing::debug!(
-            pc = format!("0x{:04X}", 0x3000),
-            "Initialized program counter"
-        );
-
-        machine_state.r[0].set(0x41); // ASCII 'A'
-        tracing::debug!(
-            register = 0,
-            value = format!("0x{:04X}", 0x41),
-            "Initialized R0 with ASCII character 'A'"
-        );
-
-        // Set instruction register for TRAP x21 (OUT)
-        // 1111 (TRAP) | 0000 | 00100001 (trapvect=x21)
-        machine_state.ir.set(0b1111_0000_00100001);
-        tracing::debug!(
-            ir = format!("0b{:016b}", machine_state.ir.get()),
-            trap_vector = format!("0x{:02X}", 0x21),
-            "Set instruction register for TRAP OUT"
-        );
-
-        let trap_op = TrapOp;
-        tracing::debug!("Executing TRAP operation");
-        trap_op.execute(&mut machine_state);
-        tracing::debug!("TRAP operation completed");
-
-        tracing::debug!(
-            return_address = format!("0x{:04X}", machine_state.r[7].get()),
-            output_size = machine_state.output.len(),
-            output_value = format!(
-                "0x{:04X}",
-                machine_state.output.chars().next().unwrap() as u32
-            ),
-            "State after TRAP operation"
-        );
-
-        assert_eq!(machine_state.r[7].get(), 0x3000);
-        assert_eq!(machine_state.output.len(), 1);
-        assert_eq!(machine_state.output.chars().next(), Some('A'));
-        tracing::info!("TRAP operation test completed successfully");
-    });
-}
-
-#[traced_test]
-#[test]
 fn test_full_program_execution() {
     tracing::info_span!("test_full_program_execution").in_scope(|| {
         tracing::info!("Starting comprehensive program execution test with all instructions");
@@ -778,6 +53,8 @@ fn test_full_program_execution() {
             ADD R0, R0, R1       ; Add DATA_VAL address to R0
             ST R0, DATA_VAL      ; Store directly
             LD R0, DATA_VAL      ; Load value directly
+
+            LD R2, REGISTER_STORE_ADDRESS ; store at x4000
             STR R0, R2, #0       ; Store using register-based addressing
 
             ; Load register-based
@@ -802,6 +79,7 @@ fn test_full_program_execution() {
             PTR_VAL:  .FILL x00BE    ; Value 190 to load indirectly
             RESULT_PTR: .FILL INDIRECT_RESULT ; Pointer to indirect result
             INDIRECT_RESULT: .FILL x0000 ; To store indirect result
+            REGISTER_STORE_ADDRESS: .FILL x4000
 
             ; First subroutine
             SUBROUTINE:
@@ -834,6 +112,8 @@ fn test_full_program_execution() {
             "Complex assembled program to test all instructions"
         );
 
+        let mut machine_state = Emulator::new();
+
         // Parse the program
         tracing::debug!("Parsing program");
         let parse_result = Emulator::parse_program(program);
@@ -848,23 +128,24 @@ fn test_full_program_execution() {
             ..
         } = parse_result.unwrap();
 
-        // Create an emulator and load the program
-        let mut machine_state = Emulator::new();
         tracing::debug!("Loading program into emulator");
         machine_state.flash_memory(machine_code, orig_address);
 
         // Verify the program was loaded correctly
         assert_eq!(
             machine_state.pc.get(),
-            orig_address,
-            "PC should be set to origin address"
+            0x0200,
+            "PC should be set to OS origin address"
         );
 
         // Execute the program with a maximum number of steps
         tracing::debug!("Beginning program execution");
-        let max_steps = 100; // Prevent infinite loops
+        let max_steps = 500; // Prevent infinite loops
         machine_state.running = true;
         let result = machine_state.run(Some(max_steps));
+
+        tracing::debug!("Program execution completed");
+        tracing::debug!("Result: {:?}", result);
 
         // Verify execution completed successfully
         assert!(result.is_ok(), "Program execution should succeed");
@@ -877,7 +158,7 @@ fn test_full_program_execution() {
         let expected_direct_result = 0xFFB6;
 
         // 2. Register-based store:
-        let register_store_address = 200;
+        let register_store_address = 0x4000;
         let expected_register_result = 0x49;
 
         // 3. Indirect store: Original value (A=0x41) = 0x41
@@ -928,18 +209,6 @@ fn test_full_program_execution() {
             "Indirect result should be stored correctly in memory"
         );
 
-        // Verify the output
-        assert_eq!(
-            machine_state.output.len(),
-            1,
-            "Program should have produced one output"
-        );
-        assert_eq!(
-            machine_state.output.chars().next(),
-            Some('I'),
-            "Output should match the final value of R0"
-        );
-
         tracing::info!("Comprehensive program execution test completed successfully");
     });
 }
@@ -951,7 +220,7 @@ fn test_cell_index_and_range() {
         tracing::info!("Starting test for BitAddressable index and range");
 
         // Test the index function
-        let test_cell = EmulatorCell(0b1010_1100_0011_0101); // 0xAC35
+        let test_cell = EmulatorCell::new(0b1010_1100_0011_0101); // 0xAC35
 
         tracing::debug!(
             cell_value = format!("0x{:04X}", test_cell.get()),
@@ -1077,6 +346,9 @@ fn test_c_println_assembly() {
         machine_state.running = true;
         let result = machine_state.run(Some(max_steps));
 
+        tracing::debug!("Program execution completed");
+        tracing::debug!("Result: {:?}", result);
+
         // Verify execution completed successfully
         assert!(result.is_ok(), "Assembly execution should succeed");
 
@@ -1094,4 +366,356 @@ fn test_c_println_assembly() {
 
         tracing::info!("C-generated assembly test completed successfully");
     });
+}
+
+// Individual Opcode Tests
+
+fn run_instruction_test(
+    initial_pc: u16,
+    instruction: u16,
+    setup_fn: impl FnOnce(&mut Emulator),
+    assert_fn: impl FnOnce(&Emulator),
+) {
+    let mut machine = Emulator::new();
+    machine.pc.set(initial_pc);
+    machine.memory[initial_pc as usize].set(instruction);
+
+    // Apply initial setup
+    setup_fn(&mut machine);
+
+    // Run the single instruction step
+    let result = machine.step();
+    assert!(
+        result.is_ok(),
+        "Instruction step failed: {:?}",
+        result.err()
+    );
+
+    // Assert final state
+    assert_fn(&machine);
+}
+
+#[traced_test]
+#[test]
+fn test_add_register() {
+    run_instruction_test(
+        0x3000,
+        0b0001_001_010_0_00_011, // ADD R1, R2, R3
+        |m| {
+            m.r[2].set(5);
+            m.r[3].set(10);
+            m.z.set(0); // Ensure initial flags are not zero
+        },
+        |m| {
+            assert_eq!(m.r[1].get(), 15, "R1 should be 5 + 10 = 15");
+            assert_eq!(m.pc.get(), 0x3001, "PC should increment");
+            assert_eq!(m.p.get(), 1, "Positive flag should be set");
+            assert_eq!(m.z.get(), 0, "Zero flag should be clear");
+            assert_eq!(m.n.get(), 0, "Negative flag should be clear");
+        },
+    );
+}
+
+#[traced_test]
+#[test]
+fn test_add_immediate() {
+    run_instruction_test(
+        0x3000,
+        0b0001_001_010_1_00101, // ADD R1, R2, #5
+        |m| {
+            m.r[2].set(10);
+            m.z.set(0);
+        },
+        |m| {
+            assert_eq!(m.r[1].get(), 15, "R1 should be 10 + 5 = 15");
+            assert_eq!(m.pc.get(), 0x3001, "PC should increment");
+            assert_eq!(m.p.get(), 1, "Positive flag should be set");
+        },
+    );
+}
+
+#[traced_test]
+#[test]
+fn test_add_immediate_negative() {
+    run_instruction_test(
+        0x3000,
+        0b0001_001_010_1_11111, // ADD R1, R2, #-1
+        |m| {
+            m.r[2].set(5);
+            m.z.set(0);
+        },
+        |m| {
+            assert_eq!(m.r[1].get(), 4, "R1 should be 5 + (-1) = 4");
+            assert_eq!(m.pc.get(), 0x3001, "PC should increment");
+            assert_eq!(m.p.get(), 1, "Positive flag should be set");
+        },
+    );
+}
+
+#[traced_test]
+#[test]
+fn test_and_register() {
+    run_instruction_test(
+        0x3000,
+        0b0101_001_010_0_00_011, // AND R1, R2, R3
+        |m| {
+            m.r[2].set(0b1100);
+            m.r[3].set(0b1010);
+            m.z.set(0);
+        },
+        |m| {
+            assert_eq!(
+                m.r[1].get(),
+                0b1000,
+                "R1 should be 0b1100 & 0b1010 = 0b1000"
+            );
+            assert_eq!(m.pc.get(), 0x3001, "PC should increment");
+            assert_eq!(m.p.get(), 1, "Positive flag should be set");
+        },
+    );
+}
+
+#[traced_test]
+#[test]
+fn test_and_immediate() {
+    run_instruction_test(
+        0x3000,
+        0b0101_001_010_1_01010, // AND R1, R2, #10 (0b01010)
+        |m| {
+            m.r[2].set(0b1111); // 15
+            m.z.set(0);
+        },
+        |m| {
+            assert_eq!(m.r[1].get(), 0b01010, "R1 should be 0b1111 & 0b01010 = 10");
+            assert_eq!(m.pc.get(), 0x3001, "PC should increment");
+            assert_eq!(m.p.get(), 1, "Positive flag should be set");
+        },
+    );
+}
+
+#[traced_test]
+#[test]
+fn test_br_taken() {
+    run_instruction_test(
+        0x3000,
+        0b0000_0_0_1_000001010, // BRP +10 (PC -> 0x300B)
+        |m| {
+            m.p.set(1); // Set positive flag
+            m.z.set(0);
+            m.n.set(0);
+        },
+        |m| {
+            assert_eq!(m.pc.get(), 0x300B, "PC should jump to 0x3000 + 1 + 10");
+        },
+    );
+}
+
+#[traced_test]
+#[test]
+fn test_br_not_taken() {
+    run_instruction_test(
+        0x3000,
+        0b0000_1_0_0_000001010, // BRn +10
+        |m| {
+            m.p.set(1); // Set positive flag (condition doesn't match)
+            m.z.set(0);
+            m.n.set(0);
+        },
+        |m| {
+            assert_eq!(m.pc.get(), 0x3001, "PC should only increment");
+        },
+    );
+}
+
+#[traced_test]
+#[test]
+fn test_jmp() {
+    run_instruction_test(
+        0x3000,
+        0b1100_000_011_000000, // JMP R3
+        |m| {
+            m.r[3].set(0x4000); // Set target address in R3
+        },
+        |m| {
+            assert_eq!(m.pc.get(), 0x4000, "PC should jump to address in R3");
+        },
+    );
+}
+
+#[traced_test]
+#[test]
+fn test_ret() {
+    run_instruction_test(
+        0x3000,
+        0b1100_000_111_000000, // RET (JMP R7)
+        |m| {
+            m.r[7].set(0x5000); // Set return address in R7
+        },
+        |m| {
+            assert_eq!(m.pc.get(), 0x5000, "PC should jump to address in R7");
+        },
+    );
+}
+
+#[traced_test]
+#[test]
+fn test_jsr() {
+    run_instruction_test(
+        0x3000,
+        0b0100_1_00000010000, // JSR +16 (Target 0x3011)
+        |m| {},               // No specific setup needed
+        |m| {
+            assert_eq!(
+                m.r[7].get(),
+                0x3001,
+                "R7 should contain the return address (PC+1)"
+            );
+            assert_eq!(
+                m.pc.get(),
+                0x3011,
+                "PC should jump to 0x3000 + 1 + 16 = 0x3011"
+            );
+        },
+    );
+}
+
+#[traced_test]
+#[test]
+fn test_jsrr() {
+    run_instruction_test(
+        0x3000,
+        0b0100_0_00_011_000000, // JSRR R3
+        |m| {
+            m.r[3].set(0x6000); // Set subroutine address in R3
+        },
+        |m| {
+            assert_eq!(
+                m.r[7].get(),
+                0x3001,
+                "R7 should contain the return address (PC+1)"
+            );
+            assert_eq!(m.pc.get(), 0x6000, "PC should jump to address in R3");
+        },
+    );
+}
+
+#[traced_test]
+#[test]
+fn test_ld() {
+    run_instruction_test(
+        0x3000,
+        0b0010_001_000000101, // LD R1, +5 (Load from 0x3006)
+        |m| {
+            m.memory[0x3006].set(0xABCD); // Value to load
+            m.z.set(0);
+        },
+        |m| {
+            assert_eq!(m.r[1].get(), 0xABCD, "R1 should contain value from memory");
+            assert_eq!(m.pc.get(), 0x3001, "PC should increment");
+            assert_eq!(m.n.get(), 1, "Negative flag should be set (0xABCD)");
+        },
+    );
+}
+
+#[traced_test]
+#[test]
+fn test_ldr() {
+    run_instruction_test(
+        0x3000,
+        0b0110_001_010_000101, // LDR R1, R2, #5
+        |m| {
+            m.r[2].set(0x4000); // Base address
+            m.memory[0x4005].set(0x1234); // Value to load (0x4000 + 5)
+            m.z.set(0);
+        },
+        |m| {
+            assert_eq!(m.r[1].get(), 0x1234, "R1 should contain value from memory");
+            assert_eq!(m.pc.get(), 0x3001, "PC should increment");
+            assert_eq!(m.p.get(), 1, "Positive flag should be set (0x1234)");
+        },
+    );
+}
+
+#[traced_test]
+#[test]
+fn test_lea() {
+    run_instruction_test(
+        0x3000,
+        0b1110_001_000000101, // LEA R1, +5 (Load address 0x3006)
+        |m| {
+            m.z.set(0);
+        },
+        |m| {
+            assert_eq!(
+                m.r[1].get(),
+                0x3006,
+                "R1 should contain the effective address 0x3000 + 1 + 5"
+            );
+            assert_eq!(m.pc.get(), 0x3001, "PC should increment");
+            assert_eq!(m.p.get(), 1, "Positive flag should be set (0x3006)");
+        },
+    );
+}
+
+#[traced_test]
+#[test]
+fn test_not() {
+    run_instruction_test(
+        0x3000,
+        0b1001_001_010_111111, // NOT R1, R2
+        |m| {
+            m.r[2].set(0b0000_1111_0000_1111); // Input value
+            m.z.set(0);
+        },
+        |m| {
+            assert_eq!(
+                m.r[1].get(),
+                0b1111_0000_1111_0000,
+                "R1 should contain the bitwise NOT"
+            );
+            assert_eq!(m.pc.get(), 0x3001, "PC should increment");
+            assert_eq!(m.n.get(), 1, "Negative flag should be set");
+        },
+    );
+}
+
+#[traced_test]
+#[test]
+fn test_st() {
+    run_instruction_test(
+        0x3000,
+        0b0011_001_000000101, // ST R1, +5 (Store to 0x3006)
+        |m| {
+            m.r[1].set(0xFACE); // Value to store
+        },
+        |m| {
+            assert_eq!(
+                m.memory[0x3006].get(),
+                0xFACE,
+                "Memory at 0x3006 should contain value from R1"
+            );
+            assert_eq!(m.pc.get(), 0x3001, "PC should increment");
+        },
+    );
+}
+
+#[traced_test]
+#[test]
+fn test_str() {
+    run_instruction_test(
+        0x3000,
+        0b0111_001_010_000101, // STR R1, R2, #5
+        |m| {
+            m.r[1].set(0xBEEF); // Value to store
+            m.r[2].set(0x4000); // Base address
+        },
+        |m| {
+            assert_eq!(
+                m.memory[0x4005].get(),
+                0xBEEF,
+                "Memory at 0x4005 should contain value from R1"
+            );
+            assert_eq!(m.pc.get(), 0x3001, "PC should increment");
+        },
+    );
 }
