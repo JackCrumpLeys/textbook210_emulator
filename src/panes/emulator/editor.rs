@@ -1,6 +1,6 @@
 use crate::app::EMULATOR;
 use crate::emulator::parse::ParseOutput;
-use crate::emulator::{Emulator, EmulatorCell};
+use crate::emulator::Emulator;
 use crate::panes::{Pane, PaneDisplay, PaneTree};
 use egui::RichText;
 use lazy_static::lazy_static;

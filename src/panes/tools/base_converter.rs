@@ -1,7 +1,6 @@
 use egui::RichText;
 use serde::{Deserialize, Serialize};
 
-use crate::app::EMULATOR;
 use crate::{
     app::base_to_base,
     panes::{Pane, PaneDisplay, PaneTree},

@@ -11,7 +11,6 @@ pub use ldr::LdrOp;
 pub use lea::LeaOp;
 pub use not::NotOp;
 pub use rti::RtiOp;
-use serde::{Deserialize, Serialize};
 pub use st::StOp;
 pub use sti::StiOp;
 pub use str_op::StrOp;

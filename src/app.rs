@@ -1,13 +1,10 @@
-use std::{collections::BTreeSet, fmt::Display, sync::Mutex, vec::IntoIter};
+use std::sync::Mutex;
 
-use egui::{
-    ahash::{HashMap, HashMapExt},
-    OutputCommand, RichText,
-};
+use egui::ahash::HashMapExt;
 use egui_tiles::SimplificationOptions;
 
 use crate::{
-    emulator::{CpuState, Emulator, EmulatorCell},
+    emulator::Emulator,
     panes::{emulator::HelpPane, EmulatorPane, Pane, PaneDisplay},
 };
 use lazy_static::lazy_static;

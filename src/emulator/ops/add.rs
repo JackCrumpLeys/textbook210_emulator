@@ -1,5 +1,3 @@
-use tracing_subscriber::filter::combinator::And;
-
 use crate::emulator::{AluOp, BitAddressable, Emulator, EmulatorCell};
 use std::fmt;
 

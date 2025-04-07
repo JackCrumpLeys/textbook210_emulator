@@ -1,7 +1,7 @@
 use base_converter::BaseConverter;
 use serde::{Deserialize, Serialize};
 
-use super::{Pane, PaneDisplay, PaneTree};
+use super::{PaneDisplay, PaneTree};
 
 mod base_converter;
 

@@ -1,10 +1,10 @@
 use crate::app::{base_to_base, EMULATOR};
-use crate::emulator::{CpuState, Emulator, EmulatorCell};
+use crate::emulator::Emulator;
 use crate::panes::{Pane, PaneDisplay, PaneTree};
 use egui::RichText;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::sync::Mutex;
 
 use super::editor::{CompilationArtifacts, COMPILATION_ARTIFACTS};

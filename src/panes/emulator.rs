@@ -7,10 +7,8 @@ mod machine;
 mod memory;
 mod registers;
 
-use super::Pane;
 use super::PaneDisplay;
 use super::PaneTree;
-use eframe::glow::INCR;
 use memory::MemoryPane;
 use serde::{Deserialize, Serialize};
 

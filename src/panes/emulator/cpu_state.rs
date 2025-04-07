@@ -1,5 +1,5 @@
-use crate::app::{base_to_base, EMULATOR};
-use crate::emulator::{CpuState, Emulator, EmulatorCell};
+use crate::app::EMULATOR;
+use crate::emulator::{CpuState, Emulator};
 use crate::panes::{Pane, PaneDisplay, PaneTree};
 use egui::RichText;
 use serde::{Deserialize, Serialize};

@@ -1,7 +1,7 @@
 use crate::app::{base_to_base, EMULATOR};
-use crate::emulator::{Emulator, EmulatorCell};
+use crate::emulator::EmulatorCell;
 use crate::panes::{Pane, PaneDisplay, PaneTree};
-use egui::{Align, Color32, RichText};
+use egui::{Align, RichText};
 use egui_extras::{Column, TableBuilder};
 use serde::{Deserialize, Serialize};
 use std::ops::RangeInclusive;

@@ -1,13 +1,10 @@
 use crate::app::EMULATOR;
 use crate::emulator::parse::ParseOutput;
-use crate::emulator::{CpuState, Emulator, EmulatorCell};
-use crate::panes::emulator::editor::{CompilationArtifacts, COMPILATION_ARTIFACTS};
+use crate::emulator::{CpuState, Emulator};
+use crate::panes::emulator::editor::COMPILATION_ARTIFACTS;
 use crate::panes::emulator::machine::BREAKPOINTS;
 use crate::panes::{Pane, PaneDisplay, PaneTree};
-use egui::RichText;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::sync::Mutex;
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ControlsPane {

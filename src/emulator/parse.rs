@@ -2,8 +2,6 @@
 /// and assemble based on string matching. TODO: Make a tokenizer
 use std::collections::{HashMap, HashSet};
 
-use crate::emulator::EmulatorCell;
-
 use super::Emulator;
 
 /// Output structure for the `parse_program` function.
