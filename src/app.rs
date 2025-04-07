@@ -336,9 +336,9 @@ impl eframe::App for TemplateApp {
                     ui.menu_button("UI", |ui| {
                         // slider for ui scale
                         let mut scale = ctx.zoom_factor();
-                        if ui
-                            .add(egui::Slider::new(&mut scale, 0.5..=5.0).text("UI Scale"))
-                            .changed()
+                        let res = ui
+                            .add(egui::Slider::new(&mut scale, 0.5..=5.0).text("UI Scale"));
+                        if !res.dragged() && res.changed()
                         {
                             tracing::info!("Setting new UI scale: {}", scale);
                             ctx.set_zoom_factor(scale);
