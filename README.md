@@ -31,7 +31,7 @@ To ensure you're using the latest version, press `Ctrl+Shift+R` (or `Cmd+Shift+R
 
 ### Offline Use
 
-You can download the standalone application for offline use from our [releases page](https://github.com/JackCrumpLeys/textbook210_emulator/releases/tag/main). (Note that this is the bleeding edge and might be buggy)
+You can download the standalone application for offline use from the [releases page](https://github.com/JackCrumpLeys/textbook210_emulator/releases/tag/main). (Note that this is the bleeding edge and might be buggy)
 
 ## 📝 Quick Guide
 
