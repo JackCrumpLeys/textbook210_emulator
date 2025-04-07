@@ -31,24 +31,24 @@ impl Default for MachinePane {
 
 impl PaneDisplay for MachinePane {
     fn render(&mut self, ui: &mut egui::Ui) {
-        let artifacts = COMPILATION_ARTIFACTS.lock().unwrap();
-        let mut emulator = EMULATOR.lock().unwrap();
-
-        ui.group(|ui| {
-            ui.horizontal(|ui| {
-                ui.checkbox(&mut self.show_machine_code, "Show Machine Code");
-                if self.show_machine_code {
-                    ui.label("Base:");
-                    ui.radio_value(&mut self.machine_code_base, 2, "Binary");
-                    ui.radio_value(&mut self.machine_code_base, 16, "Hex");
-                    ui.radio_value(&mut self.machine_code_base, 10, "Decimal");
-                }
-            });
-        });
-
-        ui.separator();
-
         egui::ScrollArea::vertical().show(ui, |ui| {
+            let artifacts = COMPILATION_ARTIFACTS.lock().unwrap();
+            let mut emulator = EMULATOR.lock().unwrap();
+
+            ui.group(|ui| {
+                ui.horizontal(|ui| {
+                    ui.checkbox(&mut self.show_machine_code, "Show Machine Code");
+                    if self.show_machine_code {
+                        ui.label("Base:");
+                        ui.radio_value(&mut self.machine_code_base, 2, "Binary");
+                        ui.radio_value(&mut self.machine_code_base, 16, "Hex");
+                        ui.radio_value(&mut self.machine_code_base, 10, "Decimal");
+                    }
+                });
+            });
+
+            ui.separator();
+
             self.render_compiled_view(ui, &artifacts, &mut emulator);
         });
     }

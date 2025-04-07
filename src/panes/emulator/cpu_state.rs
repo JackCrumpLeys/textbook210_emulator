@@ -11,46 +11,48 @@ pub struct CpuStatePane {}
 
 impl PaneDisplay for CpuStatePane {
     fn render(&mut self, ui: &mut egui::Ui) {
-        let mut emulator = EMULATOR.lock().unwrap();
+        egui::ScrollArea::vertical().show(ui, |ui| {
+            let mut emulator = EMULATOR.lock().unwrap();
 
-        // Flags view
-        ui.collapsing("Flags", |ui| {
-            ui.horizontal(|ui| {
-                if ui
-                    .selectable_label(emulator.n.get() == 1, "N")
-                    .on_hover_text("Negative Flag")
-                    .clicked()
-                {
-                    emulator.n.set(1);
-                    emulator.z.set(0);
-                    emulator.p.set(0);
-                }
+            // Flags view
+            ui.collapsing("Flags", |ui| {
+                ui.horizontal(|ui| {
+                    if ui
+                        .selectable_label(emulator.n.get() == 1, "N")
+                        .on_hover_text("Negative Flag")
+                        .clicked()
+                    {
+                        emulator.n.set(1);
+                        emulator.z.set(0);
+                        emulator.p.set(0);
+                    }
 
-                if ui
-                    .selectable_label(emulator.z.get() == 1, "Z")
-                    .on_hover_text("Zero Flag")
-                    .clicked()
-                {
-                    emulator.z.set(1);
-                    emulator.n.set(0);
-                    emulator.p.set(0);
-                }
+                    if ui
+                        .selectable_label(emulator.z.get() == 1, "Z")
+                        .on_hover_text("Zero Flag")
+                        .clicked()
+                    {
+                        emulator.z.set(1);
+                        emulator.n.set(0);
+                        emulator.p.set(0);
+                    }
 
-                if ui
-                    .selectable_label(emulator.p.get() == 1, "P")
-                    .on_hover_text("Positive Flag")
-                    .clicked()
-                {
-                    emulator.p.set(1);
-                    emulator.n.set(0);
-                    emulator.z.set(0);
-                }
+                    if ui
+                        .selectable_label(emulator.p.get() == 1, "P")
+                        .on_hover_text("Positive Flag")
+                        .clicked()
+                    {
+                        emulator.p.set(1);
+                        emulator.n.set(0);
+                        emulator.z.set(0);
+                    }
+                });
             });
-        });
 
-        // Processor Cycle view
-        ui.collapsing("Processor Cycle", |ui| {
-            self.render_cycle_view(ui, &mut emulator);
+            // Processor Cycle view
+            ui.collapsing("Processor Cycle", |ui| {
+                self.render_cycle_view(ui, &mut emulator);
+            });
         });
     }
 

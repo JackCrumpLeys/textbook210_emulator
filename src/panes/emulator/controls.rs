@@ -26,86 +26,88 @@ impl Default for ControlsPane {
 
 impl PaneDisplay for ControlsPane {
     fn render(&mut self, ui: &mut egui::Ui) {
-        self.tick = self.tick.wrapping_add(1);
-        let mut emulator = EMULATOR.lock().unwrap();
-        let artifacts = COMPILATION_ARTIFACTS.lock().unwrap();
-        let breakpoints = BREAKPOINTS.lock().unwrap();
+        egui::ScrollArea::vertical().show(ui, |ui| {
+            self.tick = self.tick.wrapping_add(1);
+            let mut emulator = EMULATOR.lock().unwrap();
+            let artifacts = COMPILATION_ARTIFACTS.lock().unwrap();
+            let breakpoints = BREAKPOINTS.lock().unwrap();
 
-        ui.group(|ui| {
-            ui.label("Execution Speed");
-            ui.horizontal(|ui| {
-                ui.label("Clocks per update:");
-                ui.add(egui::Slider::new(&mut self.speed, 1..=1000).logarithmic(true));
+            ui.group(|ui| {
+                ui.label("Execution Speed");
+                ui.horizontal(|ui| {
+                    ui.label("Clocks per update:");
+                    ui.add(egui::Slider::new(&mut self.speed, 1..=1000).logarithmic(true));
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Update frequency:");
+                    ui.add(
+                        egui::Slider::new(&mut self.ticks_between_updates, 1..=100)
+                            .text("ticks between updates")
+                            .logarithmic(true),
+                    );
+                });
+                ui.label("Higher speed values execute more instructions per update cycle.");
             });
-            ui.horizontal(|ui| {
-                ui.label("Update frequency:");
-                ui.add(
-                    egui::Slider::new(&mut self.ticks_between_updates, 1..=100)
-                        .text("ticks between updates")
-                        .logarithmic(true),
-                );
-            });
-            ui.label("Higher speed values execute more instructions per update cycle.");
-        });
 
-        ui.horizontal(|ui| {
-            if ui.button("Small Step").clicked() {
-                emulator.micro_step();
-            }
-            if ui.button("Step").clicked() {
-                emulator.step();
-            }
-            if emulator.running {
-                if ui.button("Pause").clicked() {
-                    emulator.running = false;
+            ui.horizontal(|ui| {
+                if ui.button("Small Step").clicked() {
+                    emulator.micro_step();
                 }
-            } else if ui.button("Run").clicked() {
-                emulator.running = true;
-            }
+                if ui.button("Step").clicked() {
+                    emulator.step();
+                }
+                if emulator.running {
+                    if ui.button("Pause").clicked() {
+                        emulator.running = false;
+                    }
+                } else if ui.button("Run").clicked() {
+                    emulator.running = true;
+                }
 
-            if emulator.running {
-                // Automatic stepping logic when running
-                if self.tick % self.ticks_between_updates as u64 == 0 {
-                    let mut i = 0;
-                    while emulator.running && i < self.speed {
-                        emulator.micro_step();
-                        i += 1;
+                if emulator.running {
+                    // Automatic stepping logic when running
+                    if self.tick % self.ticks_between_updates as u64 == 0 {
+                        let mut i = 0;
+                        while emulator.running && i < self.speed {
+                            emulator.micro_step();
+                            i += 1;
 
-                        // Check for breakpoints
-                        let current_pc = emulator.pc.get() as usize;
-                        if breakpoints.contains(&current_pc)
-                            && matches!(emulator.cpu_state, CpuState::Fetch)
-                        // Break *before* fetching the instruction at the breakpoint
-                        {
-                            emulator.running = false;
-                            log::info!("Breakpoint hit at address 0x{:04X}", current_pc);
-                            break;
+                            // Check for breakpoints
+                            let current_pc = emulator.pc.get() as usize;
+                            if breakpoints.contains(&current_pc)
+                                && matches!(emulator.cpu_state, CpuState::Fetch)
+                            // Break *before* fetching the instruction at the breakpoint
+                            {
+                                emulator.running = false;
+                                log::info!("Breakpoint hit at address 0x{:04X}", current_pc);
+                                break;
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Reset button (distinct from Reset & Compile)
+            if ui.button("Reset Emulator State").clicked() {
+                *emulator = Emulator::new();
+                // Optionally re-flash memory if needed, or clear it
+                if !artifacts.last_compiled_source.is_empty() && artifacts.error.is_none() {
+                    match Emulator::parse_program(&artifacts.last_compiled_source) {
+                        Ok(ParseOutput {
+                            machine_code,
+                            orig_address,
+                            ..
+                        }) => {
+                            emulator.flash_memory(machine_code, orig_address);
+                        }
+                        Err(_) => {
+                            // Should not happen if artifacts are valid, but handle defensively
+                            *emulator = Emulator::new();
                         }
                     }
                 }
             }
         });
-
-        // Reset button (distinct from Reset & Compile)
-        if ui.button("Reset Emulator State").clicked() {
-            *emulator = Emulator::new();
-            // Optionally re-flash memory if needed, or clear it
-            if !artifacts.last_compiled_source.is_empty() && artifacts.error.is_none() {
-                match Emulator::parse_program(&artifacts.last_compiled_source) {
-                    Ok(ParseOutput {
-                        machine_code,
-                        orig_address,
-                        ..
-                    }) => {
-                        emulator.flash_memory(machine_code, orig_address);
-                    }
-                    Err(_) => {
-                        // Should not happen if artifacts are valid, but handle defensively
-                        *emulator = Emulator::new();
-                    }
-                }
-            }
-        }
     }
 
     fn title(&self) -> String {

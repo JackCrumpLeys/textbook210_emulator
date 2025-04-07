@@ -18,34 +18,36 @@ impl Default for RegistersPane {
 
 impl PaneDisplay for RegistersPane {
     fn render(&mut self, ui: &mut egui::Ui) {
-        let mut lock = EMULATOR.lock();
-        let emulator = &mut lock.as_deref_mut().unwrap();
+        egui::ScrollArea::vertical().show(ui, |ui| {
+            let mut lock = EMULATOR.lock();
+            let emulator = &mut lock.as_deref_mut().unwrap();
 
-        for i in 0..8 {
+            for i in 0..8 {
+                ui.horizontal(|ui| {
+                    ui.label(format!("R{}:", i));
+                    register_view(ui, &mut emulator.r[i], self.display_base);
+                });
+            }
+
             ui.horizontal(|ui| {
-                ui.label(format!("R{}:", i));
-                register_view(ui, &mut emulator.r[i], self.display_base);
+                ui.label("PC:");
+                register_view(ui, &mut emulator.pc, self.display_base);
             });
-        }
 
-        ui.horizontal(|ui| {
-            ui.label("PC:");
-            register_view(ui, &mut emulator.pc, self.display_base);
-        });
+            ui.horizontal(|ui| {
+                ui.label("MDR:");
+                register_view(ui, &mut emulator.mdr, self.display_base);
+            });
 
-        ui.horizontal(|ui| {
-            ui.label("MDR:");
-            register_view(ui, &mut emulator.mdr, self.display_base);
-        });
+            ui.horizontal(|ui| {
+                ui.label("MAR:");
+                register_view(ui, &mut emulator.mar, self.display_base);
+            });
 
-        ui.horizontal(|ui| {
-            ui.label("MAR:");
-            register_view(ui, &mut emulator.mar, self.display_base);
-        });
-
-        ui.horizontal(|ui| {
-            ui.label("IR:");
-            register_view(ui, &mut emulator.ir, self.display_base);
+            ui.horizontal(|ui| {
+                ui.label("IR:");
+                register_view(ui, &mut emulator.ir, self.display_base);
+            });
         });
     }
 

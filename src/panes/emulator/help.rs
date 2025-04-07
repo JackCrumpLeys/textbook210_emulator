@@ -52,11 +52,13 @@ impl Default for HelpPane {
 
 impl PaneDisplay for HelpPane {
     fn render(&mut self, ui: &mut egui::Ui) {
-        egui::CollapsingHeader::new("LC-3 Emulator Help").show(ui, render_help_ui);
-        egui::CollapsingHeader::new("LC-3 Instruction Reference")
-            .show(ui, |ui| self.render_reference(ui));
-        egui::CollapsingHeader::new("LC-3 Cheatsheet and Examples")
-            .show(ui, render_cheatsheet_examples);
+        egui::ScrollArea::vertical().show(ui, |ui| {
+            egui::CollapsingHeader::new("LC-3 Emulator Help").show(ui, render_help_ui);
+            egui::CollapsingHeader::new("LC-3 Instruction Reference")
+                .show(ui, |ui| self.render_reference(ui));
+            egui::CollapsingHeader::new("LC-3 Cheatsheet and Examples")
+                .show(ui, render_cheatsheet_examples);
+        });
     }
 
     fn title(&self) -> String {
@@ -72,8 +74,6 @@ impl PaneDisplay for HelpPane {
 }
 
 fn render_help_ui(ui: &mut egui::Ui) {
-    egui::ScrollArea::vertical().show(ui, |ui| {
-
     ui.add(egui::Label::new(
         RichText::new("Welcome to the LC-3 Emulator")
             .heading()
@@ -83,47 +83,47 @@ fn render_help_ui(ui: &mut egui::Ui) {
     ui.add_space(4.0);
     ui.label("This emulator allows you to write, compile, and execute LC-3 assembly programs. Below is a guide to using the various features:");
     egui::CollapsingHeader::new("Basic Usage")
-        .id_salt("basic_usage")
-        .show(ui, |ui| {
-            ui.label(RichText::new("1. Code Editor").strong());
-            ui.label("Write your LC-3 assembly code in the editor below. The editor supports syntax highlighting and basic formatting.");
+            .id_salt("basic_usage")
+            .show(ui, |ui| {
+                ui.label(RichText::new("1. Code Editor").strong());
+                ui.label("Write your LC-3 assembly code in the editor below. The editor supports syntax highlighting and basic formatting.");
 
-            ui.label(RichText::new("2. Compilation").strong());
-            ui.label("Click 'Compile' to assemble your code. If there are errors, they will be displayed below the editor.");
+                ui.label(RichText::new("2. Compilation").strong());
+                ui.label("Click 'Compile' to assemble your code. If there are errors, they will be displayed below the editor.");
 
-            ui.label(RichText::new("3. Execution").strong());
-            ui.label("- Use 'Run' to begin continuous execution");
-            ui.label("- Use 'Pause' to stop execution");
-            ui.label("- Use 'Step' to execute one full instruction");
-            ui.label("- Use 'Small Step' to execute one phase of the CPU cycle");
+                ui.label(RichText::new("3. Execution").strong());
+                ui.label("- Use 'Run' to begin continuous execution");
+                ui.label("- Use 'Pause' to stop execution");
+                ui.label("- Use 'Step' to execute one full instruction");
+                ui.label("- Use 'Small Step' to execute one phase of the CPU cycle");
 
-            ui.label(RichText::new("4. Input").strong());
-            ui.label("There are two ways to provide input to LC-3 programs:");
-            ui.label("- Use the 'Input' text field below the editor to pre-load input for GETC instructions");
-            ui.label("- When a TRAP IN instruction executes, you'll be prompted to enter a character");
-            ui.label("Characters typed into the input field will be consumed one at a time by GETC instructions from the start of the input");
+                ui.label(RichText::new("4. Input").strong());
+                ui.label("There are two ways to provide input to LC-3 programs:");
+                ui.label("- Use the 'Input' text field below the editor to pre-load input for GETC instructions");
+                ui.label("- When a TRAP IN instruction executes, you'll be prompted to enter a character");
+                ui.label("Characters typed into the input field will be consumed one at a time by GETC instructions from the start of the input");
 
-            ui.label(RichText::new("5. Debugging").strong());
-            ui.label("- Set breakpoints by clicking the 🛑 button next to a line");
-            ui.label("- Examine registers, memory, and flags in the collapsible sections");
-            ui.label("- Monitor the processor cycle for detailed execution information");
-        });
+                ui.label(RichText::new("5. Debugging").strong());
+                ui.label("- Set breakpoints by clicking the 🛑 button next to a line");
+                ui.label("- Examine registers, memory, and flags in the collapsible sections");
+                ui.label("- Monitor the processor cycle for detailed execution information");
+            });
     egui::CollapsingHeader::new("Execution Controls")
-        .id_salt("execution_controls")
-        .show(ui, |ui| {
-            ui.label(RichText::new("Execution Speed").strong());
-            ui.label("Control how quickly the program executes:");
-            ui.label("- 'Clocks per update': How many instructions to process in each update cycle");
-            ui.label("- 'Update frequency': How often to process instructions");
-            ui.label("Higher values mean faster execution but less responsive UI.");
+            .id_salt("execution_controls")
+            .show(ui, |ui| {
+                ui.label(RichText::new("Execution Speed").strong());
+                ui.label("Control how quickly the program executes:");
+                ui.label("- 'Clocks per update': How many instructions to process in each update cycle");
+                ui.label("- 'Update frequency': How often to process instructions");
+                ui.label("Higher values mean faster execution but less responsive UI.");
 
-            ui.label(RichText::new("Display Options").strong());
-            ui.label("- 'Display Base': Change how register and memory values are displayed");
-            ui.label("- 'Show Machine Code': Toggle between assembly and binary representation");
+                ui.label(RichText::new("Display Options").strong());
+                ui.label("- 'Display Base': Change how register and memory values are displayed");
+                ui.label("- 'Show Machine Code': Toggle between assembly and binary representation");
 
-            ui.label(RichText::new("Memory Editing").strong());
-            ui.label("You can directly edit memory values for directives like .FILL by using the numeric controls next to them.");
-        });
+                ui.label(RichText::new("Memory Editing").strong());
+                ui.label("You can directly edit memory values for directives like .FILL by using the numeric controls next to them.");
+            });
     egui::CollapsingHeader::new("Registers and Flags")
         .id_salt("registers_flags")
         .show(ui, |ui| {
@@ -141,7 +141,6 @@ fn render_help_ui(ui: &mut egui::Ui) {
             ui.label("Z: Zero flag - Set when the result of an operation is zero");
             ui.label("P: Positive flag - Set when the result of an operation is positive");
         });
-    });
 }
 
 fn render_cheatsheet_examples(ui: &mut egui::Ui) {
