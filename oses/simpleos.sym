@@ -3,7 +3,7 @@
 //	Symbol Name       Page Address
 //	----------------  ------------
 //	OS_START          0200
-//	OS_START_MSG      020F
+//	OS_START_MSG      0210
 //	OS_KBSR           0226
 //	OS_KBDR           0227
 //	OS_DSR            0228
@@ -56,8 +56,8 @@
 //	NEG_SIGN          02E7
 //	ZERO_CHAR         02E8
 //	ERROR_TEMPLATE    02E9
-//	ERROR_PRIV        0303
-//	ERROR_ILL         032B
-//	ERROR_ACV         033F
-//	ERROR_INT         036F
+//	ERROR_PRIV        0302
+//	ERROR_ILL         032A
+//	ERROR_ACV         033E
+//	ERROR_INT         036E
 
