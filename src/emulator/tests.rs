@@ -383,11 +383,11 @@ fn run_instruction_test(
     setup_fn(&mut machine);
 
     // Run the single instruction step
-    let result = machine.step();
+    machine.step();
     assert!(
-        result.is_ok(),
+        machine.exception.is_none(),
         "Instruction step failed: {:?}",
-        result.err()
+        machine.exception
     );
 
     // Assert final state

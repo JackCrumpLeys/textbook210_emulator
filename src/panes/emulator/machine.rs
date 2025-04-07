@@ -148,7 +148,8 @@ impl MachinePane {
             let mut display_text = code_part.clone();
             let is_breakpoint_line = artifacts
                 .line_to_address
-                .get(&i).is_some_and(|addr| breakpoints.contains(addr));
+                .get(&i)
+                .is_some_and(|addr| breakpoints.contains(addr));
 
             if is_breakpoint_line {
                 display_text = format!("{} (breakpoint)", display_text);

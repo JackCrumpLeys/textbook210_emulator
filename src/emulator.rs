@@ -150,7 +150,7 @@ impl Emulator {
         {
             emulator.flash_memory(machine_code, orig_address);
         } else {
-            debug_assert!(true, "INVALID DEFAULT OS!!!");
+            debug_assert!(false, "INVALID DEFAULT OS!!!");
         }
 
         emulator.memory[DSR_ADDR].set(0x8000); // ready for a char
@@ -498,7 +498,7 @@ impl Emulator {
     }
 
     /// **Micro Step:** Execute one phase of the instruction cycle.
-    pub fn micro_step(&mut self) -> Result<(), String> {
+    pub fn micro_step(&mut self) {
         tracing::trace!(memory_size = self.memory.len(), "Entering micro_step");
 
         debug_assert!(
@@ -516,7 +516,6 @@ impl Emulator {
             self.handle_exception(exc);
             // After handling, the state is reset, so we can return Ok and the next micro_step will fetch the handler.
             tracing::debug!("Exception handled, returning from micro_step");
-            return Ok(());
         }
 
         // Give devices a chance to do their things
@@ -703,7 +702,6 @@ impl Emulator {
                 if let Err(e) = &write_result {
                     tracing::error!(error = e, "Memory write step failed");
                 }
-                write_result?;
             }
         }
 
@@ -716,43 +714,29 @@ impl Emulator {
                 debug_assert!(false, "Micro_step failed: {}", e);
             }
         }
-
-        // We return Ok even if an error occurred internally,
-        // because the error state is captured in self.exception
-        // and will be handled by the next micro_step call.
-        Ok(())
     }
 
     /// **Step:** Execute one full instruction cycle (multiple micro-steps).
-    pub fn step(&mut self) -> Result<(), String> {
+    pub fn step(&mut self) {
         let input_running = self.running;
 
         self.running = true;
 
         // Execute micro-steps until we return to the Fetch state, completing one instruction.
-        self.micro_step()?; // (potentially) Fetch
+        self.micro_step(); // (potentially) Fetch
         while !matches!(self.cpu_state, CpuState::Fetch) && self.running {
             // Continue micro-stepping until Fetch is reached or an exception occurs
-            self.micro_step()?;
+            self.micro_step();
         }
 
         // Check if somehow not running anymore (e.g. HALT)
         if !self.running {
             self.running = input_running;
-            return Ok(());
+            return;
         }
 
-        // If we exited the loop and are in Fetch state without exceptions, the step was successful.
-        if matches!(self.cpu_state, CpuState::Fetch) {
-            self.running = input_running;
-            Ok(())
-        } else {
-            // This case should ideally not be reached if logic is correct
-            Err(format!(
-                "Step finished in unexpected state: {:?}",
-                self.cpu_state
-            ))
-        }
+        debug_assert!(matches!(self.cpu_state, CpuState::Fetch), "invalid step");
+        self.running = input_running;
     }
 
     /// **Run:** Execute instructions until HALT, error, input wait, or max_steps.
@@ -775,27 +759,18 @@ impl Emulator {
             }
 
             // Execute one full instruction step
-            match self.step() {
-                Ok(()) => {
-                    // Step completed successfully (or halted, or paused for input, or exception pending)
-                    // Check running state again in case step caused HALT
-                    if !self.running {
-                        tracing::info!("Execution halted by instruction.");
-                        return Ok(());
-                    }
-                    // Check for pending exception after the step finished
-                    if self.exception.is_some() {
-                        tracing::warn!(
-                            "Exception pending after step, will be handled on next cycle."
-                        );
-                        // Continue loop, exception handler runs at start of next micro_step
-                    }
-                }
-                Err(e) => {
-                    tracing::error!("Execution error during step: {}", e);
-                    self.running = false; // Stop on error
-                    return Err(e);
-                }
+            self.step();
+
+            // Step completed successfully (or halted, or paused for input, or exception pending)
+            // Check running state again in case step caused HALT
+            if !self.running {
+                tracing::info!("Execution halted by instruction.");
+                return Ok(());
+            }
+            // Check for pending exception after the step finished
+            if self.exception.is_some() {
+                tracing::warn!("Exception pending after step, will be handled on next cycle.");
+                // Continue loop, exception handler runs at start of next micro_step
             }
 
             if max_steps.is_some() {

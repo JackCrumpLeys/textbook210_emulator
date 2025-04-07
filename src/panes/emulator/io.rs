@@ -5,13 +5,11 @@ use serde::{Deserialize, Serialize};
 
 use super::EmulatorPane;
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Default)]
 pub struct IoPane {
     terminal_input: String,
     interactive_input: String,
 }
-
 
 impl PaneDisplay for IoPane {
     fn render(&mut self, ui: &mut egui::Ui) {

@@ -50,16 +50,10 @@ impl PaneDisplay for ControlsPane {
 
         ui.horizontal(|ui| {
             if ui.button("Small Step").clicked() {
-                if let Err(e) = emulator.micro_step() {
-                    emulator.running = false;
-                    log::error!("Micro step error: {}", e);
-                }
+                emulator.micro_step();
             }
             if ui.button("Step").clicked() {
-                if let Err(e) = emulator.step() {
-                    emulator.running = false;
-                    log::error!("Step error: {}", e);
-                }
+                emulator.step();
             }
             if emulator.running {
                 if ui.button("Pause").clicked() {
@@ -74,14 +68,7 @@ impl PaneDisplay for ControlsPane {
                 if self.tick % self.ticks_between_updates as u64 == 0 {
                     let mut i = 0;
                     while emulator.running && i < self.speed {
-                        match emulator.micro_step() {
-                            Ok(_) => {}
-                            Err(e) => {
-                                emulator.running = false;
-                                log::error!("Emulator error during run: {}", e);
-                                break;
-                            }
-                        }
+                        emulator.micro_step();
                         i += 1;
 
                         // Check for breakpoints

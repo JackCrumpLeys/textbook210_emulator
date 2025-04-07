@@ -17,8 +17,6 @@ pub struct ParseOutput {
     /// The starting memory address specified by the .ORIG directive.
     pub orig_address: u16,
 }
-// is the return type way too complex and hard to understand? Yes, Am I gonna give a fuck? No
-#[allow(clippy::type_complexity)]
 // parsing code
 impl Emulator {
     /// Parse LC-3 assembly code into machine instructions and related artifacts.
@@ -168,8 +166,8 @@ impl Emulator {
                     return Err(("Invalid .ORIG directive".to_string(), i));
                 }
                 let addr_str = parts[1].trim();
-                let new_orig = if addr_str.starts_with('X') {
-                    u16::from_str_radix(&addr_str[1..], 16)
+                let new_orig = if let Some(hex) = addr_str.strip_prefix('X') {
+                    u16::from_str_radix(hex, 16)
                 } else {
                     addr_str.parse::<u16>()
                 };
@@ -285,6 +283,7 @@ impl Emulator {
             line_to_address.insert(i, start_address_for_line as usize);
 
             // Helper to process directives during the second pass
+            #[allow(clippy::too_many_arguments)]
             fn process_directive_second_pass(
                 line: &str,
                 line_uncapped: &str,
@@ -305,8 +304,8 @@ impl Emulator {
                     // Update address, but generates no code here
                     let parts: Vec<&str> = line.split_whitespace().collect();
                     let addr_str = parts[1].trim();
-                    let new_orig = if addr_str.starts_with('X') {
-                        u16::from_str_radix(&addr_str[1..], 16)
+                    let new_orig = if let Some(hex) = addr_str.strip_prefix("X") {
+                        u16::from_str_radix(hex, 16)
                     } else {
                         addr_str.parse::<u16>()
                     };
