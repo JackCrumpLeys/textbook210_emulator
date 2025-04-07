@@ -306,7 +306,7 @@ fn test_c_println_assembly() {
         tracing::info!("Starting test for C-generated assembly code");
 
         // Load assembly file
-        let assembly_content = include_str!("../../c-println.asm");
+        let assembly_content = include_str!("../../asm_tests/c-println.asm");
 
         tracing::debug!(
             assembly_size = assembly_content.len(),

@@ -1,11 +1,11 @@
-mod controls;
-mod cpu_state;
-mod editor;
-mod help;
-mod io;
-mod machine;
-mod memory;
-mod registers;
+pub mod controls;
+pub mod cpu_state;
+pub mod editor;
+pub mod help;
+pub mod io;
+pub mod machine;
+pub mod memory;
+pub mod registers;
 
 use super::PaneDisplay;
 use super::PaneTree;

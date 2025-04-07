@@ -44,7 +44,9 @@ impl PaneDisplay for MemoryPane {
                     .desired_width(50.0)
                     .font(egui::TextStyle::Monospace),
             );
-            if response.lost_focus() || response.ctx.input(|i| i.key_pressed(egui::Key::Enter)) {
+            if response.lost_focus()
+                || response.ctx.input(|i| i.key_pressed(egui::Key::Enter)) && response.has_focus()
+            {
                 if let Ok(addr) =
                     usize::from_str_radix(self.jump_addr_str.trim_start_matches("0x"), 16)
                 {

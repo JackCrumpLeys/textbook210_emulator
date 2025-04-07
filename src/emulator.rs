@@ -731,7 +731,7 @@ impl Emulator {
 
         // Check if somehow not running anymore (e.g. HALT)
         if !self.running {
-            self.running = input_running;
+            self.running = false;
             return;
         }
 

@@ -4,7 +4,7 @@ use egui_tiles::SimplificationOptions;
 
 use crate::{
     emulator::Emulator,
-    panes::{emulator::HelpPane, EmulatorPane, Pane, PaneDisplay},
+    panes::{EmulatorPane, Pane, PaneDisplay},
 };
 use lazy_static::lazy_static;
 
@@ -99,25 +99,65 @@ impl Default for TemplateApp {
         let span = tracing::info_span!("TemplateApp::default");
         let _guard = span.enter();
 
-        tracing::info!("Creating new TemplateApp with default settings");
-
-        // Create the initial pane (HelpPane as requested)
-        let initial_pane = Pane::EmulatorPanes(Box::new(EmulatorPane::Help(HelpPane::default())));
+        tracing::info!("Creating new TemplateApp with comprehensive default layout");
 
         tracing::debug!("Initializing tile system");
         let mut tiles = egui_tiles::Tiles::default();
 
-        let mut tabs = vec![];
-        tracing::debug!("Creating initial help pane");
-        tabs.push(tiles.insert_pane(initial_pane));
+        // Create all panes we want to include
+        tracing::debug!("Creating all panes for comprehensive layout");
+        let memory_pane = tiles.insert_pane(Pane::EmulatorPanes(Box::new(EmulatorPane::Memory(
+            crate::panes::emulator::memory::MemoryPane::default(),
+        ))));
+        let editor_pane = tiles.insert_pane(Pane::EmulatorPanes(Box::new(EmulatorPane::Editor(
+            crate::panes::emulator::editor::EditorPane::default(),
+        ))));
+        let machine_pane = tiles.insert_pane(Pane::EmulatorPanes(Box::new(EmulatorPane::Machine(
+            crate::panes::emulator::machine::MachinePane::default(),
+        ))));
+        let registers_pane = tiles.insert_pane(Pane::EmulatorPanes(Box::new(
+            EmulatorPane::Registers(crate::panes::emulator::registers::RegistersPane::default()),
+        )));
+        let controls_pane = tiles.insert_pane(Pane::EmulatorPanes(Box::new(
+            EmulatorPane::Controls(crate::panes::emulator::controls::ControlsPane::default()),
+        )));
+        let output_pane = tiles.insert_pane(Pane::EmulatorPanes(Box::new(EmulatorPane::Output(
+            crate::panes::emulator::io::IoPane::default(),
+        ))));
+        let cpu_pane = tiles.insert_pane(Pane::EmulatorPanes(Box::new(EmulatorPane::Cpu(
+            crate::panes::emulator::cpu_state::CpuStatePane::default(),
+        ))));
+        let help_pane = tiles.insert_pane(Pane::EmulatorPanes(Box::new(EmulatorPane::Help(
+            crate::panes::emulator::help::HelpPane::default(),
+        ))));
 
-        tracing::debug!("Setting up root tab tile");
-        let root = tiles.insert_tab_tile(tabs);
+        // Create a main horizontal split
+        tracing::debug!("Creating main horizontal layout");
+
+        // Left main section with editor and memory
+        let main_tabs = tiles.insert_tab_tile(vec![editor_pane, memory_pane]);
+
+        // Right section with all other panes
+        let right_top_tabs = tiles.insert_tab_tile(vec![registers_pane, machine_pane, cpu_pane]);
+        let right_bottom_tabs = tiles.insert_tab_tile(vec![controls_pane, output_pane, help_pane]);
+
+        // Create vertical split for right panes
+        let right_split = tiles.insert_vertical_tile(vec![right_top_tabs, right_bottom_tabs]);
+
+        // Create final horizontal layout
+        let root = tiles.insert_horizontal_tile(vec![main_tabs, right_split]);
+
+        // Set active tabs for initial focus on editor and memory
+        if let Some(egui_tiles::Tile::Container(egui_tiles::Container::Tabs(tabs))) =
+            tiles.get_mut(main_tabs)
+        {
+            tabs.set_active(editor_pane);
+        }
 
         tracing::trace!("Creating tree with root ID: {}", root.0);
         let tree = egui_tiles::Tree::new("my_tree", root, tiles);
 
-        tracing::info!("TemplateApp default initialization complete");
+        tracing::info!("TemplateApp comprehensive initialization complete");
         Self {
             tree,
             tree_behavior: TreeBehavior::default(),

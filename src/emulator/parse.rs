@@ -199,8 +199,7 @@ impl Emulator {
                         "JMP", "JSR", "JSRR", "LD", "LDI", "LDR", "LEA", "NOT", "RET", "RTI", "ST",
                         "STI", "STR", "TRAP", "GETC", "OUT", "PUTS", "IN", "PUTSP", "HALT",
                     ]
-                    .contains(&first_word)
-                        || first_word.starts_with('R');
+                    .contains(&first_word);
 
                     if !is_opcode_or_reg && !parts.is_empty() {
                         // Assume it's a label without a colon
