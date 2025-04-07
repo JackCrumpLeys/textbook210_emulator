@@ -1,9 +1,4 @@
-# LC-3 Emulator & Educational Tools
-
-## 🌟 Overview
-
-Welcome to the LC-3 Emulator & Educational Toolkit, a comprehensive learning platform designed for students and educators in computer architecture courses, particularly those using the LC-3 (Little Computer 3) architecture. This emulator provides a complete implementation of the LC-3 instruction set with an intuitive, multi-pane user interface that visualizes every aspect of program execution.
-
+# LC-3 Emulator & UoA CompSci 210 tools
 ## ✨ Features
 
 ### 🔄 Full LC-3 Emulation
@@ -12,12 +7,6 @@ Welcome to the LC-3 Emulator & Educational Toolkit, a comprehensive learning pla
 - Privilege level support (User/Supervisor mode)
 - Memory protection and exceptions handling
 - Device I/O through keyboard and display registers
-
-### 🛠️ Rich Development Environment
-- **Editor with Syntax Highlighting**: Write LC-3 assembly with real-time syntax coloring
-- **Interactive Assembler**: Compile your code with detailed error reporting
-- **Memory Viewer/Editor**: Inspect and modify memory contents in various formats
-- **Register Monitor**: View and edit all processor registers
 
 ### 🔍 Debugging Capabilities
 - **Step-by-Step Execution**: Execute one instruction or micro-operation at a time
@@ -28,6 +17,7 @@ Welcome to the LC-3 Emulator & Educational Toolkit, a comprehensive learning pla
 ### 🧰 Additional Tools
 - **Base Converter**: Convert between different number bases (binary, decimal, hex)
 - **Terminal I/O**: Interact with your programs through a virtual terminal
+- **Alot more to be done here**: Email ideas to jackcrumpleys@gmail.com!! (I will likely do everything relevant that is emailed to me)
 
 ## 🚀 Getting Started
 
@@ -41,7 +31,7 @@ To ensure you're using the latest version, press `Ctrl+Shift+R` (or `Cmd+Shift+R
 
 ### Offline Use
 
-You can download the standalone application for offline use from our [releases page](https://github.com/JackCrumpLeys/textbook210_emulator/releases/tag/main). (note that this is the bleeding edge and might be buggy)
+You can download the standalone application for offline use from our [releases page](https://github.com/JackCrumpLeys/textbook210_emulator/releases/tag/main). (Note that this is the bleeding edge and might be buggy)
 
 ## 📝 Quick Guide
 
@@ -54,9 +44,13 @@ Every small task uses different panes, you can drag pains around by their top ta
    - "Pause" - Stop execution
    - "Step" - Execute one full instruction
    - "Small Step" - Execute one micro-operation
-
 4. **Debug**: Use the Memory, Registers, and CPU State panes to inspect program state
 5. **Set Breakpoints**: Click the 🛑 button next to a line in the Machine Code view (TODO: move this to memory pane)
+
+
+### TODO: Add better help
+**The handy help pane has infomation on each pane and LC3 in general**
+
 
 ## 📚 Educational Value
 
@@ -83,6 +77,9 @@ NOTE: The implementation of this emulator is based entirely on the 3rd edition o
 ## 🔧 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+### EMAIL ME SUGGESTIONS AT jackcrumpleys@gmail.com!
+### EMAIL ME INSULTS AT jackcrumpleys@gmail.com!
 
 ## ⚖️ Important License Notice
 
