@@ -14,7 +14,7 @@ pub struct RtiOp {
 }
 
 impl Op for RtiOp {
-    fn decode(ir: EmulatorCell) -> Self {
+    fn decode(_ir: EmulatorCell) -> Self {
         // RTI has a fixed opcode (1000) and no operands in the instruction itself.
         Self {
             popped_pc: EmulatorCell::new(0),
@@ -91,12 +91,12 @@ impl Op for RtiOp {
 
             // Now, set MAR to read the PSR.
             machine_state.mar.set(psr_addr);
-            false// We've initiated the second read, no more fetch phases needed.
+            false // We've initiated the second read, no more fetch phases needed.
         } else {
             // --- First Fetch Step ---
             // Set MAR to fetch the PC value from the stack.
             machine_state.mar.set(pc_addr);
-            true// Indicate that a second fetch step (triggered implicitly) is needed.
+            true // Indicate that a second fetch step (triggered implicitly) is needed.
         }
     }
 

@@ -134,6 +134,7 @@ impl OpCode {
             OpCode::Str(op) => op.fetch_operands(machine_state),
             OpCode::Trap(op) => op.fetch_operands(machine_state),
         } {
+            // SA
             machine_state.step_read_memory();
 
             self.fetch_operands(machine_state);

@@ -161,25 +161,25 @@ impl CpuStatePane {
 
                     CpuState::EvaluateAddress(op) => RichText::new(format!(
                         "EVAL ADDR: Calculating memory/target address for {}. MAR may be set.",
-                        instruction_text // or op.to_string() if implemented
+                        op
                     )).color(egui::Color32::from_rgb(65, 105, 225)),
 
                     CpuState::FetchOperands(op) => RichText::new(format!(
                         "FETCH OPS: Reading operands for {} from registers or memory (via MAR={:#06x}). MDR may load.",
-                        instruction_text, // or op.to_string()
+                        op,
                         emulator.mar.get()
                     )).color(egui::Color32::LIGHT_BLUE),
 
                     CpuState::ExecuteOperation(op) => RichText::new(format!(
                         "EXECUTE: Performing operation for {} ('{}', from line: '{}'). ALU computes, PC may change. Flags (N={}, Z={}, P={}) may update.",
-                        instruction_text, // or op.to_string()
+                        op,
                          instruction_text, source_line_text,
                         emulator.n.get(), emulator.z.get(), emulator.p.get()
                     )).color(egui::Color32::GOLD),
 
                     CpuState::StoreResult(op) => RichText::new(format!(
                          "STORE RESULT: Writing result for {} to register or setting up memory write (MAR={:#06x}, MDR={:#06x}). Flags may update.",
-                        instruction_text, // or op.to_string()
+                         op,
                         emulator.mar.get(), emulator.mdr.get()
                     )).color(egui::Color32::LIGHT_RED),
                 };

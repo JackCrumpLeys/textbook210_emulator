@@ -322,9 +322,9 @@ fn test_c_println_assembly() {
 
         let ParseOutput {
             machine_code,
-            line_to_address,
             labels,
             orig_address,
+            ..
         } = parse_result.unwrap();
 
         tracing::debug!(
@@ -562,7 +562,7 @@ fn test_jsr() {
     run_instruction_test(
         0x3000,
         0b0100_1_00000010000, // JSR +16 (Target 0x3011)
-        |m| {},               // No specific setup needed
+        |_| {},               // No specific setup needed
         |m| {
             assert_eq!(
                 m.r[7].get(),

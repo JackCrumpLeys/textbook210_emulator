@@ -1,6 +1,5 @@
 use std::sync::Mutex;
 
-use egui::ahash::HashMapExt;
 use egui_tiles::SimplificationOptions;
 
 use crate::{

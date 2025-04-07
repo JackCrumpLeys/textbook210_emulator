@@ -355,7 +355,7 @@ impl Emulator {
         }
     }
 
-    pub fn step_read_memory(&mut self) -> Result<(), String> {
+    pub fn step_read_memory(&mut self) {
         if self.mar.changed() {
             let mar_val = self.mar.get();
             let mem_area = area_from_address(&self.mar);
@@ -365,13 +365,8 @@ impl Emulator {
                 self.mdr.set(self.memory[mar_val as usize].get());
             } else {
                 self.exception = Some(Exception::new_access_control_violation());
-                return Err(format!(
-                    "Fetch Operands Access Violation: Cannot read from MAR=0x{:04X}",
-                    mar_val
-                ));
             }
         }
-        Ok(())
     }
 
     pub fn step_write_memory(&mut self) -> Result<(), String> {

@@ -113,17 +113,7 @@ impl PaneDisplay for MemoryPane {
 
             body.rows(text_height, 0xFFFF, |mut row| {
                 let row_index = row.index();
-                // Ensure row_index is within bounds before accessing memory
-                if row_index >= emulator.memory.len() {
-                    // Optionally render an error or skip the row
-                    row.col(|ui| {
-                        ui.label("Invalid Address");
-                    });
-                    row.col(|ui| {});
-                    row.col(|ui| {});
-                    row.col(|ui| {});
-                    return;
-                }
+
                 let memory_cell = &mut emulator.memory[row_index];
                 let is_pc_line = pc_addr == row_index;
 
@@ -240,7 +230,8 @@ impl PaneDisplay for MemoryPane {
                     // Try to decode as an instruction if it's a plausible address
                     let decoded_op = crate::emulator::ops::OpCode::from_instruction(
                         EmulatorCell::new(value_u16),
-                    ).map(|op| format!("{}", op));
+                    )
+                    .map(|op| format!("{}", op));
 
                     if let Some(decoded_str) = decoded_op {
                         // Display decoded Op struct
