@@ -1,7 +1,5 @@
 # LC-3 Emulator & Educational Tools
 
-![LC-3 Emulator Screenshot](assets/screenshot.png)
-
 ## 🌟 Overview
 
 Welcome to the LC-3 Emulator & Educational Toolkit, a comprehensive learning platform designed for students and educators in computer architecture courses, particularly those using the LC-3 (Little Computer 3) architecture. This emulator provides a complete implementation of the LC-3 instruction set with an intuitive, multi-pane user interface that visualizes every aspect of program execution.
