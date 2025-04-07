@@ -154,7 +154,7 @@ impl PaneDisplay for MemoryPane {
                     });
 
                     let display = match label {
-                        Some(lbl) => format!("{}", lbl),
+                        Some(lbl) => lbl.to_string(),
                         None => "".to_string(),
                     };
 
@@ -238,12 +238,9 @@ impl PaneDisplay for MemoryPane {
                     let value_u16 = memory_cell.get();
 
                     // Try to decode as an instruction if it's a plausible address
-                    let decoded_op = match crate::emulator::ops::OpCode::from_instruction(
+                    let decoded_op = crate::emulator::ops::OpCode::from_instruction(
                         EmulatorCell::new(value_u16),
-                    ) {
-                        Some(op) => Some(format!("{}", op)),
-                        None => None,
-                    };
+                    ).map(|op| format!("{}", op));
 
                     if let Some(decoded_str) = decoded_op {
                         // Display decoded Op struct

@@ -49,7 +49,7 @@ impl PaneDisplay for MachinePane {
         ui.separator();
 
         egui::ScrollArea::vertical().show(ui, |ui| {
-            self.render_compiled_view(ui, &*artifacts, &mut *emulator);
+            self.render_compiled_view(ui, &artifacts, &mut emulator);
         });
     }
 
@@ -148,8 +148,7 @@ impl MachinePane {
             let mut display_text = code_part.clone();
             let is_breakpoint_line = artifacts
                 .line_to_address
-                .get(&i)
-                .map_or(false, |addr| breakpoints.contains(addr));
+                .get(&i).is_some_and(|addr| breakpoints.contains(addr));
 
             if is_breakpoint_line {
                 display_text = format!("{} (breakpoint)", display_text);

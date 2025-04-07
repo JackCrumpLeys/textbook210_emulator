@@ -260,8 +260,7 @@ impl eframe::App for TemplateApp {
 
                     // Determine the target tile ID for adding new panes
                     // Try to use the first active *tabs* container, otherwise fallback to the root
-                    let target_tile_id = self.tree.active_tiles().first()
-                        .map(|tile| *tile)
+                    let target_tile_id = self.tree.active_tiles().first().copied()
                         .or_else(|| self.tree.root()) // Fallback to root if no active tabs or root is not tabs
                         .unwrap_or_else(|| {
                             tracing::error!("No active tabs container or root tile found!");

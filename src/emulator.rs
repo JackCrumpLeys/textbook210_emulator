@@ -266,7 +266,7 @@ impl Exception {
         const IVT_BASE: usize = 0x0100;
         // TODO: Should we make more?
         match self {
-            Exception::PrivilegeViolation => IVT_BASE + 0x00, // Vector x00 in IVT for Privilege Violation
+            Exception::PrivilegeViolation => IVT_BASE, // Vector x00 in IVT for Privilege Violation
             Exception::IllegalInstruction => IVT_BASE + 0x01, // Vector x01 in IVT for Illegal Opcode
             Exception::AccessControlViolation => IVT_BASE + 0x02, // Using x02 for Access Control, adjust if standard defines otherwise
         }

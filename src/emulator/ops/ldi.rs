@@ -64,7 +64,7 @@ impl Op for LdiOp {
                 // --- First Fetch Phase ---
                 machine_state.mar = self.pointer_address;
                 // Indicate that a second fetch phase (after memory read) is needed.
-                return true;
+                true
             } else {
                 // --- Second Fetch Phase ---
                 // MDR should now hold the indirect address from the first read.
@@ -87,11 +87,11 @@ impl Op for LdiOp {
                     machine_state.mar = EmulatorCell::new(0); // Clear MAR on error
                 }
                 // No more fetch phases needed after this.
-                return false;
+                false
             }
         } else {
             // First step failed (invalid pointer address), no fetch needed.
-            return false;
+            false
         }
     }
 

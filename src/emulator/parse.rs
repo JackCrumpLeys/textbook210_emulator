@@ -204,7 +204,7 @@ impl Emulator {
                     .contains(&first_word)
                         || first_word.starts_with('R');
 
-                    if !is_opcode_or_reg && parts.len() >= 1 {
+                    if !is_opcode_or_reg && !parts.is_empty() {
                         // Assume it's a label without a colon
                         let label = first_word;
                         if labels.contains_key(label) {

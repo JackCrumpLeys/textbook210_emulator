@@ -50,7 +50,7 @@ impl PaneDisplay for CpuStatePane {
 
         // Processor Cycle view
         ui.collapsing("Processor Cycle", |ui| {
-            self.render_cycle_view(ui, &mut *emulator);
+            self.render_cycle_view(ui, &mut emulator);
         });
     }
 
