@@ -1,4 +1,8 @@
 # LC-3 Emulator & UoA CompSci 210 tools
+
+## EMAIL ME SUGGESTIONS AT jackcrumpleys@gmail.com!
+## EMAIL ME INSULTS AT jackcrumpleys@gmail.com!
+
 ## ✨ Features
 
 ### 🔄 Full LC-3 Emulation
