@@ -11,6 +11,7 @@
   - make offsets use labels when relevant
 - Make a proper parser
   - most of the bugs with the curren parser come from the fact it is a bunch of string matching. We dont need a tree for assembly but tokeniztion would be good
+  - ADD tests against the lc3tools compiler
 - add some other devices
   - pixel display
   - file system (higher leval then just writing storage I think)
