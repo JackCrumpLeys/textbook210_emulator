@@ -4,3 +4,22 @@
 - UPDATE HELP
 - ADD SUPPORT FOR TERMINAL CONTROL AND ASCII ESCAPES
 - MAKE LIGHT MODE LESS ASS
+- I THINK BREAK POINTS ARE BROKEN
+  - MOVE BREAKPOints to memory veiwer
+- Make memory veiwer less ass
+  - right now we decompile very memory adress every frame, not good for cpu!
+  - make offsets use labels when relevant
+- Make a proper parser
+  - most of the bugs with the curren parser come from the fact it is a bunch of string matching. We dont need a tree for assembly but tokeniztion would be good
+- add some other devices
+  - pixel display
+  - file system (higher leval then just writing storage I think)
+  - ETC
+- cool tools that arn just emulator
+  - single instruction compiler/decompiler
+  - IDFK
+- a more feture full os
+  - OS building tool where users can edit just one trap (to implement os activity wihout having to worry much about internals)
+  - utility traps for math (mult, mod, div)
+    - OS managed 16 bit float types?
+- a table for user to define shorthand mappings like puts etc
