@@ -54,15 +54,6 @@ Every small task uses different panes, you can drag pains around by their top ta
 **The handy help pane has infomation on each pane and LC3 in general**
 
 
-## 📚 Educational Value
-
-This emulator is specifically designed as an educational tool that makes the inner workings of a computer transparent:
-
-- **Visualization of Abstract Concepts**: See normally invisible computer operations
-- **Understanding State Transitions**: Follow data as it moves through the processor
-- **Safe Experimentation**: Test ideas in a controlled environment
-- **Immediate Feedback**: Directly observe the effects of your code
-
 ## 📋 Technical Details
 
 The emulator implements:
