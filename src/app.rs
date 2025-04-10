@@ -357,6 +357,8 @@ impl eframe::App for TemplateApp {
             tracing::trace!("Tile tree UI render complete");
         });
 
-        ctx.request_repaint_after(std::time::Duration::from_millis(10)); // Keep UI responsive
+        EMULATOR.lock().unwrap().update();
+
+        ctx.request_repaint(); // update every frame
     }
 }

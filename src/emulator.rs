@@ -11,7 +11,11 @@ use std::ops::Range;
 pub use ops::{CpuState, OpCode};
 use parse::ParseOutput;
 
+use crate::panes::emulator::machine::BREAKPOINTS;
+
 const STEPS_BETWEEN_FLUSH_GOT_NEW_CHAR: u32 = 30; // 5 full instructions
+
+pub const MAX_OS_STEPS: usize = 1000;
 
 // Device registers at memory addresses xFE00-xFFFF
 pub const KBSR_ADDR: usize = 0xFE00;
@@ -65,6 +69,12 @@ impl EmulatorCell {
 
 #[derive(Debug, Clone)]
 pub struct Emulator {
+    // update data
+    pub speed: u32,
+    pub ticks_between_updates: u32,
+    pub tick: u64,
+    pub skip_os_emulation: bool,
+
     // why non an array? Becuase array sits on stack and takes alot of memory.
     // wasm was unhappy so I put it on the heap using Vec
     pub memory: Vec<EmulatorCell>, // MUST be initialized with 65536 EmulatorCells or we will get so many errors
@@ -119,6 +129,10 @@ pub struct Emulator {
 impl Emulator {
     pub fn new() -> Emulator {
         let mut emulator = Self {
+            speed: 1,
+            ticks_between_updates: 2,
+            tick: 0,
+            skip_os_emulation: true,
             memory: vec![EmulatorCell::new(0); 65536],
             r: [EmulatorCell::new(0); 8],
             pc: EmulatorCell::new(0x200),
@@ -304,6 +318,68 @@ impl Default for Emulator {
 
 // emulator logic core
 impl Emulator {
+    // this will be called every frame
+    pub fn update(&mut self) {
+        let breakpoints = BREAKPOINTS.lock().unwrap();
+
+        let mut os_steps = 0;
+
+        if self.running {
+            if self.skip_os_emulation {
+                while self.pc.get() < 0x3000 && os_steps < MAX_OS_STEPS && self.running {
+                    self.step();
+                    os_steps += 1;
+                }
+            }
+
+            // Automatic stepping logic when running
+            if self.tick % self.ticks_between_updates as u64 == 0 {
+                let mut i = 0;
+                while self.running && i < self.speed {
+                    self.micro_step();
+                    i += 1;
+
+                    // Skip OS code if enabled during running mode
+                    // Limit OS skipping to avoid freezing
+
+                    while self.skip_os_emulation
+                        && self.pc.get() < 0x3000
+                        && os_steps < MAX_OS_STEPS
+                        && self.running
+                    {
+                        self.step();
+                        os_steps += 1;
+                    }
+
+                    if !self.pc.get() < 0x3000 {
+                        // Check for breakpoints
+                        let current_pc = self.pc.get() as usize;
+
+                        if breakpoints.contains(&current_pc)
+                            && matches!(self.cpu_state, CpuState::Fetch)
+                        // Break *before* fetching the instruction at the breakpoint
+                        {
+                            self.running = false;
+                            log::info!("Breakpoint hit at address 0x{:04X}", current_pc);
+                            break;
+                        }
+                    }
+
+                    if i >= self.speed {
+                        break;
+                    }
+                }
+            }
+
+            if self.skip_os_emulation {
+                while self.pc.get() < 0x3000 && os_steps < MAX_OS_STEPS && self.running {
+                    self.step();
+                    os_steps += 1;
+                }
+            }
+        }
+    }
+
     // --- Core Instruction Cycle Phases ---
 
     /// **Fetch Phase:** Read instruction from memory at PC into IR, increment PC.

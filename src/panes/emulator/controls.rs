@@ -1,12 +1,9 @@
 use crate::app::EMULATOR;
 use crate::emulator::parse::ParseOutput;
-use crate::emulator::{CpuState, Emulator};
+use crate::emulator::{Emulator, MAX_OS_STEPS};
 use crate::panes::emulator::editor::COMPILATION_ARTIFACTS;
-use crate::panes::emulator::machine::BREAKPOINTS;
 use crate::panes::{Pane, PaneDisplay, PaneTree};
 use serde::{Deserialize, Serialize};
-
-pub const MAX_OS_STEPS: usize = 1000;
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ControlsPane {
@@ -14,7 +11,6 @@ pub struct ControlsPane {
     ticks_between_updates: u32,
     #[serde(skip)]
     tick: u64,
-    skip_os_emulation: bool,
 }
 
 impl Default for ControlsPane {
@@ -23,7 +19,6 @@ impl Default for ControlsPane {
             speed: 1,
             ticks_between_updates: 2,
             tick: 0,
-            skip_os_emulation: false,
         }
     }
 }
@@ -34,7 +29,6 @@ impl PaneDisplay for ControlsPane {
             self.tick = self.tick.wrapping_add(1);
             let mut emulator = EMULATOR.lock().unwrap();
             let artifacts = COMPILATION_ARTIFACTS.lock().unwrap();
-            let breakpoints = BREAKPOINTS.lock().unwrap();
 
             ui.group(|ui| {
                 ui.label("Execution Speed");
@@ -53,14 +47,14 @@ impl PaneDisplay for ControlsPane {
                 ui.label("Higher speed values execute more instructions per update cycle.");
 
                 // Add a skip OS emulation checkbox
-                ui.checkbox(&mut self.skip_os_emulation, "Skip OS");
+                ui.checkbox(&mut emulator.skip_os_emulation, "Skip OS");
             });
 
             let mut os_steps = 0;
             ui.horizontal(|ui| {
                 if ui.button("Small Step").clicked() {
                     emulator.micro_step();
-                    if self.skip_os_emulation {
+                    if emulator.skip_os_emulation {
                         let old_running = emulator.running;
                         emulator.running = true;
 
@@ -82,7 +76,7 @@ impl PaneDisplay for ControlsPane {
                 }
                 if ui.button("Step").clicked() {
                     emulator.step();
-                    if self.skip_os_emulation {
+                    if emulator.skip_os_emulation {
                         let old_running = emulator.running;
                         emulator.running = true;
 
@@ -109,55 +103,6 @@ impl PaneDisplay for ControlsPane {
                     }
                 } else if ui.button("Run").clicked() {
                     emulator.running = true;
-                }
-
-                if self.skip_os_emulation {
-                    while emulator.pc.get() < 0x3000 && os_steps < MAX_OS_STEPS && emulator.running
-                    {
-                        emulator.step();
-                        os_steps += 1;
-                    }
-                }
-
-                if emulator.running {
-                    // Automatic stepping logic when running
-                    if self.tick % self.ticks_between_updates as u64 == 0 {
-                        let mut i = 0;
-                        while emulator.running && i < self.speed {
-                            emulator.micro_step();
-                            i += 1;
-
-                            // Skip OS code if enabled during running mode
-                            // Limit OS skipping to avoid freezing
-
-                            while self.skip_os_emulation
-                                && emulator.pc.get() < 0x3000
-                                && os_steps < MAX_OS_STEPS
-                                && emulator.running
-                            {
-                                emulator.step();
-                                os_steps += 1;
-                            }
-
-                            if !emulator.pc.get() < 0x3000 {
-                                // Check for breakpoints
-                                let current_pc = emulator.pc.get() as usize;
-
-                                if breakpoints.contains(&current_pc)
-                                    && matches!(emulator.cpu_state, CpuState::Fetch)
-                                // Break *before* fetching the instruction at the breakpoint
-                                {
-                                    emulator.running = false;
-                                    log::info!("Breakpoint hit at address 0x{:04X}", current_pc);
-                                    break;
-                                }
-                            }
-
-                            if i >= self.speed {
-                                break;
-                            }
-                        }
-                    }
                 }
             });
 
