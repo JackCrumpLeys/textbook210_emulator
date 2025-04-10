@@ -156,11 +156,15 @@ impl Emulator {
             flush_countdown: 0,
         };
 
+        let parse_output = Emulator::parse_program(include_str!("../oses/simpleos.asm"));
+
+        tracing::debug!("OS parse_output: {:?}", parse_output);
+
         if let Ok(ParseOutput {
             machine_code,
             orig_address,
             ..
-        }) = Emulator::parse_program(include_str!("../oses/simpleos.asm"))
+        }) = parse_output
         {
             emulator.flash_memory(machine_code, orig_address);
         } else {
@@ -323,6 +327,8 @@ impl Emulator {
         let breakpoints = BREAKPOINTS.lock().unwrap();
 
         let mut os_steps = 0;
+
+        self.tick = self.tick.wrapping_add(1);
 
         if self.running {
             if self.skip_os_emulation {

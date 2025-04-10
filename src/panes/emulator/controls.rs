@@ -6,27 +6,17 @@ use crate::panes::{Pane, PaneDisplay, PaneTree};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
-pub struct ControlsPane {
-    speed: u32,
-    ticks_between_updates: u32,
-    #[serde(skip)]
-    tick: u64,
-}
+pub struct ControlsPane;
 
 impl Default for ControlsPane {
     fn default() -> Self {
-        Self {
-            speed: 1,
-            ticks_between_updates: 2,
-            tick: 0,
-        }
+        Self
     }
 }
 
 impl PaneDisplay for ControlsPane {
     fn render(&mut self, ui: &mut egui::Ui) {
         egui::ScrollArea::vertical().show(ui, |ui| {
-            self.tick = self.tick.wrapping_add(1);
             let mut emulator = EMULATOR.lock().unwrap();
             let artifacts = COMPILATION_ARTIFACTS.lock().unwrap();
 
@@ -34,12 +24,12 @@ impl PaneDisplay for ControlsPane {
                 ui.label("Execution Speed");
                 ui.horizontal(|ui| {
                     ui.label("Clocks per update:");
-                    ui.add(egui::Slider::new(&mut self.speed, 1..=1000).logarithmic(true));
+                    ui.add(egui::Slider::new(&mut emulator.speed, 1..=1000).logarithmic(true));
                 });
                 ui.horizontal(|ui| {
                     ui.label("Update frequency:");
                     ui.add(
-                        egui::Slider::new(&mut self.ticks_between_updates, 1..=100)
+                        egui::Slider::new(&mut emulator.ticks_between_updates, 1..=100)
                             .text("ticks between updates")
                             .logarithmic(true),
                     );
@@ -137,9 +127,7 @@ impl PaneDisplay for ControlsPane {
     fn children() -> PaneTree {
         PaneTree::Pane(
             "Controls".to_string(),
-            Pane::EmulatorPanes(Box::new(super::EmulatorPane::Controls(
-                ControlsPane::default(),
-            ))),
+            Pane::EmulatorPanes(Box::new(super::EmulatorPane::Controls(ControlsPane))),
         )
     }
 }

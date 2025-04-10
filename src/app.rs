@@ -119,7 +119,7 @@ impl Default for TemplateApp {
             EmulatorPane::Registers(crate::panes::emulator::registers::RegistersPane::default()),
         )));
         let controls_pane = tiles.insert_pane(Pane::EmulatorPanes(Box::new(
-            EmulatorPane::Controls(crate::panes::emulator::controls::ControlsPane::default()),
+            EmulatorPane::Controls(crate::panes::emulator::controls::ControlsPane),
         )));
         let output_pane = tiles.insert_pane(Pane::EmulatorPanes(Box::new(EmulatorPane::Output(
             crate::panes::emulator::io::IoPane::default(),
