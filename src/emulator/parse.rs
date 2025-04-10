@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, str::FromStr};
 
 use super::Emulator;
 
@@ -23,42 +23,44 @@ pub enum OpToken {
     Trap(Option<u8>), // we can use shorthand when lexing
 }
 
-impl OpToken {
-    pub fn from_str(s: &str) -> Option<Self> {
+impl FromStr for OpToken {
+    fn from_str(s: &str) -> std::result::Result<OpToken, ()> {
         match s.to_ascii_uppercase().as_str() {
-            "ADD" => Some(OpToken::Add),
-            "AND" => Some(OpToken::And),
-            "BR" => Some(OpToken::Br(false, false, false)),
-            "BRN" => Some(OpToken::Br(true, false, false)),
-            "BRZ" => Some(OpToken::Br(false, true, false)),
-            "BRP" => Some(OpToken::Br(false, false, true)),
-            "BRNZ" => Some(OpToken::Br(true, true, false)),
-            "BRNP" => Some(OpToken::Br(true, false, true)),
-            "BRZP" => Some(OpToken::Br(false, true, true)),
-            "BRNZP" => Some(OpToken::Br(true, true, true)),
-            "JMP" => Some(OpToken::Jmp),
-            "JSR" => Some(OpToken::Jsr),
-            "JSRR" => Some(OpToken::Jsrr),
-            "LD" => Some(OpToken::Ld),
-            "LDI" => Some(OpToken::Ldi),
-            "LDR" => Some(OpToken::Ldr),
-            "LEA" => Some(OpToken::Lea),
-            "NOT" => Some(OpToken::Not),
-            "RET" => Some(OpToken::Ret),
-            "RTI" => Some(OpToken::Rti),
-            "ST" => Some(OpToken::St),
-            "STI" => Some(OpToken::Sti),
-            "STR" => Some(OpToken::Str),
-            "TRAP" => Some(OpToken::Trap(None)), // Generic trap, vector to be set later
-            "GETC" => Some(OpToken::Trap(Some(0x20))),
-            "OUT" => Some(OpToken::Trap(Some(0x21))),
-            "PUTS" => Some(OpToken::Trap(Some(0x22))),
-            "IN" => Some(OpToken::Trap(Some(0x23))),
-            "PUTSP" => Some(OpToken::Trap(Some(0x24))),
-            "HALT" => Some(OpToken::Trap(Some(0x25))),
-            _ => None,
+            "ADD" => Ok(OpToken::Add),
+            "AND" => Ok(OpToken::And),
+            "BR" => Ok(OpToken::Br(false, false, false)),
+            "BRN" => Ok(OpToken::Br(true, false, false)),
+            "BRZ" => Ok(OpToken::Br(false, true, false)),
+            "BRP" => Ok(OpToken::Br(false, false, true)),
+            "BRNZ" => Ok(OpToken::Br(true, true, false)),
+            "BRNP" => Ok(OpToken::Br(true, false, true)),
+            "BRZP" => Ok(OpToken::Br(false, true, true)),
+            "BRNZP" => Ok(OpToken::Br(true, true, true)),
+            "JMP" => Ok(OpToken::Jmp),
+            "JSR" => Ok(OpToken::Jsr),
+            "JSRR" => Ok(OpToken::Jsrr),
+            "LD" => Ok(OpToken::Ld),
+            "LDI" => Ok(OpToken::Ldi),
+            "LDR" => Ok(OpToken::Ldr),
+            "LEA" => Ok(OpToken::Lea),
+            "NOT" => Ok(OpToken::Not),
+            "RET" => Ok(OpToken::Ret),
+            "RTI" => Ok(OpToken::Rti),
+            "ST" => Ok(OpToken::St),
+            "STI" => Ok(OpToken::Sti),
+            "STR" => Ok(OpToken::Str),
+            "TRAP" => Ok(OpToken::Trap(None)), // Generic trap, vector to be set later
+            "GETC" => Ok(OpToken::Trap(Some(0x20))),
+            "OUT" => Ok(OpToken::Trap(Some(0x21))),
+            "PUTS" => Ok(OpToken::Trap(Some(0x22))),
+            "IN" => Ok(OpToken::Trap(Some(0x23))),
+            "PUTSP" => Ok(OpToken::Trap(Some(0x24))),
+            "HALT" => Ok(OpToken::Trap(Some(0x25))),
+            _ => Err(()),
         }
     }
+
+    type Err = ();
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -147,7 +149,7 @@ impl<'a> Lexer<'a> {
                 // Comment
                 ';' => {
                     // Skip the entire line
-                    while let Some(c) = self.chars.next() {
+                    for c in self.chars.by_ref() {
                         self.position += 1;
                         self.column += 1;
                         if c == '\n' {
@@ -272,7 +274,7 @@ impl<'a> Lexer<'a> {
         }
 
         // If we get here, string was not properly terminated
-        Err((format!("Unterminated string literal"), start_line))
+        Err(("Unterminated string literal".to_string(), start_line))
     }
 
     fn tokenize_number(&mut self) -> Result<Option<TokenSpan>, (String, usize)> {
@@ -405,7 +407,7 @@ impl<'a> Lexer<'a> {
             }));
         }
 
-        if let Some(op_token) = OpToken::from_str(word.as_str()) {
+        if let Ok(op_token) = OpToken::from_str(word.as_str()) {
             tracing::trace!("Opcode token: {:?}", op_token);
             return Ok(Some(TokenSpan {
                 token: Token::Opcode(op_token),
