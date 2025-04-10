@@ -593,8 +593,8 @@ impl Parser {
                                     );
                                 }
                                 Token::Immediate(addr) => {
-                                    *orig_address = *addr as u16;
-                                    *address = *addr as u16;
+                                    *orig_address = *addr;
+                                    *address = *addr;
                                     *orig_set = true;
                                     tracing::debug!(
                                         "Line {}: Set origin address to {:04X}",
@@ -656,7 +656,7 @@ impl Parser {
                             let size_token = &self.tokens[self.position + 1];
                             let block_size = match &size_token.token {
                                 Token::Immediate(size) => {
-                                    if *size <= 0 {
+                                    if *size == 0 {
                                         return Err((
                                             format!(
                                                 "Invalid .BLKW size: must be positive, got {}",
@@ -665,7 +665,7 @@ impl Parser {
                                             line,
                                         ));
                                     }
-                                    *size as u16
+                                    *size
                                 }
                                 Token::HexValue(size) => *size,
                                 _ => {
@@ -837,7 +837,7 @@ impl Parser {
                                         *address = *addr;
                                     }
                                     Token::Immediate(addr) => {
-                                        *address = *addr as u16;
+                                        *address = *addr;
                                     }
                                     _ => {} // Already validated in first pass
                                 }
@@ -858,7 +858,7 @@ impl Parser {
 
                             let value_token = &self.tokens[self.position + 1];
                             let value = match &value_token.token {
-                                Token::Immediate(imm) => *imm as u16,
+                                Token::Immediate(imm) => *imm,
                                 Token::HexValue(hex) => *hex,
                                 Token::LabelRef(label) => {
                                     if let Some(&label_addr) = labels.get(label) {
@@ -895,7 +895,7 @@ impl Parser {
 
                             let size_token = &self.tokens[self.position + 1];
                             let count = match &size_token.token {
-                                Token::Immediate(size) => *size as u16,
+                                Token::Immediate(size) => *size,
                                 Token::HexValue(size) => *size,
                                 _ => {
                                     return Err((
@@ -1242,7 +1242,7 @@ impl Parser {
                             if *vector > 255 {
                                 return Err(("Trap vector out of range (0-255)".to_string(), line));
                             }
-                            *vector as u16
+                            *vector
                         }
                         _ => return Err(("Invalid trap vector format".to_string(), line)),
                     }
@@ -1385,10 +1385,7 @@ impl Emulator {
 
         // step 1: tokenize the input
         let lexer = Lexer::new(program);
-        let tokens = match lexer.tokenize() {
-            Ok(t) => t,
-            Err(e) => return Err(e),
-        };
+        let tokens = lexer.tokenize()?;
 
         tracing::debug!("tokenization complete: {} tokens", tokens.len());
         tracing::trace!("tokens: {:?}", tokens);
