@@ -17,9 +17,16 @@ impl Op for BrOp {
         // LAYOUT: 0000 | N | Z | P | PCoffset9
 
         // Extract NZP bits and PCoffset9
-        let n_bit = ir.index(11);
-        let z_bit = ir.index(10);
-        let p_bit = ir.index(9);
+        let mut n_bit = ir.index(11);
+        let mut z_bit = ir.index(10);
+        let mut p_bit = ir.index(9);
+
+        if ir.range(11..9).get() == 0 {
+            n_bit = EmulatorCell::new(1);
+            z_bit = EmulatorCell::new(1);
+            p_bit = EmulatorCell::new(1);
+        }
+
         // Extract and sign-extend PCoffset9
         let pc_offset = ir.range(8..0).sext(8);
 
