@@ -37,8 +37,10 @@ impl EmulatorCell {
     }
 
     pub fn set(&mut self, value: u16) {
-        self.0 = value;
-        self.1 = true;
+        if value != self.0 {
+            self.0 = value;
+            self.1 = true;
+        }
     }
 
     pub fn changed(&mut self) -> bool {
