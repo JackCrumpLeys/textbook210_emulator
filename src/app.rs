@@ -88,7 +88,6 @@ impl egui_tiles::Behavior<Pane> for TreeBehavior {
     }
 }
 
-/// We derive Deserialize/Serialize so we can persist app state on shutdown.
 pub struct TemplateApp {
     tree: egui_tiles::Tree<Pane>,
     tree_behavior: TreeBehavior,
@@ -131,9 +130,6 @@ impl Default for TemplateApp {
             crate::panes::emulator::help::HelpPane::default(),
         ))));
 
-        // Create a main horizontal split
-        tracing::debug!("Creating main horizontal layout");
-
         // Left main section with editor and memory
         let main_tabs = tiles.insert_tab_tile(vec![editor_pane, memory_pane]);
 
@@ -171,11 +167,6 @@ impl TemplateApp {
         let span = tracing::info_span!("TemplateApp::new");
         let _guard = span.enter();
 
-        tracing::info!("Creating new TemplateApp instance");
-        // This is also where you can customize the look and feel of egui using
-        // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
-
-        tracing::info!("Creating default instance with HelpPane open");
         Default::default()
     }
 
