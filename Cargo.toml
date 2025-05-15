@@ -11,9 +11,9 @@ all-features = true
 targets = ["x86_64-unknown-linux-gnu", "wasm32-unknown-unknown"]
 
 [dependencies]
-egui = "0.31"
-egui_extras = "0.31"
-egui_code_editor = "0.2.12"
+egui = {git="https://github.com/emilk/egui" , rev="81b7e7f05a6b03fa2cd5bdc6d4ce5f598e16c628" }
+egui_extras = {git="https://github.com/emilk/egui" , rev="81b7e7f05a6b03fa2cd5bdc6d4ce5f598e16c628" }
+egui_code_editor = "0.*"
 eframe = { version = "0.31", default-features = false, features = [
     "accesskit",     # Make egui compatible with screen readers. NOTE: adds a lot of dependencies.
     "default_fonts", # Embed the default egui fonts.
@@ -21,7 +21,7 @@ eframe = { version = "0.31", default-features = false, features = [
     "persistence",   # Enable restoring app state when restarting the app.
     "wayland",       # To support Linux (and CI)
     "x11",
-] }
+], git="https://github.com/emilk/egui" , rev="81b7e7f05a6b03fa2cd5bdc6d4ce5f598e16c628" }
 log = "0.4"
 egui_tiles = "0.12"
 rustc-hash = "*"
