@@ -1,11 +1,7 @@
 #![warn(clippy::all, rust_2018_idioms)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
-use log::info;
-use std::cell::RefCell;
-use std::rc::Rc;
 use tools_for_210::app::EMULATOR;
-use wasm_bindgen::{prelude::Closure, JsCast};
 
 // When compiling natively:
 #[cfg(not(target_arch = "wasm32"))]
@@ -14,7 +10,7 @@ fn main() -> eframe::Result {
 
     use eframe::UserEvent;
     use winit::{
-        event_loop::{self, ControlFlow, EventLoop},
+        event_loop::{ControlFlow, EventLoop},
         platform::pump_events::EventLoopExtPumpEvents,
     };
 
@@ -51,14 +47,13 @@ fn main() -> eframe::Result {
 // When compiling to web using trunk:
 #[cfg(target_arch = "wasm32")]
 fn main() {
-    use web_time::{Duration, Instant};
-
-    use log::info;
+    use std::cell::RefCell;
+    use std::rc::Rc;
     use tracing_subscriber::fmt::format::Pretty;
     use tracing_subscriber::prelude::*;
     use tracing_subscriber::EnvFilter;
     use tracing_web::{performance_layer, MakeWebConsoleWriter};
-    use web_sys::wasm_bindgen::JsCast;
+    use wasm_bindgen::{prelude::Closure, JsCast};
 
     let fmt_layer = tracing_subscriber::fmt::layer()
         .with_ansi(false) // Only partially supported across browsers
@@ -126,7 +121,6 @@ fn main() {
         let f = Rc::new(RefCell::new(None));
         let g = f.clone();
 
-        let mut i = 0;
         *g.borrow_mut() = Some(Closure::new(move || {
             update();
 
@@ -144,7 +138,10 @@ fn window() -> web_sys::Window {
 }
 
 #[cfg(target_arch = "wasm32")]
+use web_sys::wasm_bindgen::closure::Closure;
+#[cfg(target_arch = "wasm32")]
 fn request_animation_frame(f: &Closure<dyn FnMut()>) {
+    use wasm_bindgen::JsCast;
     window()
         .request_animation_frame(f.as_ref().unchecked_ref())
         .expect("should register `requestAnimationFrame` OK");
@@ -152,7 +149,6 @@ fn request_animation_frame(f: &Closure<dyn FnMut()>) {
 
 fn update() {
     {
-        println!("roadjdf");
         let mut emulator = EMULATOR.lock().unwrap();
         emulator.update();
     }
