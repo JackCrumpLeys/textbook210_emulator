@@ -13,8 +13,8 @@ targets = ["x86_64-unknown-linux-gnu", "wasm32-unknown-unknown"]
 [dependencies]
 egui = {git="https://github.com/emilk/egui" , rev="81b7e7f05a6b03fa2cd5bdc6d4ce5f598e16c628" }
 egui_extras = {git="https://github.com/emilk/egui" , rev="81b7e7f05a6b03fa2cd5bdc6d4ce5f598e16c628" }
-egui_code_editor = "0.*"
-eframe = { version = "0.31", default-features = false, features = [
+egui_code_editor = {git="https://github.com/JackCrumpLeys/egui_code_editor"}
+eframe = { default-features = false, features = [
     "accesskit",     # Make egui compatible with screen readers. NOTE: adds a lot of dependencies.
     "default_fonts", # Embed the default egui fonts.
     "glow",          # Use the glow rendering backend. Alternative: "wgpu".
@@ -23,7 +23,7 @@ eframe = { version = "0.31", default-features = false, features = [
     "x11",
 ], git="https://github.com/emilk/egui" , rev="81b7e7f05a6b03fa2cd5bdc6d4ce5f598e16c628" }
 log = "0.4"
-egui_tiles = "0.12"
+egui_tiles = {git=  "https://github.com/JackCrumpLeys/egui_tiles"}
 rustc-hash = "*"
 indexmap = "2.7"
 tracing = "0.1"
@@ -32,10 +32,13 @@ tracing-test = "0.2"
 tracing-web = "0.1"
 wasm-bindgen = "0.2"
 lazy_static = "1"
+winit="0.30"
+web-time="1"
 
 # You only need serde if you want app persistence:
 serde = { version = "1", features = ["derive"] }
 console_error_panic_hook = "0.1.7"
+web-sys = { version = "0.3.70", features = ["Window"] }
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

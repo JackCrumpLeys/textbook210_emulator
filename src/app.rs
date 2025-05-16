@@ -188,7 +188,7 @@ impl TemplateApp {
                     // Queue the pane and the target tile ID for addition in the next frame
                     self.tree_behavior.add_pane_to = Some(target_tile_id);
                     self.tree_behavior.pane_to_add = Some(pane_variant.clone());
-                    ui.close_menu();
+                    ui.close();
                 }
             }
             crate::panes::PaneTree::Children(name, children) => {
@@ -273,6 +273,7 @@ impl eframe::App for TemplateApp {
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
                 // The top panel is often a good place for a menu bar:
+                #[allow(deprecated)] // idk what egui is on about here
                 egui::menu::bar(ui, |ui| {
                     // File Menu (standard)
                     let is_web = cfg!(target_arch = "wasm32");
@@ -348,8 +349,8 @@ impl eframe::App for TemplateApp {
             tracing::trace!("Tile tree UI render complete");
         });
 
-        EMULATOR.lock().unwrap().update();
+        // EMULATOR.lock().unwrap().update();
 
-        ctx.request_repaint(); // update every frame
+        // ctx.request_repaint(); // update every frame
     }
 }

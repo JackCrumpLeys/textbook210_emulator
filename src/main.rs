@@ -1,9 +1,23 @@
 #![warn(clippy::all, rust_2018_idioms)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
+use log::info;
+use std::cell::RefCell;
+use std::rc::Rc;
+use tools_for_210::app::EMULATOR;
+use wasm_bindgen::{prelude::Closure, JsCast};
+
 // When compiling natively:
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> eframe::Result {
+    use std::time::Duration;
+
+    use eframe::UserEvent;
+    use winit::{
+        event_loop::{self, ControlFlow, EventLoop},
+        platform::pump_events::EventLoopExtPumpEvents,
+    };
+
     env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
 
     let native_options = eframe::NativeOptions {
@@ -17,24 +31,34 @@ fn main() -> eframe::Result {
             ),
         ..Default::default()
     };
-    eframe::run_native(
+
+    let mut event_loop = EventLoop::<UserEvent>::with_user_event().build().unwrap();
+    event_loop.set_control_flow(ControlFlow::Poll);
+
+    let mut app = eframe::create_native(
         "eframe template",
         native_options,
         Box::new(|cc| Ok(Box::new(tools_for_210::TemplateApp::new(cc)))),
-    )
+        &event_loop,
+    );
+
+    loop {
+        event_loop.pump_app_events(Some(Duration::from_millis(15)), &mut app);
+        update();
+    }
 }
 
 // When compiling to web using trunk:
 #[cfg(target_arch = "wasm32")]
 fn main() {
+    use web_time::{Duration, Instant};
+
+    use log::info;
     use tracing_subscriber::fmt::format::Pretty;
     use tracing_subscriber::prelude::*;
     use tracing_subscriber::EnvFilter;
     use tracing_web::{performance_layer, MakeWebConsoleWriter};
     use web_sys::wasm_bindgen::JsCast;
-
-    // Set up comprehensive tracing for web
-    std::panic::set_hook(Box::new(console_error_panic_hook::hook));
 
     let fmt_layer = tracing_subscriber::fmt::layer()
         .with_ansi(false) // Only partially supported across browsers
@@ -48,73 +72,88 @@ fn main() {
         .with(fmt_layer)
         .init();
 
-    tracing::info!("WEB APPLICATION STARTING - ALL THE LOGS ACTIVATED");
-    tracing::debug!("Debug logging enabled");
-    tracing::trace!("Trace logging enabled - maximum verbosity");
-
-    // eframe::WebLogger::init(log::LevelFilter::Trace).expect("Failed to initialize WebLogger");
-
     let web_options = eframe::WebOptions {
         ..Default::default()
     };
 
-    tracing::info!("Spawning web application with ALL THE LOGS");
-
     wasm_bindgen_futures::spawn_local(async {
-        tracing::debug!("Inside async web initialization block");
-
         let window = web_sys::window().expect("No window found - critical error");
-        tracing::trace!("Window object acquired");
 
         let document = window
             .document()
             .expect("No document found - critical error");
-        tracing::trace!("Document object acquired");
-
-        tracing::debug!("Attempting to locate canvas element 'the_canvas_id'");
         let canvas = document
             .get_element_by_id("the_canvas_id")
             .expect("Failed to find the_canvas_id - ensure HTML is properly configured")
             .dyn_into::<web_sys::HtmlCanvasElement>()
             .expect("the_canvas_id was not a HtmlCanvasElement - check element type");
-        tracing::info!("Canvas element successfully acquired");
-
-        tracing::debug!("Creating web runner and starting application");
         let start_result = eframe::WebRunner::new()
             .start(
                 canvas,
                 web_options,
-                Box::new(|cc| {
-                    tracing::info!("Creation context received, initializing application");
-                    Ok(Box::new(tools_for_210::TemplateApp::new(cc)))
-                }),
+                Box::new(|cc| Ok(Box::new(tools_for_210::TemplateApp::new(cc)))),
             )
             .await;
-        tracing::debug!(
-            "Application start completed with result: {:?}",
-            start_result
-        );
 
         // Remove the loading text and spinner:
-        tracing::trace!("Looking for loading_text element to remove");
         if let Some(loading_text) = document.get_element_by_id("loading_text") {
             match start_result {
                 Ok(_) => {
-                    tracing::info!("Application started successfully, removing loading text");
                     loading_text.remove();
                 }
                 Err(e) => {
-                    tracing::error!("APPLICATION CRASHED: {e:?}");
                     loading_text.set_inner_html(
                         "<p> The app has crashed. See the developer console for details. </p>",
                     );
                     panic!("Failed to start eframe: {e:?}");
                 }
             }
-        } else {
-            tracing::warn!("No loading_text element found to remove");
         }
 
-        tracing::info!("Web application initialization complete. ALL THE LOGS ARE FLOWING!");
+        // Here we want to call `requestAnimationFrame` in a loop, but only a fixed
+        // number of times. After it's done we want all our resources cleaned up. To
+        // achieve this we're using an `Rc`. The `Rc` will eventually store the
+        // closure we want to execute on each frame, but to start out it contains
+        // `None`.
+        //
+        // After the `Rc` is made we'll actually create the closure, and the closure
+        // will reference one of the `Rc` instances. The other `Rc` reference is
+        // used to store the closure, request the first frame, and then is dropped
+        // by this function.
+        //
+        // Inside the closure we've got a persistent `Rc` reference, which we use
+        // for all future iterations of the loop
+        let f = Rc::new(RefCell::new(None));
+        let g = f.clone();
+
+        let mut i = 0;
+        *g.borrow_mut() = Some(Closure::new(move || {
+            update();
+
+            // Schedule ourself for another requestAnimationFrame callback.
+            request_animation_frame(f.borrow().as_ref().unwrap());
+        }));
+
+        request_animation_frame(g.borrow().as_ref().unwrap());
     });
+}
+
+#[cfg(target_arch = "wasm32")]
+fn window() -> web_sys::Window {
+    web_sys::window().expect("no global `window` exists")
+}
+
+#[cfg(target_arch = "wasm32")]
+fn request_animation_frame(f: &Closure<dyn FnMut()>) {
+    window()
+        .request_animation_frame(f.as_ref().unchecked_ref())
+        .expect("should register `requestAnimationFrame` OK");
+}
+
+fn update() {
+    {
+        println!("roadjdf");
+        let mut emulator = EMULATOR.lock().unwrap();
+        emulator.update();
+    }
 }
