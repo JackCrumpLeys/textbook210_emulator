@@ -3,7 +3,6 @@ pub mod cpu_state;
 pub mod editor;
 pub mod help;
 pub mod io;
-pub mod machine;
 pub mod memory;
 pub mod registers;
 
@@ -17,13 +16,11 @@ pub use cpu_state::CpuStatePane;
 pub use editor::EditorPane;
 pub use help::HelpPane;
 pub use io::IoPane;
-pub use machine::MachinePane;
 pub use registers::RegistersPane;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EmulatorPane {
     Editor(EditorPane),
-    Machine(MachinePane),
     Registers(RegistersPane),
     Output(IoPane),
     Help(HelpPane),
@@ -36,7 +33,6 @@ impl PaneDisplay for EmulatorPane {
     fn title(&self) -> impl Into<egui::WidgetText> {
         match self {
             EmulatorPane::Editor(pane) => pane.title(),
-            EmulatorPane::Machine(pane) => pane.title(),
             EmulatorPane::Registers(pane) => pane.title(),
             EmulatorPane::Output(pane) => pane.title(),
             EmulatorPane::Help(pane) => pane.title(),
@@ -49,7 +45,6 @@ impl PaneDisplay for EmulatorPane {
     fn render(&mut self, ui: &mut egui::Ui) {
         match self {
             EmulatorPane::Editor(pane) => pane.render(ui),
-            EmulatorPane::Machine(pane) => pane.render(ui),
             EmulatorPane::Registers(pane) => pane.render(ui),
             EmulatorPane::Output(pane) => pane.render(ui),
             EmulatorPane::Help(pane) => pane.render(ui),
@@ -64,8 +59,6 @@ impl PaneDisplay for EmulatorPane {
             "Emulator".to_owned(),
             vec![
                 MemoryPane::children(),
-                RegistersPane::children(),
-                MachinePane::children(),
                 EditorPane::children(),
                 CpuStatePane::children(),
                 IoPane::children(),

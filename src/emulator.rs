@@ -6,12 +6,12 @@ pub mod parse;
 #[cfg(test)]
 mod tests;
 
-use std::ops::Range;
+use std::{collections::HashSet, ops::Range};
 
 pub use ops::{CpuState, OpCode};
 use parse::ParseOutput;
 
-use crate::panes::emulator::machine::BREAKPOINTS;
+// use crate::panes::emulator::machine::BREAKPOINTS; TODO
 
 const STEPS_BETWEEN_FLUSH_GOT_NEW_CHAR: u32 = 30; // 5 full instructions
 
@@ -326,7 +326,7 @@ impl Default for Emulator {
 impl Emulator {
     // this will be called every frame
     pub fn update(&mut self) {
-        let breakpoints = BREAKPOINTS.lock().unwrap();
+        let breakpoints: HashSet<usize> = HashSet::new(); // TODO
 
         let mut os_steps = 0;
 

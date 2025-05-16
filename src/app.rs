@@ -111,9 +111,6 @@ impl Default for TemplateApp {
         let editor_pane = tiles.insert_pane(Pane::EmulatorPanes(Box::new(EmulatorPane::Editor(
             crate::panes::emulator::editor::EditorPane::default(),
         ))));
-        let machine_pane = tiles.insert_pane(Pane::EmulatorPanes(Box::new(EmulatorPane::Machine(
-            crate::panes::emulator::machine::MachinePane::default(),
-        ))));
         let registers_pane = tiles.insert_pane(Pane::EmulatorPanes(Box::new(
             EmulatorPane::Registers(crate::panes::emulator::registers::RegistersPane::default()),
         )));
@@ -134,7 +131,7 @@ impl Default for TemplateApp {
         let main_tabs = tiles.insert_tab_tile(vec![editor_pane, memory_pane]);
 
         // Right section with all other panes
-        let right_top_tabs = tiles.insert_tab_tile(vec![registers_pane, machine_pane, cpu_pane]);
+        let right_top_tabs = tiles.insert_tab_tile(vec![registers_pane, cpu_pane]);
         let right_bottom_tabs = tiles.insert_tab_tile(vec![controls_pane, output_pane, help_pane]);
 
         // Create vertical split for right panes
