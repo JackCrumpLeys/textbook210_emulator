@@ -6,12 +6,13 @@ use tools_for_210::app::EMULATOR;
 // When compiling natively:
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> eframe::Result {
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
 
     use eframe::UserEvent;
+    use tools_for_210::app::LAST_PAINT_ID;
     use winit::{
         event_loop::{ControlFlow, EventLoop},
-        platform::pump_events::EventLoopExtPumpEvents,
+        platform::pump_events::{EventLoopExtPumpEvents, PumpStatus},
     };
 
     env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
@@ -38,10 +39,25 @@ fn main() -> eframe::Result {
         &event_loop,
     );
 
-    loop {
-        event_loop.pump_app_events(Some(Duration::from_millis(15)), &mut app);
-        update();
+    let event_proxy = event_loop.create_proxy();
+
+    while matches!(
+        event_loop.pump_app_events(Some(Duration::from_millis(15)), &mut app),
+        PumpStatus::Continue
+    ) {
+        if update() {
+            // if the emulator state has chaned, repaint app
+            event_proxy
+                .send_event(UserEvent::RequestRepaint {
+                    viewport_id: egui::ViewportId::ROOT,
+                    when: Instant::now(),
+                    cumulative_pass_nr: *LAST_PAINT_ID.lock().unwrap(),
+                })
+                .unwrap();
+        }
     }
+
+    Ok(())
 }
 
 // When compiling to web using trunk:
@@ -147,9 +163,7 @@ fn request_animation_frame(f: &Closure<dyn FnMut()>) {
         .expect("should register `requestAnimationFrame` OK");
 }
 
-fn update() {
-    {
-        let mut emulator = EMULATOR.lock().unwrap();
-        emulator.update();
-    }
+fn update() -> bool {
+    let mut emulator = EMULATOR.lock().unwrap();
+    emulator.update()
 }

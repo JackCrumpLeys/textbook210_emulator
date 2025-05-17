@@ -10,6 +10,8 @@ use lazy_static::lazy_static;
 
 lazy_static! {
     pub static ref EMULATOR: Mutex<Emulator> = Mutex::new(Emulator::new());
+    pub static ref LAST_PAINT_ID: Mutex<u64> = Mutex::new(0); // this is pretty botch, more info later
+
 }
 
 pub fn base_to_base(
@@ -346,8 +348,12 @@ impl eframe::App for TemplateApp {
             tracing::trace!("Tile tree UI render complete");
         });
 
-        // EMULATOR.lock().unwrap().update();
+        // why do we need this? Well our update loop cannot get the egui context so cannot
+        // see the pass number, we need this to request a repaint if the emulator state
+        // changes.
+        *LAST_PAINT_ID.lock().unwrap() = ctx.cumulative_pass_nr_for(egui::ViewportId::ROOT);
 
-        // ctx.request_repaint(); // update every frame
+        #[cfg(target_arch = "wasm32")]
+        ctx.request_repaint();
     }
 }

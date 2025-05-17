@@ -324,17 +324,19 @@ impl Default for Emulator {
 
 // emulator logic core
 impl Emulator {
-    // this will be called every frame
-    pub fn update(&mut self) {
+    // this will be called every frame (bool if emulator state changed)
+    pub fn update(&mut self) -> bool {
         let breakpoints: HashSet<usize> = HashSet::new(); // TODO
 
         let mut os_steps = 0;
+        let mut changed = false;
 
         self.tick = self.tick.wrapping_add(1);
 
         if self.running {
             if self.skip_os_emulation {
                 while self.pc.get() < 0x3000 && os_steps < MAX_OS_STEPS && self.running {
+                    changed = true;
                     self.step();
                     os_steps += 1;
                 }
@@ -344,6 +346,7 @@ impl Emulator {
             if self.tick % self.ticks_between_updates as u64 == 0 {
                 let mut i = 0;
                 while self.running && i < self.speed {
+                    changed = true;
                     self.micro_step();
                     i += 1;
 
@@ -381,11 +384,13 @@ impl Emulator {
 
             if self.skip_os_emulation {
                 while self.pc.get() < 0x3000 && os_steps < MAX_OS_STEPS && self.running {
+                    changed = true;
                     self.step();
                     os_steps += 1;
                 }
             }
         }
+        changed
     }
 
     // --- Core Instruction Cycle Phases ---
