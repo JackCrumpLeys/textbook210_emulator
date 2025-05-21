@@ -1,6 +1,6 @@
 use crate::app::EMULATOR;
 use crate::emulator::EmulatorCell;
-use crate::panes::{Pane, PaneDisplay, PaneTree};
+use crate::panes::{Pane, PaneDisplay, PaneTree, RealPane};
 use serde::{Deserialize, Serialize};
 
 use super::EmulatorPane;
@@ -55,7 +55,9 @@ impl PaneDisplay for RegistersPane {
     fn children() -> PaneTree {
         PaneTree::Pane(
             "Registers".to_string(),
-            Pane::EmulatorPanes(Box::new(EmulatorPane::Registers(Self::default()))),
+            Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Registers(
+                Self::default(),
+            )))),
         )
     }
 }

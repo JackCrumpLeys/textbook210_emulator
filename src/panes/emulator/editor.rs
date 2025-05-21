@@ -1,7 +1,7 @@
 use crate::app::EMULATOR;
 use crate::emulator::parse::ParseOutput;
 use crate::emulator::Emulator;
-use crate::panes::{Pane, PaneDisplay, PaneTree};
+use crate::panes::{Pane, PaneDisplay, PaneTree, RealPane};
 use egui::RichText;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
@@ -21,6 +21,7 @@ pub struct CompilationArtifacts {
     pub last_compiled_source: String,
     pub line_to_address: HashMap<usize, usize>,
     pub labels: HashMap<String, u16>,
+    pub addr_to_label: HashMap<u16, String>, // to optimise when fetching lable from addr
     pub orig_address: u16,
     pub error: Option<(String, usize)>,
 }
@@ -91,7 +92,8 @@ impl PaneDisplay for EditorPane {
                     }) = data_to_load
                     {
                         artifacts.line_to_address = line_to_address;
-                        artifacts.labels = labels;
+                        artifacts.labels = labels.clone();
+                        artifacts.addr_to_label = labels.into_iter().map(|(x, y)| (y, x)).collect();
                         artifacts.orig_address = orig_address;
                         artifacts.error = None;
                         artifacts.last_compiled_source = self.program.clone();
@@ -102,6 +104,7 @@ impl PaneDisplay for EditorPane {
                         artifacts.error = Some(data_to_load.unwrap_err());
                         artifacts.line_to_address.clear();
                         artifacts.labels.clear();
+                        artifacts.addr_to_label.clear();
                         artifacts.last_compiled_source.clear();
                     }
                 }
@@ -116,7 +119,9 @@ impl PaneDisplay for EditorPane {
     fn children() -> PaneTree {
         PaneTree::Pane(
             "Editor".to_string(),
-            Pane::EmulatorPanes(Box::new(EmulatorPane::Editor(EditorPane::default()))),
+            Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Editor(
+                EditorPane::default(),
+            )))),
         )
     }
 }

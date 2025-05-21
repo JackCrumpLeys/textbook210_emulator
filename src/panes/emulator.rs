@@ -18,7 +18,7 @@ pub use help::HelpPane;
 pub use io::IoPane;
 pub use registers::RegistersPane;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum EmulatorPane {
     Editor(EditorPane),
     Registers(RegistersPane),

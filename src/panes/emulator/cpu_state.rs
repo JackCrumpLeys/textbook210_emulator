@@ -1,6 +1,6 @@
 use crate::app::EMULATOR;
 use crate::emulator::{CpuState, Emulator};
-use crate::panes::{Pane, PaneDisplay, PaneTree};
+use crate::panes::{Pane, PaneDisplay, PaneTree, RealPane};
 use egui::RichText;
 use serde::{Deserialize, Serialize};
 
@@ -63,7 +63,9 @@ impl PaneDisplay for CpuStatePane {
     fn children() -> PaneTree {
         PaneTree::Pane(
             "CPU State".to_string(),
-            Pane::EmulatorPanes(Box::new(EmulatorPane::Cpu(CpuStatePane::default()))),
+            Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Cpu(
+                CpuStatePane::default(),
+            )))),
         )
     }
 }

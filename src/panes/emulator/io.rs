@@ -1,5 +1,5 @@
 use crate::app::EMULATOR;
-use crate::panes::{Pane, PaneDisplay, PaneTree};
+use crate::panes::{Pane, PaneDisplay, PaneTree, RealPane};
 use egui::{Key, OutputCommand, RichText};
 use serde::{Deserialize, Serialize};
 
@@ -121,7 +121,9 @@ impl PaneDisplay for IoPane {
     fn children() -> PaneTree {
         PaneTree::Pane(
             "Terminal".to_string(),
-            Pane::EmulatorPanes(Box::new(EmulatorPane::Output(IoPane::default()))),
+            Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Output(
+                IoPane::default(),
+            )))),
         )
     }
 }

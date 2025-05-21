@@ -1,4 +1,4 @@
-use crate::panes::{Pane, PaneDisplay, PaneTree};
+use crate::panes::{Pane, PaneDisplay, PaneTree, RealPane};
 use egui::RichText;
 use serde::{Deserialize, Serialize};
 
@@ -68,7 +68,9 @@ impl PaneDisplay for HelpPane {
     fn children() -> PaneTree {
         PaneTree::Pane(
             "Help".to_string(),
-            Pane::EmulatorPanes(Box::new(EmulatorPane::Help(HelpPane::default()))),
+            Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Help(
+                HelpPane::default(),
+            )))),
         )
     }
 }

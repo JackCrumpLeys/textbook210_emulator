@@ -1,17 +1,15 @@
 use std::sync::Mutex;
 
-use egui_tiles::SimplificationOptions;
-
 use crate::{
     emulator::Emulator,
-    panes::{EmulatorPane, Pane, PaneDisplay},
+    panes::{EmulatorPane, Pane, PaneDisplay, RealPane},
 };
+use egui_dock::{AllowedSplits, DockArea, DockState, NodeIndex, Style, SurfaceIndex, TabViewer};
 use lazy_static::lazy_static;
 
 lazy_static! {
     pub static ref EMULATOR: Mutex<Emulator> = Mutex::new(Emulator::new());
     pub static ref LAST_PAINT_ID: Mutex<u64> = Mutex::new(0); // this is pretty botch, more info later
-
 }
 
 pub fn base_to_base(
@@ -53,45 +51,66 @@ pub fn base_to_base(
 
 #[derive(Default)]
 struct TreeBehavior {
-    add_pane_to: Option<egui_tiles::TileId>, // Tile to add the new pane to
-    pane_to_add: Option<Pane>,               // Pane variant to add
+    added_nodes: Vec<Pane>,
+    last_added: Option<(NodeIndex, SurfaceIndex)>,
 }
 
-impl egui_tiles::Behavior<Pane> for TreeBehavior {
-    fn tab_title_for_pane(&mut self, pane: &Pane) -> egui::WidgetText {
-        pane.title().into()
+impl TabViewer for TreeBehavior {
+    type Tab = Pane;
+
+    fn title(&mut self, tab: &mut Self::Tab) -> egui::WidgetText {
+        tab.title().into()
     }
 
-    fn is_tab_closable(
-        &self,
-        _tiles: &egui_tiles::Tiles<Pane>, // Corrected generic type
-        _tile_id: egui_tiles::TileId,
-    ) -> bool {
-        true // Allow closing tabs
+    fn id(&mut self, tab: &mut Self::Tab) -> egui::Id {
+        egui::Id::new(tab.id)
     }
 
-    fn pane_ui(
-        &mut self,
-        ui: &mut egui::Ui,
-        _tile_id: egui_tiles::TileId,
-        pane: &mut Pane, // Corrected type
-    ) -> egui_tiles::UiResponse {
-        // Render the specific pane UI
-        pane.render(ui);
-        egui_tiles::UiResponse::None
+    fn ui(&mut self, ui: &mut egui::Ui, tab: &mut Self::Tab) {
+        tab.render(ui);
     }
 
-    fn simplification_options(&self) -> egui_tiles::SimplificationOptions {
-        tracing::trace!("Returning tile simplification options");
-        SimplificationOptions {
-            all_panes_must_have_tabs: true,
-            ..Default::default()
+    fn closeable(&mut self, tab: &mut Self::Tab) -> bool {
+        !tab.alone
+    }
+
+    fn add_popup(&mut self, ui: &mut egui::Ui, surface: egui_dock::SurfaceIndex, node: NodeIndex) {
+        ui.set_min_width(120.0);
+        ui.style_mut().visuals.button_frame = false;
+
+        self.add_pane_menu_items(ui, Pane::children());
+        self.last_added = Some((node, surface));
+    }
+
+    fn allowed_in_windows(&self, tab: &mut Self::Tab) -> bool {
+        !tab.alone
+    }
+}
+impl TreeBehavior {
+    fn add_pane_menu_items(&mut self, ui: &mut egui::Ui, pane_tree: crate::panes::PaneTree) {
+        match pane_tree {
+            crate::panes::PaneTree::Pane(name, pane_variant) => {
+                ui.style_mut().visuals.button_frame = false;
+                if ui.button(name).clicked() {
+                    // Queue the pane and the target node ID for addition in the next frame
+                    self.added_nodes.push(pane_variant);
+                    ui.close();
+                }
+            }
+            crate::panes::PaneTree::Children(name, children) => {
+                ui.style_mut().visuals.button_frame = false;
+                ui.menu_button(name, |ui| {
+                    for child in children {
+                        self.add_pane_menu_items(ui, child);
+                    }
+                });
+            }
         }
     }
 }
 
 pub struct TemplateApp {
-    tree: egui_tiles::Tree<Pane>,
+    dock_state: DockState<Pane>,
     tree_behavior: TreeBehavior,
 }
 
@@ -102,59 +121,44 @@ impl Default for TemplateApp {
 
         tracing::info!("Creating new TemplateApp with comprehensive default layout");
 
-        tracing::debug!("Initializing tile system");
-        let mut tiles = egui_tiles::Tiles::default();
-
         // Create all panes we want to include
         tracing::debug!("Creating all panes for comprehensive layout");
-        let memory_pane = tiles.insert_pane(Pane::EmulatorPanes(Box::new(EmulatorPane::Memory(
+        let memory_pane = Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Memory(
             crate::panes::emulator::memory::MemoryPane::default(),
         ))));
-        let editor_pane = tiles.insert_pane(Pane::EmulatorPanes(Box::new(EmulatorPane::Editor(
+        let editor_pane = Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Editor(
             crate::panes::emulator::editor::EditorPane::default(),
         ))));
-        let registers_pane = tiles.insert_pane(Pane::EmulatorPanes(Box::new(
+        let _registers_pane = Pane::new(RealPane::EmulatorPanes(Box::new(
             EmulatorPane::Registers(crate::panes::emulator::registers::RegistersPane::default()),
         )));
-        let controls_pane = tiles.insert_pane(Pane::EmulatorPanes(Box::new(
-            EmulatorPane::Controls(crate::panes::emulator::controls::ControlsPane),
-        )));
-        let output_pane = tiles.insert_pane(Pane::EmulatorPanes(Box::new(EmulatorPane::Output(
+        let controls_pane = Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Controls(
+            crate::panes::emulator::controls::ControlsPane,
+        ))));
+        let output_pane = Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Output(
             crate::panes::emulator::io::IoPane::default(),
         ))));
-        let cpu_pane = tiles.insert_pane(Pane::EmulatorPanes(Box::new(EmulatorPane::Cpu(
+        let _cpu_pane = Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Cpu(
             crate::panes::emulator::cpu_state::CpuStatePane::default(),
         ))));
-        let help_pane = tiles.insert_pane(Pane::EmulatorPanes(Box::new(EmulatorPane::Help(
+        let _help_pane = Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Help(
             crate::panes::emulator::help::HelpPane::default(),
         ))));
 
-        // Left main section with editor and memory
-        let main_tabs = tiles.insert_tab_tile(vec![editor_pane, memory_pane]);
+        let mut dock_state = DockState::new(vec![editor_pane, memory_pane]);
+        let root_id = NodeIndex::root();
 
-        // Right section with all other panes
-        let right_top_tabs = tiles.insert_tab_tile(vec![registers_pane, cpu_pane]);
-        let right_bottom_tabs = tiles.insert_tab_tile(vec![controls_pane, output_pane, help_pane]);
+        dock_state
+            .main_surface_mut()
+            .split_left(root_id, 0.3, vec![controls_pane]);
 
-        // Create vertical split for right panes
-        let right_split = tiles.insert_vertical_tile(vec![right_top_tabs, right_bottom_tabs]);
-
-        // Create final horizontal layout
-        let root = tiles.insert_horizontal_tile(vec![main_tabs, right_split]);
-
-        // Set active tabs for initial focus on editor and memory
-        if let Some(egui_tiles::Tile::Container(egui_tiles::Container::Tabs(tabs))) =
-            tiles.get_mut(main_tabs)
-        {
-            tabs.set_active(editor_pane);
-        }
-
-        tracing::trace!("Creating tree with root ID: {}", root.0);
-        let tree = egui_tiles::Tree::new("my_tree", root, tiles);
+        dock_state
+            .main_surface_mut()
+            .split_below(root_id, 0.7, vec![output_pane]);
 
         tracing::info!("TemplateApp comprehensive initialization complete");
         Self {
-            tree,
+            dock_state,
             tree_behavior: TreeBehavior::default(),
         }
     }
@@ -169,36 +173,7 @@ impl TemplateApp {
         Default::default()
     }
 
-    // Helper function to recursively build the pane menu
-    fn add_pane_menu_items(
-        &mut self,
-        ui: &mut egui::Ui,
-        pane_tree: &crate::panes::PaneTree,
-        target_tile_id: egui_tiles::TileId,
-    ) {
-        match pane_tree {
-            crate::panes::PaneTree::Pane(name, pane_variant) => {
-                if ui.button(name).clicked() {
-                    tracing::debug!(
-                        "Queueing pane '{}' to add to tile {}",
-                        name,
-                        target_tile_id.0
-                    );
-                    // Queue the pane and the target tile ID for addition in the next frame
-                    self.tree_behavior.add_pane_to = Some(target_tile_id);
-                    self.tree_behavior.pane_to_add = Some(pane_variant.clone());
-                    ui.close();
-                }
-            }
-            crate::panes::PaneTree::Children(name, children) => {
-                ui.menu_button(name, |ui| {
-                    for child in children {
-                        self.add_pane_menu_items(ui, child, target_tile_id);
-                    }
-                });
-            }
-        }
-    }
+    // // Helper function to recursively build the pane menu
 }
 
 impl eframe::App for TemplateApp {
@@ -210,143 +185,97 @@ impl eframe::App for TemplateApp {
         let update_span = tracing::info_span!("TemplateApp::update");
         let _update_guard = update_span.enter();
 
-        // Handle adding a pane if one was queued
-        if let (Some(target_tile_id), Some(pane_to_add)) = (
-            self.tree_behavior.add_pane_to.take(),
-            self.tree_behavior.pane_to_add.take(),
-        ) {
-            // Insert the pane first to get its ID, avoiding simultaneous mutable borrows
-            let new_pane_id = self.tree.tiles.insert_pane(pane_to_add);
-            tracing::info!("Inserted new pane with ID {}", new_pane_id.0);
-
-            // Now get the target tile mutably
-            if let Some(egui_tiles::Tile::Container(egui_tiles::Container::Tabs(tabs))) =
-                self.tree.tiles.get_mut(target_tile_id)
-            {
-                tracing::info!(
-                    "Adding pane {} to target tabs tile {}",
-                    new_pane_id.0,
-                    target_tile_id.0
-                );
-                tabs.add_child(new_pane_id);
-                tabs.set_active(new_pane_id); // Make the new tab active
-            } else {
-                // Fallback: If the target tile wasn't a tab container
-                tracing::warn!(
-                    "Target tile {} is not a Tab container, trying to add to root.",
-                    target_tile_id.0
-                );
-                if let Some(root_id) = self.tree.root() {
-                    // Re-fetch the root tile mutably *after* inserting the pane
-                    if let Some(egui_tiles::Tile::Container(container)) =
-                        self.tree.tiles.get_mut(root_id)
-                    {
-                        container.add_child(new_pane_id);
-                        if let egui_tiles::Container::Tabs(tabs) = container {
-                            tabs.set_active(new_pane_id);
-                        }
-                        tracing::info!(
-                            "Added pane {} to root container {}",
-                            new_pane_id.0,
-                            root_id.0
-                        );
-                    } else {
-                        tracing::error!(
-                            "Root tile {} is not a container, cannot add pane.",
-                            root_id.0
-                        );
-                        // If the root isn't a container, we might need a different strategy,
-                        // maybe replacing the root or creating a new structure.
-                        // For now, we just remove the orphaned pane.
-                        self.tree.tiles.remove(new_pane_id);
-                        tracing::error!("Removed orphaned pane {}", new_pane_id.0);
-                    }
-                } else {
-                    tracing::error!("No root tile found, cannot add pane.");
-                    // Remove the orphaned pane if there's no root to add it to.
-                    self.tree.tiles.remove(new_pane_id);
-                    tracing::error!("Removed orphaned pane {}", new_pane_id.0);
-                }
-            }
-        }
-
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-                // The top panel is often a good place for a menu bar:
-                #[allow(deprecated)] // idk what egui is on about here
-                egui::menu::bar(ui, |ui| {
-                    // File Menu (standard)
-                    let is_web = cfg!(target_arch = "wasm32");
-                    if !is_web {
-                        ui.menu_button("File", |ui| {
-                            if ui.button("Quit").clicked() {
-                                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                            }
-                        });
-                        ui.add_space(16.0);
-                    }
-
-                    // Panes Menu (dynamically generated from Pane::children)
-                    let pane_menu_structure = Pane::children(); // Get the static structure
-
-                    // Determine the target tile ID for adding new panes
-                    // Try to use the first active *tabs* container, otherwise fallback to the root
-                    let target_tile_id = self.tree.active_tiles().first().copied()
-                        .or_else(|| self.tree.root()) // Fallback to root if no active tabs or root is not tabs
-                        .unwrap_or_else(|| {
-                            tracing::error!("No active tabs container or root tile found!");
-                            // As a last resort, create a dummy TileId
-                            egui_tiles::TileId::from_u64(u64::MAX)
-                        });
-
-
-                    match pane_menu_structure {
-                        crate::panes::PaneTree::Children(root_label, children) => {
-                            ui.menu_button(root_label, |ui| {
-                                for child_tree in children {
-                                    self.add_pane_menu_items(ui, &child_tree, target_tile_id);
-                                }
-                            });
+            // The top panel is often a good place for a menu bar:
+            #[allow(deprecated)] // idk what egui is on about here
+            egui::menu::bar(ui, |ui| {
+                // File Menu (standard)
+                let is_web = cfg!(target_arch = "wasm32");
+                if !is_web {
+                    ui.menu_button("File", |ui| {
+                        if ui.button("Quit").clicked() {
+                            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                         }
-                        crate::panes::PaneTree::Pane(_, _) => {
-                            // Handle the case where the root is a single pane (less common for a menu)
-                             tracing::warn!("Root of Pane::children() is a Pane, not Children. Menu might be limited.");
-                             self.add_pane_menu_items(ui, &pane_menu_structure, target_tile_id);
-                        }
-                    }
-
-                    // Windows Menu (layout reset)
-                    ui.menu_button("Windows", |ui| {
-                        if ui.button("Reset Layout").clicked() {
-                            tracing::info!("Resetting layout to default");
-                            *self = Self::default(); // Reset the entire app state
-                        }
-                        // You could add more layout options here
                     });
+                    ui.add_space(16.0);
+                }
 
-                    // UI Menu (scaling, theme)
-                    ui.menu_button("UI", |ui| {
-                        // slider for ui scale
-                        let mut scale = ctx.zoom_factor();
-                        let res = ui
-                            .add(egui::Slider::new(&mut scale, 0.5..=5.0).text("UI Scale"));
-                        if !res.dragged() && res.changed()
-                        {
-                            tracing::info!("Setting new UI scale: {}", scale);
-                            ctx.set_zoom_factor(scale);
-                        }
-                        egui::widgets::global_theme_preference_buttons(ui);
-                    });
+                // // Panes Menu (dynamically generated from Pane::children)
+                // let pane_menu_structure = Pane::children(); // Get the static structure
+
+                // match pane_menu_structure {
+                //     crate::panes::PaneTree::Children(root_label, children) => {
+                //         ui.menu_button(root_label, |ui| {
+                //             for child_tree in children {
+                //                 self.add_pane_menu_items(ui, &child_tree, target_node_index);
+                //             }
+                //         });
+                //     }
+                //     crate::panes::PaneTree::Pane(_, _) => {
+                //         // Handle the case where the root is a single pane (less common for a menu)
+                //         tracing::warn!(
+                //             "Root of Pane::children() is a Pane, not Children. Menu might be limited."
+                //         );
+                //         self.add_pane_menu_items(ui, &pane_menu_structure, target_node_index);
+                //     }
+                // }
+
+                // Windows Menu (layout reset)
+                ui.menu_button("Windows", |ui| {
+                    if ui.button("Reset Layout").clicked() {
+                        tracing::info!("Resetting layout to default");
+                        *self = Self::default(); // Reset the entire app state
+                    }
+                    // You could add more layout options here
+                });
+
+                // UI Menu (scaling, theme)
+                ui.menu_button("UI", |ui| {
+                    // slider for ui scale
+                    let mut scale = ctx.zoom_factor();
+                    let res = ui.add(egui::Slider::new(&mut scale, 0.5..=5.0).text("UI Scale"));
+                    if !res.dragged() && res.changed() {
+                        tracing::info!("Setting new UI scale: {}", scale);
+                        ctx.set_zoom_factor(scale);
+                    }
+                    egui::widgets::global_theme_preference_buttons(ui);
                 });
             });
-
-        egui::CentralPanel::default().show(ctx, |ui| {
-            // The central panel the region left after adding TopPanel's and SidePanel's
-            let tile_ui_span = tracing::info_span!("tile_tree_ui");
-            let _tile_ui_guard = tile_ui_span.enter();
-
-            self.tree.ui(&mut self.tree_behavior, ui);
-            tracing::trace!("Tile tree UI render complete");
         });
+
+        egui::CentralPanel::default().show(ctx, |_ui| {
+            // The central panel the region left after adding TopPanel's and SidePanel's
+        });
+
+        self.dock_state.iter_surfaces_mut().for_each(|sur| {
+            sur.iter_nodes_mut().for_each(|n| {
+                if n.is_leaf() {
+                    let tabs_mut = n.tabs_mut().unwrap();
+                    if tabs_mut.len() == 1 {
+                        tabs_mut[0].alone = true;
+                    } else {
+                        for t in tabs_mut {
+                            t.alone = false
+                        }
+                    }
+                }
+            });
+        });
+
+        DockArea::new(&mut self.dock_state)
+            .show_add_buttons(true)
+            .show_add_popup(true)
+            .draggable_tabs(false)
+            .style(Style::from_egui(ctx.style().as_ref()))
+            .allowed_splits(AllowedSplits::None)
+            .show(ctx, &mut self.tree_behavior);
+
+        if let Some((nodei, sur)) = self.tree_behavior.last_added {
+            self.tree_behavior.added_nodes.drain(..).for_each(|node| {
+                self.dock_state.set_focused_node_and_surface((sur, nodei));
+                self.dock_state.push_to_focused_leaf(node);
+            });
+        }
 
         // why do we need this? Well our update loop cannot get the egui context so cannot
         // see the pass number, we need this to request a repaint if the emulator state
@@ -354,6 +283,6 @@ impl eframe::App for TemplateApp {
         *LAST_PAINT_ID.lock().unwrap() = ctx.cumulative_pass_nr_for(egui::ViewportId::ROOT);
 
         #[cfg(target_arch = "wasm32")]
-        ctx.request_repaint();
+        ctx.request_repaint(); // I could not find a way to repaint on change on the wasm backend without forking eframe
     }
 }

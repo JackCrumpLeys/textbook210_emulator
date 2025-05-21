@@ -1,5 +1,4 @@
 - Auto breakpoint at HALT (So it is easy to see registers before OS messes with them)
-- Fix control out of pane
 - figure out how to make egui not rerender each frame but still update emulator
 - Make IO pane actually good (it sucks)
 - Update help
@@ -11,9 +10,7 @@
 - Make memory viewer less ass
   - right now we decompile every memory address every frame, not good for CPU!
   - make offsets use labels when relevant
-- Make a proper parser
-  - most of the bugs with the current parser come from the fact it is a bunch of string matching. We don't need a tree for assembly but tokenization would be good
-  - Add tests against the lc3tools compiler
+- Add tests against the lc3tools compiler
 - Add some other devices
   - pixel display
   - file system (higher level than just writing storage I think)

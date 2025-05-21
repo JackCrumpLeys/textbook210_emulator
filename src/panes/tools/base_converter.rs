@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     app::base_to_base,
-    panes::{Pane, PaneDisplay, PaneTree},
+    panes::{Pane, PaneDisplay, PaneTree, RealPane},
 };
 
 use super::ToolPanes;
@@ -105,7 +105,9 @@ impl PaneDisplay for BaseConverter {
             "Tools".to_string(),
             vec![PaneTree::Pane(
                 "Base Converter".to_string(),
-                Pane::ToolPanes(Box::new(ToolPanes::BaseConverter(Self::default()))),
+                Pane::new(RealPane::ToolPanes(Box::new(ToolPanes::BaseConverter(
+                    Self::default(),
+                )))),
             )],
         )
     }

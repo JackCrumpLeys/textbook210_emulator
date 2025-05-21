@@ -1,29 +1,40 @@
 use crate::app::{base_to_base, EMULATOR};
 use crate::emulator::EmulatorCell;
-use crate::panes::{Pane, PaneDisplay, PaneTree};
+use crate::panes::{Pane, PaneDisplay, PaneTree, RealPane};
 use egui::{Align, RichText};
 use egui_extras::{Column, TableBuilder};
+use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
 use std::ops::RangeInclusive;
+use std::sync::Mutex;
 
 use super::editor::COMPILATION_ARTIFACTS;
 use super::EmulatorPane;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+lazy_static! {
+    static ref BREAKPOINTS: Mutex<HashSet<usize>> = Mutex::new(HashSet::new());
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MemoryPane {
     follow_pc: bool,
     jump_addr_str: String,
     #[serde(skip)] // Don't serialize the target scroll address, recalculate on load if needed
     target_scroll_addr: Option<usize>,
     display_base: u32,
+    highlighted: HashMap<usize, f32>, // highlighed with fade off (fades in 1 second from 1.0 -> 0)
+    was_running: bool,
 }
 
 impl Default for MemoryPane {
     fn default() -> Self {
         Self {
-            follow_pc: true,
+            follow_pc: false,
+            was_running: false,
             jump_addr_str: "0000".to_string(),
             target_scroll_addr: None,
+            highlighted: HashMap::new(),
             display_base: 16,
         }
     }
@@ -32,7 +43,13 @@ impl Default for MemoryPane {
 impl PaneDisplay for MemoryPane {
     fn render(&mut self, ui: &mut egui::Ui) {
         let mut emulator = EMULATOR.lock().unwrap();
-        let artifacts = COMPILATION_ARTIFACTS.lock().unwrap(); // Lock artifacts for label lookup
+        let artifacts = COMPILATION_ARTIFACTS.lock().unwrap();
+
+        if !self.was_running && emulator.running {
+            self.follow_pc = true; // start following the PC when the start button is pressed
+        }
+
+        self.was_running = emulator.running;
 
         ui.horizontal(|ui| {
             // --- Controls ---
@@ -47,11 +64,17 @@ impl PaneDisplay for MemoryPane {
             if response.lost_focus()
                 || response.ctx.input(|i| i.key_pressed(egui::Key::Enter)) && response.has_focus()
             {
-                if let Ok(addr) =
-                    usize::from_str_radix(self.jump_addr_str.trim_start_matches("0x"), 16)
-                {
+                if let Ok(addr) = usize::from_str_radix(
+                    self.jump_addr_str
+                        .to_lowercase()
+                        .split("x")
+                        .last()
+                        .expect("split should always return at least 1 element"),
+                    16,
+                ) {
                     if addr < emulator.memory.len() {
                         self.target_scroll_addr = Some(addr);
+                        self.highlighted.insert(addr, 1.0);
                         self.follow_pc = false; // Jumping disables follow PC
                     } else {
                         // Handle invalid address (e.g., show error, reset input)
@@ -60,7 +83,6 @@ impl PaneDisplay for MemoryPane {
                 } else {
                     // Handle parse error
                     self.jump_addr_str = format!("{:04X}", self.target_scroll_addr.unwrap_or(0));
-                    // Reset to current/last target
                 }
             }
 
@@ -125,7 +147,15 @@ impl PaneDisplay for MemoryPane {
                     let bg = if is_pc_line {
                         Some(egui::Color32::from_rgb(50, 80, 50)) // Dark green background for PC
                     } else {
-                        None // Use striped background
+                        self.highlighted.get_mut(&row_index).map(|hl| {
+                            *hl -= 0.01; // botch
+                            egui::Color32::from_rgba_unmultiplied(
+                                100,
+                                50,
+                                200,
+                                (255.0 * *hl) as u8, // purple that fades out
+                            )
+                        })
                     };
 
                     let paint_bg = |ui: &mut egui::Ui| {
@@ -140,13 +170,7 @@ impl PaneDisplay for MemoryPane {
                         paint_bg(ui);
 
                         // Try to find a label for this address
-                        let label = artifacts.labels.iter().find_map(|(name, &addr)| {
-                            if addr as usize == row_index {
-                                Some(name.clone())
-                            } else {
-                                None
-                            }
-                        });
+                        let label = artifacts.addr_to_label.get(&(row_index as u16));
 
                         let display = match label {
                             Some(lbl) => lbl.to_string(),
@@ -173,14 +197,12 @@ impl PaneDisplay for MemoryPane {
                     row.col(|ui| {
                         paint_bg(ui);
 
-                        let mut value_i16 = memory_cell.get() as i16; // Use i16 for DragValue editing
-                                                                      // Custom formatter and parser to handle different bases
-                                                                      // Corrected signature: RangeInclusive<usize>
+                        let mut value_i16 = memory_cell.get() as i16;
                         let format_fn = |n: f64, _range: RangeInclusive<usize>| -> String {
                             base_to_base(
                                 10,
                                 self.display_base,
-                                &(n as i16 as u16 as u32).to_string(),
+                                &(n as u32).to_string(),
                                 "0123456789ABCDEF",
                             )
                         };
@@ -267,7 +289,9 @@ impl PaneDisplay for MemoryPane {
     fn children() -> PaneTree {
         PaneTree::Pane(
             "Memory".to_string(),
-            Pane::EmulatorPanes(Box::new(EmulatorPane::Memory(MemoryPane::default()))),
+            Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Memory(
+                MemoryPane::default(),
+            )))),
         )
     }
 }

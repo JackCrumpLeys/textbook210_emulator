@@ -2,7 +2,7 @@ use crate::app::EMULATOR;
 use crate::emulator::parse::ParseOutput;
 use crate::emulator::{Emulator, MAX_OS_STEPS};
 use crate::panes::emulator::editor::COMPILATION_ARTIFACTS;
-use crate::panes::{Pane, PaneDisplay, PaneTree};
+use crate::panes::{Pane, PaneDisplay, PaneTree, RealPane};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
@@ -127,7 +127,9 @@ impl PaneDisplay for ControlsPane {
     fn children() -> PaneTree {
         PaneTree::Pane(
             "Controls".to_string(),
-            Pane::EmulatorPanes(Box::new(super::EmulatorPane::Controls(ControlsPane))),
+            Pane::new(RealPane::EmulatorPanes(Box::new(
+                super::EmulatorPane::Controls(ControlsPane),
+            ))),
         )
     }
 }
