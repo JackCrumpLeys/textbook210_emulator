@@ -75,7 +75,7 @@ impl TabViewer for TreeBehavior {
     }
 
     fn add_popup(&mut self, ui: &mut egui::Ui, surface: egui_dock::SurfaceIndex, node: NodeIndex) {
-        ui.set_min_width(120.0);
+        ui.set_min_width(60.0); // this is vaguely the size of the "Panes" button
         ui.style_mut().visuals.button_frame = false;
 
         self.add_pane_menu_items(ui, Pane::children());
