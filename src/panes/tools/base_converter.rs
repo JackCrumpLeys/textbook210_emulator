@@ -101,14 +101,11 @@ impl PaneDisplay for BaseConverter {
     }
 
     fn children() -> PaneTree {
-        PaneTree::Children(
-            "Tools".to_string(),
-            vec![PaneTree::Pane(
-                "Base Converter".to_string(),
-                Pane::new(RealPane::ToolPanes(Box::new(ToolPanes::BaseConverter(
-                    Self::default(),
-                )))),
-            )],
+        PaneTree::Pane(
+            "Base Converter".to_string(),
+            Pane::new(RealPane::ToolPanes(Box::new(ToolPanes::BaseConverter(
+                Self::default(),
+            )))),
         )
     }
 }
