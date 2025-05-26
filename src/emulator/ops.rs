@@ -13,7 +13,7 @@ pub use not::NotOp;
 pub use rti::RtiOp;
 pub use st::StOp;
 pub use sti::StiOp;
-pub use str_op::StrOp;
+pub use str::StrOp;
 pub use trap::TrapOp;
 
 use super::{BitAddressable, Emulator, EmulatorCell};
@@ -31,7 +31,7 @@ mod not;
 mod rti;
 mod st;
 mod sti;
-mod str_op;
+mod str;
 mod trap;
 // TODO: Refactor state system to use finer-grained execution steps
 #[derive(Debug, Clone)]

@@ -6,12 +6,12 @@ pub mod parse;
 #[cfg(test)]
 mod tests;
 
-use std::{collections::HashSet, ops::Range};
+use std::ops::Range;
 
 pub use ops::{CpuState, OpCode};
 use parse::ParseOutput;
 
-// use crate::panes::emulator::machine::BREAKPOINTS; TODO
+use crate::panes::emulator::memory::BREAKPOINTS;
 
 const STEPS_BETWEEN_FLUSH_GOT_NEW_CHAR: u32 = 30; // 5 full instructions
 
@@ -326,7 +326,7 @@ impl Default for Emulator {
 impl Emulator {
     // this will be called every frame (bool if emulator state changed)
     pub fn update(&mut self) -> bool {
-        let breakpoints: HashSet<usize> = HashSet::new(); // TODO
+        let breakpoints = BREAKPOINTS.lock().unwrap();
 
         let mut os_steps = 0;
         let mut changed = false;
@@ -346,6 +346,18 @@ impl Emulator {
             if self.tick % self.ticks_between_updates as u64 == 0 {
                 let mut i = 0;
                 while self.running && i < self.speed {
+                    // Check for breakpoints
+                    let current_pc = self.pc.get() as usize;
+
+                    if breakpoints.contains(&current_pc)
+                        && matches!(self.cpu_state, CpuState::Fetch)
+                    // Break *before* fetching the instruction at the breakpoint
+                    {
+                        self.running = false;
+                        log::info!("Breakpoint hit at address 0x{:04X}", current_pc);
+                        break;
+                    }
+
                     changed = true;
                     self.micro_step();
                     i += 1;
@@ -360,20 +372,6 @@ impl Emulator {
                     {
                         self.step();
                         os_steps += 1;
-                    }
-
-                    if !self.pc.get() < 0x3000 {
-                        // Check for breakpoints
-                        let current_pc = self.pc.get() as usize;
-
-                        if breakpoints.contains(&current_pc)
-                            && matches!(self.cpu_state, CpuState::Fetch)
-                        // Break *before* fetching the instruction at the breakpoint
-                        {
-                            self.running = false;
-                            log::info!("Breakpoint hit at address 0x{:04X}", current_pc);
-                            break;
-                        }
                     }
 
                     if i >= self.speed {
@@ -595,6 +593,7 @@ impl Emulator {
             "Memory size is not initialized with full addressable range"
         );
 
+        debug_assert!(self.running, "attermpting run but not running");
         // --- Check for and Handle Exceptions First ---
         if let Some(exc) = self.exception.clone() {
             tracing::info!(
@@ -708,17 +707,7 @@ impl Emulator {
                         tracing::debug!(
                             "Operand fetch succeeded, transitioning to EXECUTE_OPERATION"
                         );
-                        tracing::trace!(
-                            r0 = format!("0x{:04X}", self.r[0].get()),
-                            r1 = format!("0x{:04X}", self.r[1].get()),
-                            r2 = format!("0x{:04X}", self.r[2].get()),
-                            r3 = format!("0x{:04X}", self.r[3].get()),
-                            r4 = format!("0x{:04X}", self.r[4].get()),
-                            r5 = format!("0x{:04X}", self.r[5].get()),
-                            r6 = format!("0x{:04X}", self.r[6].get()),
-                            r7 = format!("0x{:04X}", self.r[7].get()),
-                            "Register values after operand fetch"
-                        );
+
                         self.cpu_state = CpuState::ExecuteOperation(op);
                         result = Ok(());
                     }

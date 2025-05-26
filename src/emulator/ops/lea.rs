@@ -39,9 +39,6 @@ impl Op for LeaOp {
         // Load the calculated effective address into the destination register.
         let dr_index = self.dr.get() as usize;
         machine_state.r[dr_index] = self.effective_address;
-
-        // Update condition codes based on the address loaded.
-        machine_state.update_flags(dr_index);
     }
 }
 

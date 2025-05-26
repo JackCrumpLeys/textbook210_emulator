@@ -13,7 +13,7 @@ use super::editor::COMPILATION_ARTIFACTS;
 use super::EmulatorPane;
 
 lazy_static! {
-    static ref BREAKPOINTS: Mutex<HashSet<usize>> = Mutex::new(HashSet::new());
+    pub static ref BREAKPOINTS: Mutex<HashSet<usize>> = Mutex::new(HashSet::new());
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -44,6 +44,7 @@ impl PaneDisplay for MemoryPane {
     fn render(&mut self, ui: &mut egui::Ui) {
         let mut emulator = EMULATOR.lock().unwrap();
         let artifacts = COMPILATION_ARTIFACTS.lock().unwrap();
+        let mut breakpoints = BREAKPOINTS.lock().unwrap();
 
         if !self.was_running && emulator.running {
             self.follow_pc = true; // start following the PC when the start button is pressed
@@ -92,191 +93,208 @@ impl PaneDisplay for MemoryPane {
             ui.radio_value(&mut self.display_base, 16, "Hex");
         });
 
-        egui::ScrollArea::horizontal().show(ui, |ui| {
-            ui.separator();
-            let available_height = ui.available_height();
+        ui.separator();
+        let available_height = ui.available_height();
 
-            // --- Memory Table ---
-            let text_height = egui::TextStyle::Monospace.resolve(ui.style()).size * 2.0; // *2 to account for buttons
-            let mut table = TableBuilder::new(ui)
-                .striped(true)
-                .resizable(true)
-                .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-                .column(Column::auto().at_least(100.0)) // Label
-                .column(Column::auto().at_least(60.0)) // Address + PC indicator
-                .column(Column::auto().at_least(50.0)) // Value (editable)
-                .column(Column::auto().at_least(60.0)) // Value (formatted)
-                .column(Column::auto().at_least(150.0)) // Instruction
-                .column(Column::remainder().at_least(80.0)) // ASCII
-                .max_scroll_height(available_height)
-                .min_scrolled_height(0.0);
+        // --- Memory Table ---
+        let text_height = egui::TextStyle::Monospace.resolve(ui.style()).size * 2.0; // *2 to account for buttons
+        let mut table = TableBuilder::new(ui)
+            .striped(true)
+            .resizable(true)
+            .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+            .column(Column::auto().at_least(15.0)) // breakpoint toggle
+            .column(Column::auto().at_least(100.0)) // Label
+            .column(Column::auto().at_least(60.0)) // Address + PC indicator
+            .column(Column::auto().at_least(50.0)) // Value (editable)
+            .column(Column::auto().at_least(60.0)) // Value (formatted)
+            .column(Column::auto().at_least(150.0)) // Instruction
+            .column(Column::remainder().at_least(80.0)) // ASCII
+            .max_scroll_height(available_height)
+            .min_scrolled_height(0.0);
 
-            // --- Scrolling Logic ---
-            let pc_addr = emulator.pc.get() as usize;
-            let scroll_target_row = if self.follow_pc {
-                Some(pc_addr)
-            } else {
-                self.target_scroll_addr
-            };
+        // --- Scrolling Logic ---
+        let pc_addr = emulator.pc.get() as usize;
+        let scroll_target_row = if self.follow_pc {
+            Some(pc_addr)
+        } else {
+            self.target_scroll_addr
+        };
 
-            // Apply scrolling *before* creating the body
-            if let Some(target_row) = scroll_target_row {
-                // Check if the target row is within the valid range of memory indices
-                if target_row < emulator.memory.len() {
-                    // Find the row index within the visible range (assuming full range for now)
-                    // The `rows_range` logic needs adjustment if you only show a subset.
-                    // For now, let's assume the visible index is the target address.
-                    let visible_row_index = target_row; // Adjust if rows_range is used differently
-                    table = table.scroll_to_row(visible_row_index, Some(Align::Center));
-                    // Clear target_scroll_addr after jumping if it wasn't set by follow_pc
-                    if !self.follow_pc {
-                        self.target_scroll_addr = None;
-                    }
+        // Apply scrolling *before* creating the body
+        if let Some(target_row) = scroll_target_row {
+            // Check if the target row is within the valid range of memory indices
+            if target_row < emulator.memory.len() {
+                // Find the row index within the visible range (assuming full range for now)
+                // The `rows_range` logic needs adjustment if you only show a subset.
+                // For now, let's assume the visible index is the target address.
+                let visible_row_index = target_row; // Adjust if rows_range is used differently
+                table = table.scroll_to_row(visible_row_index, Some(Align::Center));
+                // Clear target_scroll_addr after jumping if it wasn't set by follow_pc
+                if !self.follow_pc {
+                    self.target_scroll_addr = None;
                 }
             }
+        }
 
-            table.body(|mut body| {
-                let item_spacing = body.ui_mut().spacing().item_spacing;
+        table.body(|mut body| {
+            let item_spacing = body.ui_mut().spacing().item_spacing;
 
-                body.rows(text_height, 0xFFFF, |mut row| {
-                    let row_index = row.index();
+            body.rows(text_height, 0xFFFF, |mut row| {
+                let row_index = row.index();
 
-                    let memory_cell = &mut emulator.memory[row_index];
-                    let is_pc_line = pc_addr == row_index;
+                let memory_cell = &mut emulator.memory[row_index];
+                let is_pc_line = pc_addr == row_index;
 
-                    let bg = if is_pc_line {
-                        Some(egui::Color32::from_rgb(50, 80, 50)) // Dark green background for PC
-                    } else {
-                        self.highlighted.get_mut(&row_index).map(|hl| {
-                            *hl -= 0.01; // botch
-                            egui::Color32::from_rgba_unmultiplied(
-                                100,
-                                50,
-                                200,
-                                (255.0 * *hl) as u8, // purple that fades out
-                            )
-                        })
-                    };
+                let bg = if is_pc_line {
+                    Some(egui::Color32::from_rgb(50, 80, 50)) // Dark green background for PC
+                } else if breakpoints.contains(&row_index) {
+                    Some(egui::Color32::from_rgb(255, 0, 0)) // Red background for breakpoints
+                } else if let Some(hl) = self.highlighted.get_mut(&row_index) {
+                    *hl -= 0.01; // Botch
+                    Some(egui::Color32::from_rgba_unmultiplied(
+                        100,
+                        50,
+                        200,
+                        (255.0 * *hl) as u8, // purple that fades out
+                    ))
+                } else {
+                    None // Use striped background
+                };
 
-                    let paint_bg = |ui: &mut egui::Ui| {
-                        if let Some(color) = bg {
-                            let gapless_rect = ui.max_rect().expand2(0.5 * item_spacing);
-                            ui.painter().rect_filled(gapless_rect, 0.0, color);
-                        }
-                    };
+                let paint_bg = |ui: &mut egui::Ui| {
+                    if let Some(color) = bg {
+                        let gapless_rect = ui.max_rect().expand2(0.5 * item_spacing);
+                        ui.painter().rect_filled(gapless_rect, 0.0, color);
+                    }
+                };
 
-                    // label
-                    row.col(|ui| {
-                        paint_bg(ui);
+                // Breakpoint toggle
+                row.col(|ui| {
+                    paint_bg(ui);
 
-                        // Try to find a label for this address
-                        let label = artifacts.addr_to_label.get(&(row_index as u16));
+                    let has_breakpoint = breakpoints.contains(&row_index);
+                    let bp_text = if has_breakpoint { "🛑" } else { "⚪" };
 
-                        let display = match label {
-                            Some(lbl) => lbl.to_string(),
-                            None => "".to_string(),
-                        };
-
-                        ui.label(RichText::new(display).monospace().strong());
-                    });
-
-                    // Address Column
-                    row.col(|ui| {
-                        paint_bg(ui);
-
-                        let addr_text = format!(
-                            "0x{:04X}{}",
-                            row_index,
-                            if is_pc_line { " (PC)" } else { "" }
-                        );
-                        let rich_text = RichText::new(addr_text).monospace();
-                        ui.label(rich_text);
-                    });
-
-                    // Value Edit Column
-                    row.col(|ui| {
-                        paint_bg(ui);
-
-                        let mut value_i16 = memory_cell.get() as i16;
-                        let format_fn = |n: f64, _range: RangeInclusive<usize>| -> String {
-                            base_to_base(
-                                10,
-                                self.display_base,
-                                &(n as u32).to_string(),
-                                "0123456789ABCDEF",
-                            )
-                        };
-                        let parse_fn = |s: &str| -> Option<f64> {
-                            match self.display_base {
-                                16 => u16::from_str_radix(s.trim_start_matches("0x"), 16)
-                                    .ok()
-                                    .map(|v| v as i16 as f64),
-                                10 => s.parse::<i16>().ok().map(|v| v as f64),
-                                2 => u16::from_str_radix(s, 2).ok().map(|v| v as i16 as f64),
-                                _ => None, // Add other bases if needed
-                            }
-                        };
-
-                        if ui
-                            .add(
-                                egui::DragValue::new(&mut value_i16)
-                                    .custom_formatter(format_fn)
-                                    .custom_parser(parse_fn),
-                            )
-                            .changed()
-                        {
-                            memory_cell.set(value_i16 as u16);
-                        }
-                    });
-
-                    // Formatted Value Column
-                    row.col(|ui| {
-                        paint_bg(ui);
-
-                        let value_u16 = memory_cell.get();
-                        let formatted_val = match self.display_base {
-                            2 => format!("{:016b}", value_u16),
-                            10 => format!("{}", value_u16),
-                            16 => format!("0x{:04X}", value_u16),
-                            _ => base_to_base(
-                                10,
-                                self.display_base,
-                                &(value_u16 as u32).to_string(),
-                                "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ",
-                            ),
-                        };
-                        ui.label(RichText::new(formatted_val).monospace());
-                    });
-
-                    // Decoded Instruction Column
-                    row.col(|ui| {
-                        paint_bg(ui);
-
-                        let value_u16 = memory_cell.get();
-
-                        // Try to decode as an instruction if it's a plausible address
-                        let decoded_op = crate::emulator::ops::OpCode::from_instruction(
-                            EmulatorCell::new(value_u16),
-                        )
-                        .map(|op| format!("{}", op));
-
-                        if let Some(decoded_str) = decoded_op {
-                            // Display decoded Op struct
-                            ui.label(RichText::new(decoded_str).monospace());
+                    if ui.button(bp_text).clicked() {
+                        if has_breakpoint {
+                            breakpoints.remove(&row_index);
                         } else {
-                            ui.label(RichText::new("").monospace());
+                            breakpoints.insert(row_index);
                         }
-                    });
+                    }
+                });
 
-                    // ASCII Column
-                    row.col(|ui| {
-                        let ascii_char = char::from_u32((memory_cell.get() & 0xFF) as u32)
-                            .filter(|c| c.is_ascii_graphic() || *c == ' ') // Show printable ASCII or space
-                            .map(|c| format!("'{}'", c))
-                            .unwrap_or_default();
+                // label
+                row.col(|ui| {
+                    paint_bg(ui);
 
-                        ui.label(RichText::new(ascii_char).monospace().weak()); // Weak color for less emphasis
-                    });
+                    // Try to find a label for this address
+                    let label = artifacts.addr_to_label.get(&(row_index as u16));
+
+                    let display = match label {
+                        Some(lbl) => lbl.to_string(),
+                        None => "".to_string(),
+                    };
+
+                    ui.label(RichText::new(display).monospace().strong());
+                });
+
+                // Address Column
+                row.col(|ui| {
+                    paint_bg(ui);
+
+                    let addr_text = format!(
+                        "0x{:04X}{}",
+                        row_index,
+                        if is_pc_line { " (PC)" } else { "" }
+                    );
+                    let rich_text = RichText::new(addr_text).monospace();
+                    ui.label(rich_text);
+                });
+
+                // Value Edit Column
+                row.col(|ui| {
+                    paint_bg(ui);
+
+                    let mut value_i16 = memory_cell.get() as i16;
+                    let format_fn = |n: f64, _range: RangeInclusive<usize>| -> String {
+                        base_to_base(
+                            10,
+                            self.display_base,
+                            &(n as u32).to_string(),
+                            "0123456789ABCDEF",
+                        )
+                    };
+                    let parse_fn = |s: &str| -> Option<f64> {
+                        match self.display_base {
+                            16 => u16::from_str_radix(s.trim_start_matches("0x"), 16)
+                                .ok()
+                                .map(|v| v as i16 as f64),
+                            10 => s.parse::<i16>().ok().map(|v| v as f64),
+                            2 => u16::from_str_radix(s, 2).ok().map(|v| v as i16 as f64),
+                            _ => None, // Add other bases if needed
+                        }
+                    };
+
+                    if ui
+                        .add(
+                            egui::DragValue::new(&mut value_i16)
+                                .custom_formatter(format_fn)
+                                .custom_parser(parse_fn),
+                        )
+                        .changed()
+                    {
+                        memory_cell.set(value_i16 as u16);
+                    }
+                });
+
+                // Formatted Value Column
+                row.col(|ui| {
+                    paint_bg(ui);
+
+                    let value_u16 = memory_cell.get();
+                    let formatted_val = match self.display_base {
+                        2 => format!("{:016b}", value_u16),
+                        10 => format!("{}", value_u16),
+                        16 => format!("0x{:04X}", value_u16),
+                        _ => base_to_base(
+                            10,
+                            self.display_base,
+                            &(value_u16 as u32).to_string(),
+                            "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+                        ),
+                    };
+                    ui.label(RichText::new(formatted_val).monospace());
+                });
+
+                // Decoded Instruction Column
+                row.col(|ui| {
+                    paint_bg(ui);
+
+                    let value_u16 = memory_cell.get();
+
+                    // Try to decode as an instruction if it's a plausible address
+                    let decoded_op = crate::emulator::ops::OpCode::from_instruction(
+                        EmulatorCell::new(value_u16),
+                    )
+                    .map(|op| format!("{}", op));
+
+                    if let Some(decoded_str) = decoded_op {
+                        // Display decoded Op struct
+                        ui.label(RichText::new(decoded_str).monospace());
+                    } else {
+                        ui.label(RichText::new("").monospace());
+                    }
+                });
+
+                // ASCII Column
+                row.col(|ui| {
+                    let ascii_char = char::from_u32((memory_cell.get() & 0xFF) as u32)
+                        .filter(|c| c.is_ascii_graphic() || *c == ' ') // Show printable ASCII or space
+                        .map(|c| format!("'{}'", c))
+                        .unwrap_or_default();
+
+                    ui.label(RichText::new(ascii_char).monospace().weak()); // Weak color for less emphasis
                 });
             });
         });

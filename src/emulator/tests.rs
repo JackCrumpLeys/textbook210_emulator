@@ -651,7 +651,6 @@ fn test_lea() {
                 "R1 should contain the effective address 0x3000 + 1 + 5"
             );
             assert_eq!(m.pc.get(), 0x3001, "PC should increment");
-            assert_eq!(m.p.get(), 1, "Positive flag should be set (0x3006)");
         },
     );
 }

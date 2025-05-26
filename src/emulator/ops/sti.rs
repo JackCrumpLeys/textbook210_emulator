@@ -1,4 +1,6 @@
-use crate::emulator::{area_from_address, BitAddressable, Emulator, EmulatorCell, Exception};
+use crate::emulator::{
+    area_from_address, BitAddressable, Emulator, EmulatorCell, Exception, PrivilegeLevel, PSR_ADDR,
+};
 
 use super::Op;
 
@@ -96,6 +98,17 @@ impl Op for StiOp {
             machine_state.mdr = self.value_to_store;
             // Signal the main loop to perform the memory write (Mem[MAR] <- MDR).
             machine_state.write_bit = true;
+        }
+        if machine_state.mar.get() == PSR_ADDR as u16 {
+            let new_psr = machine_state.mdr;
+            machine_state.current_privilege_level = if new_psr.index(15).get() == 1 {
+                PrivilegeLevel::User
+            } else {
+                PrivilegeLevel::Supervisor
+            };
+            machine_state.n = new_psr.index(2);
+            machine_state.z = new_psr.index(1);
+            machine_state.p = new_psr.index(0);
         }
     }
 }
