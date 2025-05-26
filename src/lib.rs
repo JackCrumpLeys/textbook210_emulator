@@ -4,6 +4,7 @@
 pub mod app;
 pub mod emulator;
 pub mod panes;
+pub mod theme;
 pub mod turing;
 
 pub use app::TemplateApp;

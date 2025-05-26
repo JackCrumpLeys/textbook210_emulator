@@ -3,7 +3,9 @@ use std::sync::Mutex;
 use crate::{
     emulator::Emulator,
     panes::{EmulatorPane, Pane, PaneDisplay, RealPane},
+    theme::{self, BaseThemeChoice},
 };
+use egui::Theme;
 use egui_dock::{AllowedSplits, DockArea, DockState, NodeIndex, Style, SurfaceIndex, TabViewer};
 use lazy_static::lazy_static;
 
@@ -166,9 +168,11 @@ impl Default for TemplateApp {
 
 impl TemplateApp {
     /// Called once before the first frame.
-    pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         let span = tracing::info_span!("TemplateApp::new");
         let _guard = span.enter();
+
+        theme::set_global_theme(BaseThemeChoice::Dark, Some(&cc.egui_ctx));
 
         Default::default()
     }
@@ -199,27 +203,6 @@ impl eframe::App for TemplateApp {
                     });
                     ui.add_space(16.0);
                 }
-
-                // // Panes Menu (dynamically generated from Pane::children)
-                // let pane_menu_structure = Pane::children(); // Get the static structure
-
-                // match pane_menu_structure {
-                //     crate::panes::PaneTree::Children(root_label, children) => {
-                //         ui.menu_button(root_label, |ui| {
-                //             for child_tree in children {
-                //                 self.add_pane_menu_items(ui, &child_tree, target_node_index);
-                //             }
-                //         });
-                //     }
-                //     crate::panes::PaneTree::Pane(_, _) => {
-                //         // Handle the case where the root is a single pane (less common for a menu)
-                //         tracing::warn!(
-                //             "Root of Pane::children() is a Pane, not Children. Menu might be limited."
-                //         );
-                //         self.add_pane_menu_items(ui, &pane_menu_structure, target_node_index);
-                //     }
-                // }
-
                 // Windows Menu (layout reset)
                 ui.menu_button("Windows", |ui| {
                     if ui.button("Reset Layout").clicked() {
@@ -243,6 +226,14 @@ impl eframe::App for TemplateApp {
             });
         });
 
+        let curr_theme = match ctx.theme() {
+            Theme::Light => BaseThemeChoice::Light,
+            Theme::Dark => BaseThemeChoice::Dark,
+        };
+        if theme::CURRENT_THEME_SETTINGS.lock().unwrap().base_theme != curr_theme {
+            theme::set_global_theme(curr_theme, Some(ctx));
+        }
+
         egui::CentralPanel::default().show(ctx, |_ui| {
             // The central panel the region left after adding TopPanel's and SidePanel's
         });
@@ -265,10 +256,20 @@ impl eframe::App for TemplateApp {
         DockArea::new(&mut self.dock_state)
             .show_add_buttons(true)
             .show_add_popup(true)
+            .show_leaf_close_all_buttons(false)
             .draggable_tabs(false)
             .style(Style::from_egui(ctx.style().as_ref()))
             .allowed_splits(AllowedSplits::None)
             .show(ctx, &mut self.tree_behavior);
+
+        let theme_settings = theme::CURRENT_THEME_SETTINGS.lock().unwrap().base_theme;
+        if theme_settings != curr_theme {
+            ctx.set_theme(match theme_settings {
+                BaseThemeChoice::Light => egui::Theme::Light,
+                BaseThemeChoice::Dark => egui::Theme::Dark,
+            });
+            theme::set_global_theme(theme_settings, Some(ctx));
+        }
 
         if let Some((nodei, sur)) = self.tree_behavior.last_added {
             self.tree_behavior.added_nodes.drain(..).for_each(|node| {

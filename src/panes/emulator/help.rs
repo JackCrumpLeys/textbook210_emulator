@@ -1,8 +1,11 @@
 use crate::panes::{Pane, PaneDisplay, PaneTree, RealPane};
-use egui::RichText;
+use crate::theme::CURRENT_THEME_SETTINGS;
+use egui::{Color32, RichText, TextWrapMode, Ui};
 use serde::{Deserialize, Serialize};
 
 use super::EmulatorPane;
+
+// --- Data Structures ---
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 struct InstructionFields {
@@ -50,14 +53,29 @@ impl Default for HelpPane {
     }
 }
 
+// --- PaneDisplay Implementation ---
+
 impl PaneDisplay for HelpPane {
-    fn render(&mut self, ui: &mut egui::Ui) {
+    fn render(&mut self, ui: &mut Ui) {
         egui::ScrollArea::vertical().show(ui, |ui| {
-            egui::CollapsingHeader::new("LC-3 Emulator Help").show(ui, render_help_ui);
-            egui::CollapsingHeader::new("LC-3 Instruction Reference")
-                .show(ui, |ui| self.render_reference(ui));
-            egui::CollapsingHeader::new("LC-3 Cheatsheet and Examples")
-                .show(ui, render_cheatsheet_examples);
+            render_collapsible_section_with_id(
+                ui,
+                "LC-3 Emulator Help",
+                "help_main",
+                render_general_help_ui,
+            );
+            render_collapsible_section_with_id(
+                ui,
+                "LC-3 Instruction Reference",
+                "help_instruction_reference",
+                |ui| self.render_instruction_reference_ui(ui),
+            );
+            render_collapsible_section_with_id(
+                ui,
+                "LC-3 Cheatsheet and Examples",
+                "help_cheatsheet_examples",
+                render_cheatsheet_examples_ui,
+            );
         });
     }
 
@@ -75,153 +93,303 @@ impl PaneDisplay for HelpPane {
     }
 }
 
-fn render_help_ui(ui: &mut egui::Ui) {
-    ui.add(egui::Label::new(
-        RichText::new("Welcome to the LC-3 Emulator")
+// --- UI Helper Functions ---
+
+fn ui_main_title(ui: &mut Ui, text: &str) {
+    ui.label(
+        RichText::new(text)
             .heading()
             .strong()
             .color(ui.visuals().text_color()),
-    ));
-    ui.add_space(4.0);
-    ui.label("This emulator allows you to write, compile, and execute LC-3 assembly programs. Below is a guide to using the various features:");
-    egui::CollapsingHeader::new("Basic Usage")
-            .id_salt("basic_usage")
-            .show(ui, |ui| {
-                ui.label(RichText::new("1. Code Editor").strong());
-                ui.label("Write your LC-3 assembly code in the editor below. The editor supports syntax highlighting and basic formatting.");
+    );
+}
 
-                ui.label(RichText::new("2. Compilation").strong());
-                ui.label("Click 'Compile' to assemble your code. If there are errors, they will be displayed below the editor.");
+fn ui_section_heading(ui: &mut Ui, text: &str, color: Color32) {
+    ui.label(RichText::new(text).heading().strong().color(color));
+}
 
-                ui.label(RichText::new("3. Execution").strong());
-                ui.label("- Use 'Run' to begin continuous execution");
-                ui.label("- Use 'Pause' to stop execution");
-                ui.label("- Use 'Step' to execute one full instruction");
-                ui.label("- Use 'Small Step' to execute one phase of the CPU cycle");
+fn ui_sub_heading(ui: &mut Ui, text: &str, color: Color32) {
+    ui.label(RichText::new(text).heading().strong().color(color));
+}
 
-                ui.label(RichText::new("4. Input").strong());
-                ui.label("There are two ways to provide input to LC-3 programs:");
-                ui.label("- Use the 'Input' text field below the editor to pre-load input for GETC instructions");
-                ui.label("- When a TRAP IN instruction executes, you'll be prompted to enter a character");
-                ui.label("Characters typed into the input field will be consumed one at a time by GETC instructions from the start of the input");
+fn ui_strong_label(ui: &mut Ui, text: &str) {
+    ui.label(RichText::new(text).strong());
+}
 
-                ui.label(RichText::new("5. Debugging").strong());
-                ui.label("- Set breakpoints by clicking the 🛑 button next to a line");
-                ui.label("- Examine registers, memory, and flags in the collapsible sections");
-                ui.label("- Monitor the processor cycle for detailed execution information");
-            });
-    egui::CollapsingHeader::new("Execution Controls")
-            .id_salt("execution_controls")
-            .show(ui, |ui| {
-                ui.label(RichText::new("Execution Speed").strong());
-                ui.label("Control how quickly the program executes:");
-                ui.label("- 'Clocks per update': How many instructions to process in each update cycle");
-                ui.label("- 'Update frequency': How often to process instructions");
-                ui.label("Higher values mean faster execution but less responsive UI.");
+fn ui_simple_label(ui: &mut Ui, text: &str) {
+    ui.label(text);
+}
 
-                ui.label(RichText::new("Display Options").strong());
-                ui.label("- 'Display Base': Change how register and memory values are displayed");
-                ui.label("- 'Show Machine Code': Toggle between assembly and binary representation");
+fn ui_italic_label(ui: &mut Ui, text: &str) {
+    ui.label(RichText::new(text).italics());
+}
 
-                ui.label(RichText::new("Memory Editing").strong());
-                ui.label("You can directly edit memory values for directives like .FILL by using the numeric controls next to them.");
-            });
-    egui::CollapsingHeader::new("Registers and Flags")
-        .id_salt("registers_flags")
+fn ui_small_italic_label(ui: &mut Ui, text: &str) {
+    ui.label(RichText::new(text).small().italics());
+}
+
+fn ui_monospace_label(ui: &mut Ui, text: &str) {
+    ui.label(RichText::new(text).monospace());
+}
+
+fn ui_monospace_label_with_color(ui: &mut Ui, text: &str, color: Color32) {
+    ui.label(RichText::new(text).monospace().color(color));
+}
+
+fn ui_code_block(ui: &mut Ui, code: &str) {
+    // Using a frame to give a slight background, similar to original ui.code
+    egui::Frame::group(ui.style())
+        .fill(ui.visuals().extreme_bg_color) // Use theme's extreme_bg_color for code blocks
+        .inner_margin(egui::Margin::same(5))
         .show(ui, |ui| {
-            ui.label(RichText::new("General Purpose Registers").strong());
-            ui.label("R0-R7: Eight general-purpose registers for computation");
-
-            ui.label(RichText::new("Special Registers").strong());
-            ui.label("PC: Program Counter - Points to the next instruction to fetch");
-            ui.label("IR: Instruction Register - Holds the current instruction being executed");
-            ui.label("MAR: Memory Address Register - Holds the address for memory access");
-            ui.label("MDR: Memory Data Register - Holds data being read from or written to memory");
-
-            ui.label(RichText::new("Condition Flags").strong());
-            ui.label("N: Negative flag - Set when the result of an operation is negative");
-            ui.label("Z: Zero flag - Set when the result of an operation is zero");
-            ui.label("P: Positive flag - Set when the result of an operation is positive");
+            ui.add(
+                egui::Label::new(RichText::new(code).monospace()).wrap_mode(TextWrapMode::Extend),
+            );
         });
 }
 
-fn render_cheatsheet_examples(ui: &mut egui::Ui) {
-    ui.group(|ui| {
-        ui.add_space(8.0);
-        ui.label(
-            RichText::new("Instruction Reference")
-                .heading()
-                .strong()
-                .color(egui::Color32::LIGHT_YELLOW),
+fn render_collapsible_section_with_id(
+    ui: &mut Ui,
+    title: &str,
+    id_salt: &str,
+    add_contents: impl FnOnce(&mut Ui),
+) {
+    egui::CollapsingHeader::new(title)
+        .id_salt(id_salt)
+        .show(ui, add_contents);
+}
+
+fn render_info_list_item(ui: &mut Ui, text: &str) {
+    // For items like "- Use 'Run'..."
+    ui.label(format!("- {}", text));
+}
+
+// --- General Help UI ---
+
+fn render_general_help_ui(ui: &mut Ui) {
+    ui_main_title(ui, "Welcome to the LC-3 Emulator");
+    ui.add_space(4.0);
+    ui_simple_label(ui, "This emulator allows you to write, compile, and execute LC-3 assembly programs. Below is a guide to using the various features:");
+
+    render_collapsible_section_with_id(ui, "Basic Usage", "basic_usage", |ui| {
+        ui_strong_label(ui, "1. Code Editor");
+        ui_simple_label(ui, "Write your LC-3 assembly code in the editor below. The editor supports syntax highlighting and basic formatting.");
+
+        ui_strong_label(ui, "2. Compilation");
+        ui_simple_label(ui, "Click 'Compile' to assemble your code. If there are errors, they will be displayed below the editor.");
+
+        ui_strong_label(ui, "3. Execution");
+        render_info_list_item(ui, "Use 'Run' to begin continuous execution");
+        render_info_list_item(ui, "Use 'Pause' to stop execution");
+        render_info_list_item(ui, "Use 'Step' to execute one full instruction");
+        render_info_list_item(ui, "Use 'Small Step' to execute one phase of the CPU cycle");
+
+        ui_strong_label(ui, "4. Input");
+        ui_simple_label(ui, "There are two ways to provide input to LC-3 programs:");
+        render_info_list_item(
+            ui,
+            "Use the 'Input' text field below the editor to pre-load input for GETC instructions",
         );
-        ui.label("Quick reference for common LC-3 instructions and syntax.");
+        render_info_list_item(
+            ui,
+            "When a TRAP IN instruction executes, you'll be prompted to enter a character",
+        );
+        ui_simple_label(ui, "Characters typed into the input field will be consumed one at a time by GETC instructions from the start of the input");
 
-        ui.label(RichText::new("Arithmetic/Logic:").strong());
-        ui.label("ADD R1, R2, R3    ; R1 = R2 + R3");
-        ui.label("ADD R1, R2, #5    ; R1 = R2 + 5 (immediate)");
-        ui.label("AND R1, R2, R3    ; R1 = R2 & R3 (bitwise)");
-        ui.label("NOT R1, R2        ; R1 = ~R2 (1's complement)");
+        ui_strong_label(ui, "5. Debugging");
+        render_info_list_item(
+            ui,
+            "Set breakpoints by clicking the 🛑 button next to a line",
+        );
+        render_info_list_item(
+            ui,
+            "Examine registers, memory, and flags in the collapsible sections",
+        );
+        render_info_list_item(
+            ui,
+            "Monitor the processor cycle for detailed execution information",
+        );
+    });
 
-        ui.add_space(4.0);
-        ui.label(RichText::new("Data Movement:").strong());
-        ui.label("LD  R1, LABEL     ; R1 = Mem[PC+offset]");
-        ui.label("LDI R1, LABEL     ; R1 = Mem[Mem[PC+offset]]");
-        ui.label("LDR R1, R2, #5    ; R1 = Mem[R2+5]");
-        ui.label("LEA R1, LABEL     ; R1 = PC+offset");
-        ui.label("ST  R1, LABEL     ; Mem[PC+offset] = R1");
-        ui.label("STI R1, LABEL     ; Mem[Mem[PC+offset]] = R1");
-        ui.label("STR R1, R2, #5    ; Mem[R2+5] = R1");
+    render_collapsible_section_with_id(ui, "Execution Controls", "execution_controls", |ui| {
+        ui_strong_label(ui, "Execution Speed");
+        ui_simple_label(ui, "Control how quickly the program executes:");
+        render_info_list_item(
+            ui,
+            "'Clocks per update': How many instructions to process in each update cycle",
+        );
+        render_info_list_item(ui, "'Update frequency': How often to process instructions");
+        ui_simple_label(
+            ui,
+            "Higher values mean faster execution but less responsive UI.",
+        );
 
-        ui.add_space(4.0);
-        ui.label(RichText::new("Control Flow:").strong());
-        ui.label("BR  LABEL         ; Branch always");
-        ui.label("BRn LABEL         ; Branch if negative");
-        ui.label("BRz LABEL         ; Branch if zero");
-        ui.label("BRp LABEL         ; Branch if positive");
-        ui.label("JMP R1            ; PC = R1");
-        ui.label("JSR LABEL         ; Jump to subroutine (PC+offset)");
-        ui.label("JSRR R1           ; Jump to subroutine (R1)");
-        ui.label("RET               ; Return (PC = R7)");
+        ui_strong_label(ui, "Display Options");
+        render_info_list_item(
+            ui,
+            "'Display Base': Change how register and memory values are displayed",
+        );
+        render_info_list_item(
+            ui,
+            "'Show Machine Code': Toggle between assembly and binary representation",
+        );
 
-        ui.add_space(4.0);
-        ui.label(RichText::new("System Operations:").strong());
-        ui.label("TRAP x20          ; GETC (char -> R0)");
-        ui.label("TRAP x21          ; OUT (R0 -> display)");
-        ui.label("TRAP x22          ; PUTS (string at R0)");
-        ui.label("TRAP x23          ; IN (prompt & input -> R0)");
-        ui.label("TRAP x25          ; HALT (stop program)");
+        ui_strong_label(ui, "Memory Editing");
+        ui_simple_label(ui, "You can directly edit memory values for directives like .FILL by using the numeric controls next to them.");
+    });
 
-        ui.add_space(4.0);
-        ui.label(RichText::new("Directives:").strong());
-        ui.label(".ORIG x3000       ; Program origin (starting address)");
-        ui.label(".FILL #10         ; Insert value (decimal, hex, or label)");
-        ui.label(".BLKW 5           ; Reserve 5 memory locations");
-        ui.label(".STRINGZ \"Text\"  ; Null-terminated string");
-        ui.label(".END              ; End of program");
+    render_collapsible_section_with_id(ui, "Registers and Flags", "registers_flags", |ui| {
+        ui_strong_label(ui, "General Purpose Registers");
+        ui_simple_label(ui, "R0-R7: Eight general-purpose registers for computation");
 
-        ui.add_space(4.0);
-        ui.label(RichText::new("Number Formats:").strong());
-        ui.label("#10               ; Decimal");
-        ui.label("x10A2             ; Hexadecimal");
-        ui.label("LABEL             ; Label reference");
+        ui_strong_label(ui, "Special Registers");
+        ui_simple_label(
+            ui,
+            "PC: Program Counter - Points to the next instruction to fetch",
+        );
+        ui_simple_label(
+            ui,
+            "IR: Instruction Register - Holds the current instruction being executed",
+        );
+        ui_simple_label(
+            ui,
+            "MAR: Memory Address Register - Holds the address for memory access",
+        );
+        ui_simple_label(
+            ui,
+            "MDR: Memory Data Register - Holds data being read from or written to memory",
+        );
+
+        ui_strong_label(ui, "Condition Flags");
+        ui_simple_label(
+            ui,
+            "N: Negative flag - Set when the result of an operation is negative",
+        );
+        ui_simple_label(
+            ui,
+            "Z: Zero flag - Set when the result of an operation is zero",
+        );
+        ui_simple_label(
+            ui,
+            "P: Positive flag - Set when the result of an operation is positive",
+        );
+    });
+}
+
+// --- Cheatsheet and Examples UI ---
+
+fn render_cheatsheet_category(ui: &mut Ui, title: &str, items: &[&str]) {
+    ui_strong_label(ui, title);
+    for item in items {
+        ui_simple_label(ui, item);
+    }
+    ui.add_space(4.0);
+}
+
+fn render_sample_program_card(ui: &mut Ui, title: &str, title_color: Color32, code: &str) {
+    egui::Frame::group(ui.style()).show(ui, |ui| {
+        ui_sub_heading(ui, title, title_color);
+        ui_code_block(ui, code);
+    });
+    ui.add_space(4.0);
+}
+
+fn render_cheatsheet_examples_ui(ui: &mut Ui) {
+    egui::Frame::group(ui.style()).show(ui, |ui| {
+        ui.add_space(8.0);
+        // Keep these hardcoded as they are in a different section and the prompt only
+        // asked to theme the instruction reference part.
+        ui_section_heading(ui, "Instruction Reference", egui::Color32::LIGHT_YELLOW);
+        ui_simple_label(
+            ui,
+            "Quick reference for common LC-3 instructions and syntax.",
+        );
+
+        render_cheatsheet_category(
+            ui,
+            "Arithmetic/Logic:",
+            &[
+                "ADD R1, R2, R3    ; R1 = R2 + R3",
+                "ADD R1, R2, #5    ; R1 = R2 + 5 (immediate)",
+                "AND R1, R2, R3    ; R1 = R2 & R3 (bitwise)",
+                "NOT R1, R2        ; R1 = ~R2 (1's complement)",
+            ],
+        );
+        render_cheatsheet_category(
+            ui,
+            "Data Movement:",
+            &[
+                "LD  R1, LABEL     ; R1 = Mem[PC+offset]",
+                "LDI R1, LABEL     ; R1 = Mem[Mem[PC+offset]]",
+                "LDR R1, R2, #5    ; R1 = Mem[R2+5]",
+                "LEA R1, LABEL     ; R1 = PC+offset",
+                "ST  R1, LABEL     ; Mem[PC+offset] = R1",
+                "STI R1, LABEL     ; Mem[Mem[PC+offset]] = R1",
+                "STR R1, R2, #5    ; Mem[R2+5] = R1",
+            ],
+        );
+        render_cheatsheet_category(
+            ui,
+            "Control Flow:",
+            &[
+                "BR  LABEL         ; Branch always",
+                "BRn LABEL         ; Branch if negative",
+                "BRz LABEL         ; Branch if zero",
+                "BRp LABEL         ; Branch if positive",
+                "JMP R1            ; PC = R1",
+                "JSR LABEL         ; Jump to subroutine (PC+offset)",
+                "JSRR R1           ; Jump to subroutine (R1)",
+                "RET               ; Return (PC = R7)",
+            ],
+        );
+        render_cheatsheet_category(
+            ui,
+            "System Operations:",
+            &[
+                "TRAP x20          ; GETC (char -> R0)",
+                "TRAP x21          ; OUT (R0 -> display)",
+                "TRAP x22          ; PUTS (string at R0)",
+                "TRAP x23          ; IN (prompt & input -> R0)",
+                "TRAP x25          ; HALT (stop program)",
+            ],
+        );
+        render_cheatsheet_category(
+            ui,
+            "Directives:",
+            &[
+                ".ORIG x3000       ; Program origin (starting address)",
+                ".FILL #10         ; Insert value (decimal, hex, or label)",
+                ".BLKW 5           ; Reserve 5 memory locations",
+                ".STRINGZ \"Text\"  ; Null-terminated string",
+                ".END              ; End of program",
+            ],
+        );
+        render_cheatsheet_category(
+            ui,
+            "Number Formats:",
+            &[
+                "#10               ; Decimal",
+                "x10A2             ; Hexadecimal",
+                "LABEL             ; Label reference",
+            ],
+        );
     });
     ui.add_space(8.0);
     ui.separator();
-    ui.label(
-        RichText::new("LC-3 Sample Programs")
-            .heading()
-            .strong()
-            .color(egui::Color32::KHAKI),
+    // Keep these hardcoded as they are in a different section and the prompt only
+    // asked to theme the instruction reference part.
+    ui_section_heading(ui, "LC-3 Sample Programs", egui::Color32::KHAKI);
+    ui_simple_label(
+        ui,
+        "Common patterns and examples for LC-3 assembly programming.",
     );
-    ui.label("Common patterns and examples for LC-3 assembly programming.");
-    ui.group(|ui| {
-        ui.label(
-            RichText::new("Hello World")
-                .heading()
-                .color(egui::Color32::GOLD),
-        );
-        ui.code(
-            r#"; Simple Hello World program
+
+    // Keep sample program card colors hardcoded as they are outside the instruction reference section.
+    render_sample_program_card(
+        ui,
+        "Hello World",
+        egui::Color32::GOLD,
+        r#"; Simple Hello World program
 .ORIG x3000
 LEA R0, MESSAGE    ; Load the address of the message
 PUTS               ; Output the string
@@ -229,33 +397,23 @@ HALT               ; Halt the program
 
 MESSAGE: .STRINGZ "Hello, World!"
 .END"#,
-        );
-    });
-    ui.add_space(4.0);
-    ui.group(|ui| {
-        ui.label(
-            RichText::new("Input and Echo")
-                .heading()
-                .color(egui::Color32::GOLD),
-        );
-        ui.code(
-            r#"; Program that gets a character and echoes it
+    );
+    render_sample_program_card(
+        ui,
+        "Input and Echo",
+        egui::Color32::GOLD,
+        r#"; Program that gets a character and echoes it
 .ORIG x3000
 LOOP:   GETC                ; Read a character from keyboard
         OUT                 ; Echo the character
         BRnzp LOOP          ; Repeat
 .END"#,
-        );
-    });
-    ui.add_space(4.0);
-    ui.group(|ui| {
-        ui.label(
-            RichText::new("Counter Loop")
-                .heading()
-                .color(egui::Color32::GOLD),
-        );
-        ui.code(
-            r#"; Simple counter from 0 to 9
+    );
+    render_sample_program_card(
+        ui,
+        "Counter Loop",
+        egui::Color32::GOLD,
+        r#"; Simple counter from 0 to 9
 .ORIG x3000
         AND R2, R2, #0      ; Clear R2 (our counter)
         LD R1, TEN          ; Load the value 10 into R1
@@ -271,17 +429,12 @@ LOOP:   ADD R0, R2, R4      ; Convert to ASCII
 TEN:    .FILL #-10          ; Negative 10 for comparison
 ZERO_ASCII: .FILL #48       ; ASCII value for '0'
 .END"#,
-        );
-    });
-    ui.add_space(4.0);
-    ui.group(|ui| {
-        ui.label(
-            RichText::new("Subroutine Example")
-                .heading()
-                .color(egui::Color32::GOLD),
-        );
-        ui.code(
-            r#"; Program using a subroutine
+    );
+    render_sample_program_card(
+        ui,
+        "Subroutine Example",
+        egui::Color32::GOLD,
+        r#"; Program using a subroutine
 .ORIG x3000
         JSR SUBROUTINE      ; Call subroutine
         HALT                ; End program
@@ -296,17 +449,12 @@ SUBROUTINE:                 ; Label with colon
 SAVE_R7: .BLKW 1            ; Storage for R7 (note the colon)
 MESSAGE: .STRINGZ "Called from subroutine!"  ; Note the colon
 .END"#,
-        );
-    });
-    ui.add_space(4.0);
-    ui.group(|ui| {
-        ui.label(
-            RichText::new("Array Manipulation")
-                .heading()
-                .color(egui::Color32::GOLD),
-        );
-        ui.code(
-            r#"; Program that initializes an array and sums it
+    );
+    render_sample_program_card(
+        ui,
+        "Array Manipulation",
+        egui::Color32::GOLD,
+        r#"; Program that initializes an array and sums it
 .ORIG x3000
         AND R0, R0, #0      ; Clear R0 (sum)
         LEA R1, ARRAY       ; R1 points to start of array
@@ -326,1632 +474,1308 @@ ARRAY:  .FILL #10           ; Array values
         .FILL #40
         .FILL #50
 .END"#,
-        );
+    );
+}
+// --- Instruction Reference UI ---
+
+// Helper for formatting binary numbers
+fn format_binary(value: u16, width: usize) -> String {
+    format!("{:0width$b}", value, width = width)
+}
+
+// Helper for formatting hexadecimal numbers
+fn format_hex(value: u16) -> String {
+    format!("0x{:04X}", value)
+}
+
+// Input field for selecting a register
+fn ui_register_selector(ui: &mut Ui, value: &mut u8, label: &str) {
+    ui.horizontal(|ui| {
+        ui_strong_label(ui, label);
+        ui.add(egui::DragValue::new(value).range(0..=7).speed(0.1))
+            .on_hover_text("Register value (0-7)");
+        ui_simple_label(ui, &format!("R{}", value));
     });
-    ui.add_space(4.0);
+}
+
+// Input field for an immediate value
+fn ui_immediate_selector(ui: &mut Ui, value: &mut i8, bits: u8, label: &str) {
+    ui.horizontal(|ui| {
+        ui_strong_label(ui, label);
+        let min_val = -(1 << (bits - 1));
+        let max_val = (1 << (bits - 1)) - 1;
+        ui.add(
+            egui::DragValue::new(value)
+                .range(min_val..=max_val)
+                .speed(0.1),
+        )
+        .on_hover_text(format!("{}-bit immediate value", bits));
+        ui_simple_label(ui, &format!("#{}", value));
+    });
+}
+
+// Input field for an offset value
+fn ui_offset_selector(ui: &mut Ui, value: &mut i16, bits: u8, label: &str) {
+    ui.horizontal(|ui| {
+        ui_strong_label(ui, label);
+        let min_val = -(1 << (bits - 1));
+        let max_val = (1 << (bits - 1)) - 1;
+        ui.add(
+            egui::DragValue::new(value)
+                .range(min_val..=max_val)
+                .speed(0.1),
+        )
+        .on_hover_text(format!("{}-bit offset value", bits));
+        ui_simple_label(ui, &format!("PC+{}", value));
+    });
+}
+
+// Displays the "Layout: ..." part of binary representation
+fn ui_binary_layout_display(ui: &mut Ui, desc: &str, color: Color32) {
+    ui.label(
+        RichText::new(desc)
+            .monospace()
+            .background_color(ui.visuals().extreme_bg_color)
+            .color(color),
+    );
+}
+
+struct BinarySegment {
+    text: String,
+    color: Color32,
+}
+
+fn render_binary_representation_view(
+    ui: &mut Ui,
+    id_salt_suffix: &str,
+    layout_str: &str,
+    layout_color: Color32,
+    segments: Vec<BinarySegment>,
+    binary_value: u16,
+) {
+    render_collapsible_section_with_id(ui, "Binary Representation", id_salt_suffix, |ui| {
+        ui_binary_layout_display(ui, layout_str, layout_color);
+        ui.horizontal(|ui| {
+            for segment in segments {
+                ui_monospace_label_with_color(ui, &segment.text, segment.color);
+            }
+        });
+        ui_monospace_label(ui, &format!("Binary: {}", format_binary(binary_value, 16)));
+        ui_monospace_label(ui, &format!("Hex: {}", format_hex(binary_value)));
+    });
+}
+
+fn render_instruction_card_content(
+    ui: &mut Ui,
+    title: &str,
+    title_color: Color32,
+    description: &str,
+    content_fn: impl FnOnce(&mut Ui, &mut InstructionFields),
+    fields: &mut InstructionFields,
+    condition_codes_note: Option<&str>,
+) {
+    ui.add_space(8.0);
+    ui.separator();
+    ui_sub_heading(ui, title, title_color);
+    ui_simple_label(ui, description);
+
+    egui::Frame::group(ui.style()).show(ui, |ui| {
+        content_fn(ui, fields);
+    });
+
+    if let Some(note) = condition_codes_note {
+        ui_small_italic_label(ui, note);
+    }
 }
 
 impl HelpPane {
-    fn render_reference(&mut self, ui: &mut egui::Ui) {
-        let instruction_fields = &mut self.instruction_fields;
-        let format_binary =
-            |value: u16, width: usize| -> String { format!("{:0width$b}", value, width = width) };
-        let format_hex = |value: u16| -> String { format!("0x{:04X}", value) };
-        let register_selector = |ui: &mut egui::Ui, value: &mut u8, label: &str| {
-            ui.horizontal(|ui| {
-                ui.label(RichText::new(label).strong());
-                ui.add(egui::DragValue::new(value).range(0..=7).speed(0.1))
-                    .on_hover_text("Register value (0-7)");
-                ui.label(format!("R{}", value));
-            })
-        };
-        let immediate_selector = |ui: &mut egui::Ui, value: &mut i8, bits: u8, label: &str| {
-            ui.horizontal(|ui| {
-                ui.label(RichText::new(label).strong());
-                let min = -(1 << (bits - 1));
-                let max = (1 << (bits - 1)) - 1;
-                ui.add(egui::DragValue::new(value).range(min..=max).speed(0.1))
-                    .on_hover_text(format!("{}-bit immediate value", bits));
-                ui.label(format!("#{}", value));
-            })
-        };
-        let offset_selector = |ui: &mut egui::Ui, value: &mut i16, bits: u8, label: &str| {
-            ui.horizontal(|ui| {
-                ui.label(RichText::new(label).strong());
-                let min = -(1 << (bits - 1));
-                let max = (1 << (bits - 1)) - 1;
-                ui.add(egui::DragValue::new(value).range(min..=max).speed(0.1))
-                    .on_hover_text(format!("{}-bit offset value", bits));
-                ui.label(format!("PC+{}", value));
-            })
-        };
-        let instruction_layout = |ui: &mut egui::Ui, desc: &str, color: egui::Color32| {
-            ui.label(
-                RichText::new(desc)
-                    .monospace()
-                    .background_color(egui::Color32::from_black_alpha(180))
-                    .color(color),
-            );
-        };
-        ui.add(egui::Label::new(
-            RichText::new("LC-3 Assembly Instructions")
-                .heading()
-                .strong()
-                .color(ui.visuals().text_color()),
-        ));
-        ui.label("Select an instruction category to explore. Adjust instruction fields to see how they affect binary representation.");
+    fn render_instruction_reference_ui(&mut self, ui: &mut Ui) {
+        ui_main_title(ui, "LC-3 Assembly Instructions");
+        ui_simple_label(ui, "Select an instruction category to explore. Adjust instruction fields to see how they affect binary representation.");
         ui.add_space(4.0);
-        egui::CollapsingHeader::new("Arithmetic & Logic")
-            .id_salt("arithmetic_logic")
-            .show(ui, |ui| {
-                // ADD
-                ui.add_space(8.0);
-                ui.separator();
-                ui.label(
-                    RichText::new("ADD - Addition")
-                        .heading()
-                        .strong()
-                        .color(egui::Color32::LIGHT_BLUE),
-                );
-                ui.label("Adds two values and stores the result in a destination register.");
 
-                ui.horizontal(|ui| {
-                    ui.checkbox(
-                        &mut instruction_fields.imm_mode,
-                        RichText::new("Immediate mode").strong(),
-                    );
-                });
-
-                ui.group(|ui| {
-                    if instruction_fields.imm_mode {
-                        ui.label(
-                            RichText::new("ADD DR, SR1, #imm5")
-                                .monospace()
-                                .color(egui::Color32::LIGHT_BLUE),
-                        );
-                        ui.label(
-                            RichText::new("Adds SR1 and immediate value, stores in DR").italics(),
-                        );
-
-                        register_selector(ui, &mut instruction_fields.dr, "Destination Reg:");
-                        register_selector(ui, &mut instruction_fields.sr1, "Source Reg 1:");
-                        immediate_selector(ui, &mut instruction_fields.imm5, 5, "Immediate Value:");
-
-                        let pseudo_code = format!(
-                            "DR = R{} = R{} + {} = {}",
-                            instruction_fields.dr,
-                            instruction_fields.sr1,
-                            instruction_fields.imm5,
-                            format_hex(
-                                (instruction_fields.sr1 as i16 + instruction_fields.imm5 as i16)
-                                    as u16
-                            )
-                        );
-
-                        ui.label(
-                            RichText::new(pseudo_code)
-                                .monospace()
-                                .color(egui::Color32::YELLOW),
-                        );
-
-                        let add_imm = (0b0001 << 12) | // Opcode
-                                     ((instruction_fields.dr as u16) << 9) | // DR
-                                     ((instruction_fields.sr1 as u16) << 6) | // SR1
-                                     (1 << 5) | // Immediate mode bit
-                                     (instruction_fields.imm5 as u16 & 0x1F); // IMM5
-
-                        egui::CollapsingHeader::new("Binary Representation")
-                            .id_salt("add_binary")
-                            .show(ui, |ui| {
-                                instruction_layout(
-                                    ui,
-                                    "Layout: 0001 | DR | SR1 | 1 | IMM5",
-                                    egui::Color32::GREEN,
-                                );
-                                ui.horizontal(|ui| {
-                                    ui.label(
-                                        RichText::new("0001").monospace().color(egui::Color32::RED),
-                                    );
-                                    ui.label(
-                                        RichText::new(format_binary(
-                                            (instruction_fields.dr as u16) & 0x7,
-                                            3,
-                                        ))
-                                        .monospace()
-                                        .color(egui::Color32::from_rgb(33, 78, 211)),
-                                    );
-                                    ui.label(
-                                        RichText::new(format_binary(
-                                            (instruction_fields.sr1 as u16) & 0x7,
-                                            3,
-                                        ))
-                                        .monospace()
-                                        .color(egui::Color32::GREEN),
-                                    );
-                                    ui.label(
-                                        RichText::new("1").monospace().color(egui::Color32::YELLOW),
-                                    );
-                                    ui.label(
-                                        RichText::new(format_binary(
-                                            instruction_fields.imm5 as u16 & 0x1F,
-                                            5,
-                                        ))
-                                        .monospace()
-                                        .color(egui::Color32::LIGHT_BLUE),
-                                    );
-                                });
-                                ui.label(
-                                    RichText::new(format!(
-                                        "Binary: {}",
-                                        format_binary(add_imm, 16)
-                                    ))
-                                    .monospace(),
-                                );
-                                ui.label(
-                                    RichText::new(format!("Hex: {}", format_hex(add_imm)))
-                                        .monospace(),
-                                );
-                            });
-                    } else {
-                        ui.label(
-                            RichText::new("ADD DR, SR1, SR2")
-                                .monospace()
-                                .color(egui::Color32::LIGHT_BLUE),
-                        );
-                        ui.label(RichText::new("Adds SR1 and SR2, stores in DR").italics());
-
-                        register_selector(ui, &mut instruction_fields.dr, "Destination Reg:");
-                        register_selector(ui, &mut instruction_fields.sr1, "Source Reg 1:");
-                        register_selector(ui, &mut instruction_fields.sr2, "Source Reg 2:");
-
-                        let pseudo_code = format!(
-                            "DR = R{} = R{} + R{}",
-                            instruction_fields.dr, instruction_fields.sr1, instruction_fields.sr2
-                        );
-
-                        ui.label(
-                            RichText::new(pseudo_code)
-                                .monospace()
-                                .color(egui::Color32::YELLOW),
-                        );
-
-                        let add_reg = ((0b0001 << 12) | // Opcode
-                                     ((instruction_fields.dr as u16) << 9) | // DR
-                                     ((instruction_fields.sr1 as u16) << 6)) | // Unused bits
-                                     (instruction_fields.sr2 as u16 & 0x7); // SR2
-
-                        egui::CollapsingHeader::new("Binary Representation")
-                            .id_salt("add_binary")
-                            .show(ui, |ui| {
-                                instruction_layout(
-                                    ui,
-                                    "Layout: 0001 | DR | SR1 | 0 | 00 | SR2",
-                                    egui::Color32::GREEN,
-                                );
-                                ui.horizontal(|ui| {
-                                    ui.label(
-                                        RichText::new("0001").monospace().color(egui::Color32::RED),
-                                    );
-                                    ui.label(
-                                        RichText::new(format_binary(
-                                            (instruction_fields.dr as u16) & 0x7,
-                                            3,
-                                        ))
-                                        .monospace()
-                                        .color(egui::Color32::from_rgb(33, 78, 211)),
-                                    );
-                                    ui.label(
-                                        RichText::new(format_binary(
-                                            (instruction_fields.sr1 as u16) & 0x7,
-                                            3,
-                                        ))
-                                        .monospace()
-                                        .color(egui::Color32::GREEN),
-                                    );
-                                    ui.label(
-                                        RichText::new("0").monospace().color(egui::Color32::YELLOW),
-                                    );
-                                    ui.label(
-                                        RichText::new("00")
-                                            .monospace()
-                                            .color(egui::Color32::LIGHT_GRAY),
-                                    );
-                                    ui.label(
-                                        RichText::new(format_binary(
-                                            (instruction_fields.sr2 as u16) & 0x7,
-                                            3,
-                                        ))
-                                        .monospace()
-                                        .color(egui::Color32::LIGHT_BLUE),
-                                    );
-                                });
-                                ui.label(
-                                    RichText::new(format!(
-                                        "Binary: {}",
-                                        format_binary(add_reg, 16)
-                                    ))
-                                    .monospace(),
-                                );
-                                ui.label(
-                                    RichText::new(format!("Hex: {}", format_hex(add_reg)))
-                                        .monospace(),
-                                );
-                            });
-                    }
-                });
-
-                ui.label(
-                    RichText::new("Sets condition codes: N, Z, P")
-                        .small()
-                        .italics(),
-                );
-
-                // AND
-                ui.add_space(8.0);
-                ui.separator();
-                ui.label(
-                    RichText::new("AND - Bitwise AND")
-                        .heading()
-                        .strong()
-                        .color(egui::Color32::LIGHT_BLUE),
-                );
-                ui.label("Performs bitwise AND of two values and stores the result.");
-
-                ui.horizontal(|ui| {
-                    ui.checkbox(
-                        &mut instruction_fields.imm_mode,
-                        RichText::new("Immediate mode").strong(),
-                    );
-                });
-
-                ui.group(|ui| {
-                    if instruction_fields.imm_mode {
-                        ui.label(
-                            RichText::new("AND DR, SR1, #imm5")
-                                .monospace()
-                                .color(egui::Color32::LIGHT_BLUE),
-                        );
-                        ui.label(
-                            RichText::new("Bitwise ANDs SR1 and immediate value, stores in DR")
-                                .italics(),
-                        );
-
-                        register_selector(ui, &mut instruction_fields.dr, "Destination Reg:");
-                        register_selector(ui, &mut instruction_fields.sr1, "Source Reg 1:");
-                        immediate_selector(ui, &mut instruction_fields.imm5, 5, "Immediate Value:");
-
-                        let pseudo_code = format!(
-                            "DR = R{} = R{} & {} = {}",
-                            instruction_fields.dr,
-                            instruction_fields.sr1,
-                            instruction_fields.imm5,
-                            format_hex(
-                                (instruction_fields.sr1 as u16) & (instruction_fields.imm5 as u16)
-                            )
-                        );
-
-                        ui.label(
-                            RichText::new(pseudo_code)
-                                .monospace()
-                                .color(egui::Color32::YELLOW),
-                        );
-
-                        let and_imm = (0b0101 << 12) | // Opcode
-                                     ((instruction_fields.dr as u16) << 9) | // DR
-                                     ((instruction_fields.sr1 as u16) << 6) | // SR1
-                                     (1 << 5) | // Immediate mode bit
-                                     (instruction_fields.imm5 as u16 & 0x1F); // IMM5
-
-                        egui::CollapsingHeader::new("Binary Representation")
-                            .id_salt("and_binary")
-                            .show(ui, |ui| {
-                                instruction_layout(
-                                    ui,
-                                    "Layout: 0101 | DR | SR1 | 1 | IMM5",
-                                    egui::Color32::GREEN,
-                                );
-                                ui.horizontal(|ui| {
-                                    ui.label(
-                                        RichText::new("0101").monospace().color(egui::Color32::RED),
-                                    );
-                                    ui.label(
-                                        RichText::new(format_binary(
-                                            (instruction_fields.dr as u16) & 0x7,
-                                            3,
-                                        ))
-                                        .monospace()
-                                        .color(egui::Color32::from_rgb(33, 78, 211)),
-                                    );
-                                    ui.label(
-                                        RichText::new(format_binary(
-                                            (instruction_fields.sr1 as u16) & 0x7,
-                                            3,
-                                        ))
-                                        .monospace()
-                                        .color(egui::Color32::GREEN),
-                                    );
-                                    ui.label(
-                                        RichText::new("1").monospace().color(egui::Color32::YELLOW),
-                                    );
-                                    ui.label(
-                                        RichText::new(format_binary(
-                                            instruction_fields.imm5 as u16 & 0x1F,
-                                            5,
-                                        ))
-                                        .monospace()
-                                        .color(egui::Color32::LIGHT_BLUE),
-                                    );
-                                });
-                                ui.label(
-                                    RichText::new(format!(
-                                        "Binary: {}",
-                                        format_binary(and_imm, 16)
-                                    ))
-                                    .monospace(),
-                                );
-                                ui.label(
-                                    RichText::new(format!("Hex: {}", format_hex(and_imm)))
-                                        .monospace(),
-                                );
-                            });
-                    } else {
-                        ui.label(
-                            RichText::new("AND DR, SR1, SR2")
-                                .monospace()
-                                .color(egui::Color32::LIGHT_BLUE),
-                        );
-                        ui.label(RichText::new("Bitwise ANDs SR1 and SR2, stores in DR").italics());
-
-                        register_selector(ui, &mut instruction_fields.dr, "Destination Reg:");
-                        register_selector(ui, &mut instruction_fields.sr1, "Source Reg 1:");
-                        register_selector(ui, &mut instruction_fields.sr2, "Source Reg 2:");
-
-                        let pseudo_code = format!(
-                            "DR = R{} = R{} & R{}",
-                            instruction_fields.dr, instruction_fields.sr1, instruction_fields.sr2
-                        );
-
-                        ui.label(
-                            RichText::new(pseudo_code)
-                                .monospace()
-                                .color(egui::Color32::YELLOW),
-                        );
-
-                        let and_reg = ((0b0101 << 12) | // Opcode
-                                     ((instruction_fields.dr as u16) << 9) | // DR
-                                     ((instruction_fields.sr1 as u16) << 6)) | // Unused bits
-                                     (instruction_fields.sr2 as u16 & 0x7); // SR2
-
-                        egui::CollapsingHeader::new("Binary Representation")
-                            .id_salt("and_binary")
-                            .show(ui, |ui| {
-                                instruction_layout(
-                                    ui,
-                                    "Layout: 0101 | DR | SR1 | 0 | 00 | SR2",
-                                    egui::Color32::GREEN,
-                                );
-                                ui.horizontal(|ui| {
-                                    ui.label(
-                                        RichText::new("0101").monospace().color(egui::Color32::RED),
-                                    );
-                                    ui.label(
-                                        RichText::new(format_binary(
-                                            (instruction_fields.dr as u16) & 0x7,
-                                            3,
-                                        ))
-                                        .monospace()
-                                        .color(egui::Color32::from_rgb(33, 78, 211)),
-                                    );
-                                    ui.label(
-                                        RichText::new(format_binary(
-                                            (instruction_fields.sr1 as u16) & 0x7,
-                                            3,
-                                        ))
-                                        .monospace()
-                                        .color(egui::Color32::GREEN),
-                                    );
-                                    ui.label(
-                                        RichText::new("0").monospace().color(egui::Color32::YELLOW),
-                                    );
-                                    ui.label(
-                                        RichText::new("00")
-                                            .monospace()
-                                            .color(egui::Color32::LIGHT_GRAY),
-                                    );
-                                    ui.label(
-                                        RichText::new(format_binary(
-                                            (instruction_fields.sr2 as u16) & 0x7,
-                                            3,
-                                        ))
-                                        .monospace()
-                                        .color(egui::Color32::LIGHT_BLUE),
-                                    );
-                                });
-                                ui.label(
-                                    RichText::new(format!(
-                                        "Binary: {}",
-                                        format_binary(and_reg, 16)
-                                    ))
-                                    .monospace(),
-                                );
-                                ui.label(
-                                    RichText::new(format!("Hex: {}", format_hex(and_reg)))
-                                        .monospace(),
-                                );
-                            });
-                    }
-                });
-
-                ui.label(
-                    RichText::new("Sets condition codes: N, Z, P")
-                        .small()
-                        .italics(),
-                );
-
-                // NOT
-                ui.add_space(8.0);
-                ui.separator();
-                ui.label(
-                    RichText::new("NOT - Bitwise NOT")
-                        .heading()
-                        .strong()
-                        .color(egui::Color32::LIGHT_BLUE),
-                );
-                ui.label("Performs bitwise NOT (complement) of a value.");
-
-                ui.group(|ui| {
-                    ui.label(
-                        RichText::new("NOT DR, SR")
-                            .monospace()
-                            .color(egui::Color32::LIGHT_BLUE),
-                    );
-                    ui.label(RichText::new("Bitwise NOTs SR, stores in DR").italics());
-
-                    register_selector(ui, &mut instruction_fields.dr, "Destination Reg:");
-                    register_selector(ui, &mut instruction_fields.sr1, "Source Reg:");
-
-                    let pseudo_code = format!(
-                        "DR = R{} = ~R{}",
-                        instruction_fields.dr, instruction_fields.sr1
-                    );
-
-                    ui.label(
-                        RichText::new(pseudo_code)
-                            .monospace()
-                            .color(egui::Color32::YELLOW),
-                    );
-
-                    let not_instr = (0b1001 << 12) | // Opcode
-                                 ((instruction_fields.dr as u16) << 9) | // DR
-                                 ((instruction_fields.sr1 as u16) << 6) | // SR
-                                 0x3F; // Constant field (111111)
-
-                    egui::CollapsingHeader::new("Binary Representation")
-                        .id_salt("not_binary")
-                        .show(ui, |ui| {
-                            instruction_layout(
-                                ui,
-                                "Layout: 1001 | DR | SR | 111111",
-                                egui::Color32::GREEN,
-                            );
-                            ui.horizontal(|ui| {
-                                ui.label(
-                                    RichText::new("1001").monospace().color(egui::Color32::RED),
-                                );
-                                ui.label(
-                                    RichText::new(format_binary(
-                                        (instruction_fields.dr as u16) & 0x7,
-                                        3,
-                                    ))
-                                    .monospace()
-                                    .color(egui::Color32::from_rgb(33, 78, 211)),
-                                );
-                                ui.label(
-                                    RichText::new(format_binary(
-                                        (instruction_fields.sr1 as u16) & 0x7,
-                                        3,
-                                    ))
-                                    .monospace()
-                                    .color(egui::Color32::GREEN),
-                                );
-                                ui.label(
-                                    RichText::new("111111")
-                                        .monospace()
-                                        .color(egui::Color32::LIGHT_GRAY),
-                                );
-                            });
-                            ui.label(
-                                RichText::new(format!("Binary: {}", format_binary(not_instr, 16)))
-                                    .monospace(),
-                            );
-                            ui.label(
-                                RichText::new(format!("Hex: {}", format_hex(not_instr)))
-                                    .monospace(),
-                            );
-                        });
-                });
-
-                ui.label(
-                    RichText::new("Sets condition codes: N, Z, P")
-                        .small()
-                        .italics(),
-                );
-            });
-        egui::CollapsingHeader::new("Data Movement")
-            .id_salt("data_movement")
-            .show(ui, |ui| {
-                // LD
-                ui.add_space(8.0);
-                ui.separator();
-                ui.label(
-                    RichText::new("LD - Load")
-                        .heading()
-                        .strong()
-                        .color(egui::Color32::GOLD),
-                );
-                ui.label("Loads a value from memory into a register.");
-
-                ui.group(|ui| {
-                    ui.label(
-                        RichText::new("LD DR, LABEL")
-                            .monospace()
-                            .color(egui::Color32::GOLD),
-                    );
-                    ui.label(
-                        RichText::new(
-                            "PC-relative addressing: Loads from memory at PC+offset into DR",
-                        )
-                        .italics(),
-                    );
-
-                    register_selector(ui, &mut instruction_fields.dr, "Destination Reg:");
-                    offset_selector(ui, &mut instruction_fields.offset9, 9, "PC Offset:");
-
-                    let pseudo_code = format!(
-                        "DR = R{} = MEM[PC + {}]",
-                        instruction_fields.dr, instruction_fields.offset9
-                    );
-
-                    ui.label(
-                        RichText::new(pseudo_code)
-                            .monospace()
-                            .color(egui::Color32::YELLOW),
-                    );
-
-                    let ld_instr = (0b0010 << 12) | // Opcode
-                                 ((instruction_fields.dr as u16) << 9) | // DR
-                                 (instruction_fields.offset9 as u16 & 0x1FF); // PCoffset9
-
-                    egui::CollapsingHeader::new("Binary Representation")
-                        .id_salt("ld_binary")
-                        .show(ui, |ui| {
-                            instruction_layout(
-                                ui,
-                                "Layout: 0010 | DR | PCoffset9",
-                                egui::Color32::GREEN,
-                            );
-                            ui.horizontal(|ui| {
-                                ui.label(
-                                    RichText::new("0010").monospace().color(egui::Color32::RED),
-                                );
-                                ui.label(
-                                    RichText::new(format_binary(
-                                        (instruction_fields.dr as u16) & 0x7,
-                                        3,
-                                    ))
-                                    .monospace()
-                                    .color(egui::Color32::from_rgb(33, 78, 211)),
-                                );
-                                ui.label(
-                                    RichText::new(format_binary(
-                                        instruction_fields.offset9 as u16 & 0x1FF,
-                                        9,
-                                    ))
-                                    .monospace()
-                                    .color(egui::Color32::GREEN),
-                                );
-                            });
-                            ui.label(
-                                RichText::new(format!("Binary: {}", format_binary(ld_instr, 16)))
-                                    .monospace(),
-                            );
-                            ui.label(
-                                RichText::new(format!("Hex: {}", format_hex(ld_instr))).monospace(),
-                            );
-                        });
-                });
-
-                ui.label(
-                    RichText::new("Sets condition codes: N, Z, P")
-                        .small()
-                        .italics(),
-                );
-
-                // LDI
-                ui.add_space(8.0);
-                ui.separator();
-                ui.label(
-                    RichText::new("LDI - Load Indirect")
-                        .heading()
-                        .strong()
-                        .color(egui::Color32::GOLD),
-                );
-                ui.label("Loads a value using a pointer stored in memory.");
-
-                ui.group(|ui| {
-                    ui.label(
-                        RichText::new("LDI DR, LABEL")
-                            .monospace()
-                            .color(egui::Color32::GOLD),
-                    );
-                    ui.label(
-                        RichText::new(
-                            "Loads value from memory at address stored at PC+offset into DR",
-                        )
-                        .italics(),
-                    );
-
-                    register_selector(ui, &mut instruction_fields.dr, "Destination Reg:");
-                    offset_selector(ui, &mut instruction_fields.offset9, 9, "PC Offset:");
-
-                    let pseudo_code = format!(
-                        "DR = R{} = MEM[MEM[PC + {}]]",
-                        instruction_fields.dr, instruction_fields.offset9
-                    );
-
-                    ui.label(
-                        RichText::new(pseudo_code)
-                            .monospace()
-                            .color(egui::Color32::YELLOW),
-                    );
-
-                    let ldi_instr = (0b1010 << 12) | // Opcode
-                                  ((instruction_fields.dr as u16) << 9) | // DR
-                                  (instruction_fields.offset9 as u16 & 0x1FF); // PCoffset9
-
-                    egui::CollapsingHeader::new("Binary Representation")
-                        .id_salt("ldi_binary")
-                        .show(ui, |ui| {
-                            instruction_layout(
-                                ui,
-                                "Layout: 1010 | DR | PCoffset9",
-                                egui::Color32::GREEN,
-                            );
-                            ui.horizontal(|ui| {
-                                ui.label(
-                                    RichText::new("1010").monospace().color(egui::Color32::RED),
-                                );
-                                ui.label(
-                                    RichText::new(format_binary(
-                                        (instruction_fields.dr as u16) & 0x7,
-                                        3,
-                                    ))
-                                    .monospace()
-                                    .color(egui::Color32::from_rgb(33, 78, 211)),
-                                );
-                                ui.label(
-                                    RichText::new(format_binary(
-                                        instruction_fields.offset9 as u16 & 0x1FF,
-                                        9,
-                                    ))
-                                    .monospace()
-                                    .color(egui::Color32::GREEN),
-                                );
-                            });
-                            ui.label(
-                                RichText::new(format!("Binary: {}", format_binary(ldi_instr, 16)))
-                                    .monospace(),
-                            );
-                            ui.label(
-                                RichText::new(format!("Hex: {}", format_hex(ldi_instr)))
-                                    .monospace(),
-                            );
-                        });
-                });
-
-                ui.label(
-                    RichText::new("Sets condition codes: N, Z, P")
-                        .small()
-                        .italics(),
-                );
-
-                // LDR
-                ui.add_space(8.0);
-                ui.separator();
-                ui.label(
-                    RichText::new("LDR - Load Register")
-                        .heading()
-                        .strong()
-                        .color(egui::Color32::GOLD),
-                );
-                ui.label("Loads a value using base register + offset addressing.");
-
-                ui.group(|ui| {
-                    ui.label(
-                        RichText::new("LDR DR, BaseR, #offset6")
-                            .monospace()
-                            .color(egui::Color32::GOLD),
-                    );
-                    ui.label(RichText::new("Loads from memory at BaseR+offset into DR").italics());
-
-                    register_selector(ui, &mut instruction_fields.dr, "Destination Reg:");
-                    register_selector(ui, &mut instruction_fields.base_r, "Base Reg:");
-                    immediate_selector(ui, &mut instruction_fields.offset6, 6, "Offset:");
-
-                    let pseudo_code = format!(
-                        "DR = R{} = MEM[R{} + {}]",
-                        instruction_fields.dr,
-                        instruction_fields.base_r,
-                        instruction_fields.offset6
-                    );
-
-                    ui.label(
-                        RichText::new(pseudo_code)
-                            .monospace()
-                            .color(egui::Color32::YELLOW),
-                    );
-
-                    let ldr_instr = (0b0110 << 12) | // Opcode
-                                  ((instruction_fields.dr as u16) << 9) | // DR
-                                  ((instruction_fields.base_r as u16) << 6) | // BaseR
-                                  (instruction_fields.offset6 as u16 & 0x3F); // offset6
-
-                    egui::CollapsingHeader::new("Binary Representation")
-                        .id_salt("ldr_binary")
-                        .show(ui, |ui| {
-                            instruction_layout(
-                                ui,
-                                "Layout: 0110 | DR | BaseR | offset6",
-                                egui::Color32::GREEN,
-                            );
-                            ui.horizontal(|ui| {
-                                ui.label(
-                                    RichText::new("0110").monospace().color(egui::Color32::RED),
-                                );
-                                ui.label(
-                                    RichText::new(format_binary(
-                                        (instruction_fields.dr as u16) & 0x7,
-                                        3,
-                                    ))
-                                    .monospace()
-                                    .color(egui::Color32::from_rgb(33, 78, 211)),
-                                );
-                                ui.label(
-                                    RichText::new(format_binary(
-                                        (instruction_fields.base_r as u16) & 0x7,
-                                        3,
-                                    ))
-                                    .monospace()
-                                    .color(egui::Color32::GREEN),
-                                );
-                                ui.label(
-                                    RichText::new(format_binary(
-                                        instruction_fields.offset6 as u16 & 0x3F,
-                                        6,
-                                    ))
-                                    .monospace()
-                                    .color(egui::Color32::YELLOW),
-                                );
-                            });
-                            ui.label(
-                                RichText::new(format!("Binary: {}", format_binary(ldr_instr, 16)))
-                                    .monospace(),
-                            );
-                            ui.label(
-                                RichText::new(format!("Hex: {}", format_hex(ldr_instr)))
-                                    .monospace(),
-                            );
-                        });
-                });
-
-                ui.label(
-                    RichText::new("Sets condition codes: N, Z, P")
-                        .small()
-                        .italics(),
-                );
-
-                // LEA
-                ui.add_space(8.0);
-                ui.separator();
-                ui.label(
-                    RichText::new("LEA - Load Effective Address")
-                        .heading()
-                        .strong()
-                        .color(egui::Color32::GOLD),
-                );
-                ui.label("Loads the address of a label into a register.");
-
-                ui.group(|ui| {
-                    ui.label(
-                        RichText::new("LEA DR, LABEL")
-                            .monospace()
-                            .color(egui::Color32::GOLD),
-                    );
-                    ui.label(RichText::new("Loads effective address PC+offset into DR").italics());
-
-                    register_selector(ui, &mut instruction_fields.dr, "Destination Reg:");
-                    offset_selector(ui, &mut instruction_fields.offset9, 9, "PC Offset:");
-
-                    let pseudo_code = format!(
-                        "DR = R{} = PC + {}",
-                        instruction_fields.dr, instruction_fields.offset9
-                    );
-
-                    ui.label(
-                        RichText::new(pseudo_code)
-                            .monospace()
-                            .color(egui::Color32::YELLOW),
-                    );
-
-                    let lea_instr = (0b1110 << 12) | // Opcode
-                                  ((instruction_fields.dr as u16) << 9) | // DR
-                                  (instruction_fields.offset9 as u16 & 0x1FF); // PCoffset9
-
-                    egui::CollapsingHeader::new("Binary Representation")
-                        .id_salt("lea_binary")
-                        .show(ui, |ui| {
-                            instruction_layout(
-                                ui,
-                                "Layout: 1110 | DR | PCoffset9",
-                                egui::Color32::GREEN,
-                            );
-                            ui.horizontal(|ui| {
-                                ui.label(
-                                    RichText::new("1110").monospace().color(egui::Color32::RED),
-                                );
-                                ui.label(
-                                    RichText::new(format_binary(
-                                        (instruction_fields.dr as u16) & 0x7,
-                                        3,
-                                    ))
-                                    .monospace()
-                                    .color(egui::Color32::from_rgb(33, 78, 211)),
-                                );
-                                ui.label(
-                                    RichText::new(format_binary(
-                                        instruction_fields.offset9 as u16 & 0x1FF,
-                                        9,
-                                    ))
-                                    .monospace()
-                                    .color(egui::Color32::GREEN),
-                                );
-                            });
-                            ui.label(
-                                RichText::new(format!("Binary: {}", format_binary(lea_instr, 16)))
-                                    .monospace(),
-                            );
-                            ui.label(
-                                RichText::new(format!("Hex: {}", format_hex(lea_instr)))
-                                    .monospace(),
-                            );
-                        });
-                });
-
-                ui.label(
-                    RichText::new("Sets condition codes: N, Z, P")
-                        .small()
-                        .italics(),
-                );
-
-                // ST
-                ui.add_space(8.0);
-                ui.separator();
-                ui.label(
-                    RichText::new("ST - Store")
-                        .heading()
-                        .strong()
-                        .color(egui::Color32::GOLD),
-                );
-                ui.label("Stores a register value into memory.");
-
-                ui.group(|ui| {
-                    ui.label(
-                        RichText::new("ST SR, LABEL")
-                            .monospace()
-                            .color(egui::Color32::GOLD),
-                    );
-                    ui.label(RichText::new("Stores SR into memory at PC+offset").italics());
-
-                    register_selector(ui, &mut instruction_fields.sr1, "Source Reg:");
-                    offset_selector(ui, &mut instruction_fields.offset9, 9, "PC Offset:");
-
-                    let pseudo_code = format!(
-                        "MEM[PC + {}] = SR = R{}",
-                        instruction_fields.offset9, instruction_fields.sr1
-                    );
-
-                    ui.label(
-                        RichText::new(pseudo_code)
-                            .monospace()
-                            .color(egui::Color32::YELLOW),
-                    );
-
-                    let st_instr = (0b0011 << 12) | // Opcode
-                                 ((instruction_fields.sr1 as u16) << 9) | // SR
-                                 (instruction_fields.offset9 as u16 & 0x1FF); // PCoffset9
-
-                    egui::CollapsingHeader::new("Binary Representation")
-                        .id_salt("st_binary")
-                        .show(ui, |ui| {
-                            instruction_layout(
-                                ui,
-                                "Layout: 0011 | SR | PCoffset9",
-                                egui::Color32::GREEN,
-                            );
-                            ui.horizontal(|ui| {
-                                ui.label(
-                                    RichText::new("0011").monospace().color(egui::Color32::RED),
-                                );
-                                ui.label(
-                                    RichText::new(format_binary(
-                                        (instruction_fields.sr1 as u16) & 0x7,
-                                        3,
-                                    ))
-                                    .monospace()
-                                    .color(egui::Color32::from_rgb(33, 78, 211)),
-                                );
-                                ui.label(
-                                    RichText::new(format_binary(
-                                        instruction_fields.offset9 as u16 & 0x1FF,
-                                        9,
-                                    ))
-                                    .monospace()
-                                    .color(egui::Color32::GREEN),
-                                );
-                            });
-                            ui.label(
-                                RichText::new(format!("Binary: {}", format_binary(st_instr, 16)))
-                                    .monospace(),
-                            );
-                            ui.label(
-                                RichText::new(format!("Hex: {}", format_hex(st_instr))).monospace(),
-                            );
-                        });
-                });
-
-                // STI
-                ui.add_space(8.0);
-                ui.separator();
-                ui.label(
-                    RichText::new("STI - Store Indirect")
-                        .heading()
-                        .strong()
-                        .color(egui::Color32::GOLD),
-                );
-                ui.label("Stores a register value using a pointer in memory.");
-
-                ui.group(|ui| {
-                    ui.label(
-                        RichText::new("STI SR, LABEL")
-                            .monospace()
-                            .color(egui::Color32::GOLD),
-                    );
-                    ui.label(
-                        RichText::new("Stores SR into memory at address stored at PC+offset")
-                            .italics(),
-                    );
-
-                    register_selector(ui, &mut instruction_fields.sr1, "Source Reg:");
-                    offset_selector(ui, &mut instruction_fields.offset9, 9, "PC Offset:");
-
-                    let pseudo_code = format!(
-                        "MEM[MEM[PC + {}]] = SR = R{}",
-                        instruction_fields.offset9, instruction_fields.sr1
-                    );
-
-                    ui.label(
-                        RichText::new(pseudo_code)
-                            .monospace()
-                            .color(egui::Color32::YELLOW),
-                    );
-
-                    let sti_instr = (0b1011 << 12) | // Opcode
-                                  ((instruction_fields.sr1 as u16) << 9) | // SR
-                                  (instruction_fields.offset9 as u16 & 0x1FF); // PCoffset9
-
-                    egui::CollapsingHeader::new("Binary Representation")
-                        .id_salt("sti_binary")
-                        .show(ui, |ui| {
-                            instruction_layout(
-                                ui,
-                                "Layout: 1011 | SR | PCoffset9",
-                                egui::Color32::GREEN,
-                            );
-                            ui.horizontal(|ui| {
-                                ui.label(
-                                    RichText::new("1011").monospace().color(egui::Color32::RED),
-                                );
-                                ui.label(
-                                    RichText::new(format_binary(
-                                        (instruction_fields.sr1 as u16) & 0x7,
-                                        3,
-                                    ))
-                                    .monospace()
-                                    .color(egui::Color32::from_rgb(33, 78, 211)),
-                                );
-                                ui.label(
-                                    RichText::new(format_binary(
-                                        instruction_fields.offset9 as u16 & 0x1FF,
-                                        9,
-                                    ))
-                                    .monospace()
-                                    .color(egui::Color32::GREEN),
-                                );
-                            });
-                            ui.label(
-                                RichText::new(format!("Binary: {}", format_binary(sti_instr, 16)))
-                                    .monospace(),
-                            );
-                            ui.label(
-                                RichText::new(format!("Hex: {}", format_hex(sti_instr)))
-                                    .monospace(),
-                            );
-                        });
-                });
-
-                // STR
-                ui.add_space(8.0);
-                ui.separator();
-                ui.label(
-                    RichText::new("STR - Store Register")
-                        .heading()
-                        .strong()
-                        .color(egui::Color32::GOLD),
-                );
-                ui.label("Stores a value using base register + offset addressing.");
-
-                ui.group(|ui| {
-                    ui.label(
-                        RichText::new("STR SR, BaseR, #offset6")
-                            .monospace()
-                            .color(egui::Color32::GOLD),
-                    );
-                    ui.label(RichText::new("Stores SR into memory at BaseR+offset").italics());
-
-                    register_selector(ui, &mut instruction_fields.sr1, "Source Reg:");
-                    register_selector(ui, &mut instruction_fields.base_r, "Base Reg:");
-                    immediate_selector(ui, &mut instruction_fields.offset6, 6, "Offset:");
-
-                    let pseudo_code = format!(
-                        "MEM[R{} + {}] = SR = R{}",
-                        instruction_fields.base_r,
-                        instruction_fields.offset6,
-                        instruction_fields.sr1
-                    );
-
-                    ui.label(
-                        RichText::new(pseudo_code)
-                            .monospace()
-                            .color(egui::Color32::YELLOW),
-                    );
-
-                    let str_instr = (0b0111 << 12) | // Opcode
-                                  ((instruction_fields.sr1 as u16) << 9) | // SR
-                                  ((instruction_fields.base_r as u16) << 6) | // BaseR
-                                  (instruction_fields.offset6 as u16 & 0x3F); // offset6
-
-                    egui::CollapsingHeader::new("Binary Representation")
-                        .id_salt("str_binary")
-                        .show(ui, |ui| {
-                            instruction_layout(
-                                ui,
-                                "Layout: 0111 | SR | BaseR | offset6",
-                                egui::Color32::GREEN,
-                            );
-                            ui.horizontal(|ui| {
-                                ui.label(
-                                    RichText::new("0111").monospace().color(egui::Color32::RED),
-                                );
-                                ui.label(
-                                    RichText::new(format_binary(
-                                        (instruction_fields.sr1 as u16) & 0x7,
-                                        3,
-                                    ))
-                                    .monospace()
-                                    .color(egui::Color32::from_rgb(33, 78, 211)),
-                                );
-                                ui.label(
-                                    RichText::new(format_binary(
-                                        (instruction_fields.base_r as u16) & 0x7,
-                                        3,
-                                    ))
-                                    .monospace()
-                                    .color(egui::Color32::GREEN),
-                                );
-                                ui.label(
-                                    RichText::new(format_binary(
-                                        instruction_fields.offset6 as u16 & 0x3F,
-                                        6,
-                                    ))
-                                    .monospace()
-                                    .color(egui::Color32::YELLOW),
-                                );
-                            });
-                            ui.label(
-                                RichText::new(format!("Binary: {}", format_binary(str_instr, 16)))
-                                    .monospace(),
-                            );
-                            ui.label(
-                                RichText::new(format!("Hex: {}", format_hex(str_instr)))
-                                    .monospace(),
-                            );
-                        });
-                });
-            });
-        egui::CollapsingHeader::new("Control Flow")
-            .id_salt("control_flow")
-            .show(ui, |ui| {
-                // BR
-                ui.add_space(8.0);
-                ui.separator();
-                ui.label(
-                    RichText::new("BR/BRn/BRz/BRp - Conditional Branch")
-                        .heading()
-                        .strong()
-                        .color(egui::Color32::LIGHT_RED),
-                );
-                ui.label("Branches to a label if condition codes match.");
-
-                ui.group(|ui| {
-                    ui.label(
-                        RichText::new("BRnzp LABEL")
-                            .monospace()
-                            .color(egui::Color32::LIGHT_RED),
-                    );
-                    ui.label(
-                        RichText::new("Branches to PC+offset if specified condition codes match")
-                            .italics(),
-                    );
-
-                    ui.horizontal(|ui| {
-                        ui.label(RichText::new("Condition Flags:").strong());
-                        ui.checkbox(&mut instruction_fields.n_bit, "N (negative)");
-                        ui.checkbox(&mut instruction_fields.z_bit, "Z (zero)");
-                        ui.checkbox(&mut instruction_fields.p_bit, "P (positive)");
-                    });
-
-                    offset_selector(ui, &mut instruction_fields.offset9, 9, "PC Offset:");
-
-                    let pseudo_code = format!(
-                        "if ({}{}{}) PC = PC + {}",
-                        if instruction_fields.n_bit { "N=1 " } else { "" },
-                        if instruction_fields.z_bit { "Z=1 " } else { "" },
-                        if instruction_fields.p_bit { "P=1" } else { "" },
-                        instruction_fields.offset9
-                    );
-
-                    ui.label(
-                        RichText::new(pseudo_code)
-                            .monospace()
-                            .color(egui::Color32::YELLOW),
-                    );
-
-                    let br_instr = ((instruction_fields.n_bit as u16) << 11) | // N flag
-                                 ((instruction_fields.z_bit as u16) << 10) | // Z flag
-                                 ((instruction_fields.p_bit as u16) << 9) | // P flag
-                                 (instruction_fields.offset9 as u16 & 0x1FF); // PCoffset9
-
-                    egui::CollapsingHeader::new("Binary Representation")
-                        .id_salt("br_binary")
-                        .show(ui, |ui| {
-                            instruction_layout(
-                                ui,
-                                "Layout: 0000 | n | z | p | PCoffset9",
-                                egui::Color32::GREEN,
-                            );
-                            ui.horizontal(|ui| {
-                                ui.label(
-                                    RichText::new("0000").monospace().color(egui::Color32::RED),
-                                );
-                                ui.label(
-                                    RichText::new(
-                                        (if instruction_fields.n_bit { "1" } else { "0" })
-                                            .to_string(),
-                                    )
-                                    .monospace()
-                                    .color(egui::Color32::from_rgb(33, 78, 211)),
-                                );
-                                ui.label(
-                                    RichText::new(
-                                        (if instruction_fields.z_bit { "1" } else { "0" })
-                                            .to_string(),
-                                    )
-                                    .monospace()
-                                    .color(egui::Color32::GREEN),
-                                );
-                                ui.label(
-                                    RichText::new(
-                                        (if instruction_fields.p_bit { "1" } else { "0" })
-                                            .to_string(),
-                                    )
-                                    .monospace()
-                                    .color(egui::Color32::YELLOW),
-                                );
-                                ui.label(
-                                    RichText::new(format_binary(
-                                        instruction_fields.offset9 as u16 & 0x1FF,
-                                        9,
-                                    ))
-                                    .monospace()
-                                    .color(egui::Color32::LIGHT_BLUE),
-                                );
-                            });
-                            ui.label(
-                                RichText::new(format!("Binary: {}", format_binary(br_instr, 16)))
-                                    .monospace(),
-                            );
-                            ui.label(
-                                RichText::new(format!("Hex: {}", format_hex(br_instr))).monospace(),
-                            );
-                        });
-                });
-
-                // JMP/RET
-                ui.add_space(8.0);
-                ui.separator();
-                ui.label(
-                    RichText::new("JMP/RET - Jump")
-                        .heading()
-                        .strong()
-                        .color(egui::Color32::LIGHT_RED),
-                );
-                ui.label("Jumps to address in a register.");
-
-                ui.group(|ui| {
-                    ui.horizontal(|ui| {
-                        let mut ret_mode = instruction_fields.base_r == 7;
-                        if ui.checkbox(&mut ret_mode, "RET").clicked() {
-                            if ret_mode {
-                                instruction_fields.base_r = 7; // Make it RET
-                            } else {
-                                instruction_fields.base_r = 0; // Make it JMP
-                            }
-                        }
-                    });
-
-                    if instruction_fields.base_r == 7 {
-                        ui.label(
-                            RichText::new("RET")
-                                .monospace()
-                                .color(egui::Color32::LIGHT_RED),
-                        );
-                        ui.label(
-                            RichText::new("Returns from subroutine - jumps to address in R7")
-                                .italics(),
-                        );
-
-                        let pseudo_code = "PC = R7";
-                        ui.label(
-                            RichText::new(pseudo_code)
-                                .monospace()
-                                .color(egui::Color32::YELLOW),
-                        );
-                    } else {
-                        ui.label(
-                            RichText::new("JMP BaseR")
-                                .monospace()
-                                .color(egui::Color32::LIGHT_RED),
-                        );
-                        ui.label(RichText::new("Jumps to address in BaseR").italics());
-
-                        register_selector(ui, &mut instruction_fields.base_r, "Base Reg:");
-
-                        let pseudo_code = format!("PC = BaseR = R{}", instruction_fields.base_r);
-                        ui.label(
-                            RichText::new(pseudo_code)
-                                .monospace()
-                                .color(egui::Color32::YELLOW),
-                        );
-                    }
-
-                    let jmp_instr = (0b1100 << 12) | // Unused bits
-                                 ((instruction_fields.base_r as u16) << 6); // Unused bits
-
-                    egui::CollapsingHeader::new("Binary Representation")
-                        .id_salt("jmp_binary")
-                        .show(ui, |ui| {
-                            instruction_layout(
-                                ui,
-                                "Layout: 1100 | 000 | BaseR | 000000",
-                                egui::Color32::GREEN,
-                            );
-                            ui.horizontal(|ui| {
-                                ui.label(
-                                    RichText::new("1100").monospace().color(egui::Color32::RED),
-                                );
-                                ui.label(
-                                    RichText::new("000").monospace().color(egui::Color32::GRAY),
-                                );
-                                ui.label(
-                                    RichText::new(format_binary(
-                                        (instruction_fields.base_r as u16) & 0x7,
-                                        3,
-                                    ))
-                                    .monospace()
-                                    .color(egui::Color32::from_rgb(33, 78, 211)),
-                                );
-                                ui.label(
-                                    RichText::new("000000")
-                                        .monospace()
-                                        .color(egui::Color32::GRAY),
-                                );
-                            });
-                            ui.label(
-                                RichText::new(format!("Binary: {}", format_binary(jmp_instr, 16)))
-                                    .monospace(),
-                            );
-                            ui.label(
-                                RichText::new(format!("Hex: {}", format_hex(jmp_instr)))
-                                    .monospace(),
-                            );
-                        });
-                });
-
-                // JSR/JSRR
-                ui.add_space(8.0);
-                ui.separator();
-                ui.label(
-                    RichText::new("JSR/JSRR - Jump to Subroutine")
-                        .heading()
-                        .strong()
-                        .color(egui::Color32::LIGHT_RED),
-                );
-                ui.label("Jumps to a subroutine, saving return address in R7.");
-
-                ui.group(|ui| {
-                    ui.horizontal(|ui| {
-                        ui.checkbox(&mut instruction_fields.jsr_mode, "JSR mode (vs JSRR)");
-                    });
-
-                    if instruction_fields.jsr_mode {
-                        ui.label(
-                            RichText::new("JSR LABEL")
-                                .monospace()
-                                .color(egui::Color32::LIGHT_RED),
-                        );
-                        ui.label(
-                            RichText::new("Jumps to PC+offset, saving return address in R7")
-                                .italics(),
-                        );
-
-                        offset_selector(ui, &mut instruction_fields.offset11, 11, "PC Offset:");
-
-                        let pseudo_code =
-                            format!("R7 = PC\nPC = PC + {}", instruction_fields.offset11);
-                        ui.label(
-                            RichText::new(pseudo_code)
-                                .monospace()
-                                .color(egui::Color32::YELLOW),
-                        );
-
-                        let jsr_instr = (0b0100 << 12) | // Opcode
-                                     (1 << 11) | // JSR bit = 1
-                                     (instruction_fields.offset11 as u16 & 0x7FF); // PCoffset11
-
-                        egui::CollapsingHeader::new("Binary Representation")
-                            .id_salt("jsr_binary")
-                            .show(ui, |ui| {
-                                instruction_layout(
-                                    ui,
-                                    "Layout: 0100 | 1 | PCoffset11",
-                                    egui::Color32::GREEN,
-                                );
-                                ui.horizontal(|ui| {
-                                    ui.label(
-                                        RichText::new("0100").monospace().color(egui::Color32::RED),
-                                    );
-                                    ui.label(
-                                        RichText::new("1")
-                                            .monospace()
-                                            .color(egui::Color32::from_rgb(33, 78, 211)),
-                                    );
-                                    ui.label(
-                                        RichText::new(format_binary(
-                                            instruction_fields.offset11 as u16 & 0x7FF,
-                                            11,
-                                        ))
-                                        .monospace()
-                                        .color(egui::Color32::GREEN),
-                                    );
-                                });
-                                ui.label(
-                                    RichText::new(format!(
-                                        "Binary: {}",
-                                        format_binary(jsr_instr, 16)
-                                    ))
-                                    .monospace(),
-                                );
-                                ui.label(
-                                    RichText::new(format!("Hex: {}", format_hex(jsr_instr)))
-                                        .monospace(),
-                                );
-                            });
-                    } else {
-                        ui.label(
-                            RichText::new("JSRR BaseR")
-                                .monospace()
-                                .color(egui::Color32::LIGHT_RED),
-                        );
-                        ui.label(
-                            RichText::new("Jumps to address in BaseR, saving return address in R7")
-                                .italics(),
-                        );
-
-                        register_selector(ui, &mut instruction_fields.base_r, "Base Reg:");
-
-                        let pseudo_code =
-                            format!("R7 = PC\nPC = BaseR = R{}", instruction_fields.base_r);
-                        ui.label(
-                            RichText::new(pseudo_code)
-                                .monospace()
-                                .color(egui::Color32::YELLOW),
-                        );
-
-                        let jsrr_instr = (0b0100 << 12) | // Unused bits
-                                      ((instruction_fields.base_r as u16) << 6); // Unused bits
-
-                        egui::CollapsingHeader::new("Binary Representation")
-                            .id_salt("jsrr_binary")
-                            .show(ui, |ui| {
-                                instruction_layout(
-                                    ui,
-                                    "Layout: 0100 | 0 | 00 | BaseR | 000000",
-                                    egui::Color32::GREEN,
-                                );
-                                ui.horizontal(|ui| {
-                                    ui.label(
-                                        RichText::new("0100").monospace().color(egui::Color32::RED),
-                                    );
-                                    ui.label(
-                                        RichText::new("0")
-                                            .monospace()
-                                            .color(egui::Color32::from_rgb(33, 78, 211)),
-                                    );
-                                    ui.label(
-                                        RichText::new("00").monospace().color(egui::Color32::GRAY),
-                                    );
-                                    ui.label(
-                                        RichText::new(format_binary(
-                                            (instruction_fields.base_r as u16) & 0x7,
-                                            3,
-                                        ))
-                                        .monospace()
-                                        .color(egui::Color32::GREEN),
-                                    );
-                                    ui.label(
-                                        RichText::new("000000")
-                                            .monospace()
-                                            .color(egui::Color32::GRAY),
-                                    );
-                                });
-                                ui.label(
-                                    RichText::new(format!(
-                                        "Binary: {}",
-                                        format_binary(jsrr_instr, 16)
-                                    ))
-                                    .monospace(),
-                                );
-                                ui.label(
-                                    RichText::new(format!("Hex: {}", format_hex(jsrr_instr)))
-                                        .monospace(),
-                                );
-                            });
-                    }
-                });
-            });
-        egui::CollapsingHeader::new("System Operations")
-            .id_salt("system_ops")
-            .show(ui, |ui| {
-                // TRAP
-                ui.add_space(8.0);
-                ui.separator();
-                ui.label(RichText::new("TRAP - System Call").heading().strong().color(egui::Color32::LIGHT_GREEN));
-                ui.label("Performs a system call based on the trap vector.");
-
-                ui.group(|ui| {
-                    ui.label(RichText::new("TRAP trapvect8").monospace().color(egui::Color32::LIGHT_GREEN));
-                    ui.label(RichText::new("System call to vector specified by trapvect8").italics());
-
-                    ui.horizontal(|ui| {
-                        ui.label(RichText::new("Trap Vector:").strong());
-
-                        let mut trap_hex = format!("0x{:02X}", instruction_fields.trapvector);
-                        if ui.text_edit_singleline(&mut trap_hex).changed() {
-                            if let Ok(value) = u8::from_str_radix(trap_hex.trim_start_matches("0x"), 16) {
-                                instruction_fields.trapvector = value;
-                            }
-                        }
-
-                        ui.add(egui::DragValue::new(&mut instruction_fields.trapvector)
-                            .range(0..=0xFF)
-                            .speed(0.1))
-                            .on_hover_text("Trap vector (0-255)");
-                    });
-
-                    ui.separator();
-                    ui.label(RichText::new("Common TRAP vectors:").strong());
-
-                    ui.horizontal(|ui| {
-                        if ui.selectable_label(instruction_fields.trapvector == 0x20, "GETC (x20)").clicked() {
-                            instruction_fields.trapvector = 0x20;
-                        }
-                        ui.label("Read character from keyboard -> R0");
-                    });
-
-                    ui.horizontal(|ui| {
-                        if ui.selectable_label(instruction_fields.trapvector == 0x21, "OUT (x21)").clicked() {
-                            instruction_fields.trapvector = 0x21;
-                        }
-                        ui.label("Write character in R0 to console");
-                    });
-
-                    ui.horizontal(|ui| {
-                        if ui.selectable_label(instruction_fields.trapvector == 0x22, "PUTS (x22)").clicked() {
-                            instruction_fields.trapvector = 0x22;
-                        }
-                        ui.label("Output null-terminated string pointed to by R0");
-                    });
-
-                    ui.horizontal(|ui| {
-                        if ui.selectable_label(instruction_fields.trapvector == 0x23, "IN (x23)").clicked() {
-                            instruction_fields.trapvector = 0x23;
-                        }
-                        ui.label("Print prompt and read character -> R0");
-                    });
-
-
-                    ui.horizontal(|ui| {
-                        if ui.selectable_label(instruction_fields.trapvector == 0x25, "HALT (x25)").clicked() {
-                            instruction_fields.trapvector = 0x25;
-                        }
-                        ui.label("Halt execution");
-                    });
-
-                    let pseudo_code = format!("R7 = PC\nPC = MEM[x{:02X}]", instruction_fields.trapvector);
-                    ui.label(RichText::new(pseudo_code).monospace().color(egui::Color32::YELLOW));
-
-                    let trap_instr = (0b1111 << 12) | // Unused bits
-                                   (instruction_fields.trapvector as u16); // trapvect8
-
-                    egui::CollapsingHeader::new("Binary Representation")
-                        .id_salt("trap_binary")
-                        .show(ui, |ui| {
-                            instruction_layout(ui, "Layout: 1111 | 0000 | trapvect8", egui::Color32::GREEN);
-                            ui.horizontal(|ui| {
-                                ui.label(RichText::new("1111").monospace().color(egui::Color32::RED));
-                                ui.label(RichText::new("0000").monospace().color(egui::Color32::GRAY));
-                                ui.label(RichText::new(format_binary(instruction_fields.trapvector as u16, 8)).monospace().color(egui::Color32::from_rgb(33,78,211)));
-                            });
-                            ui.label(RichText::new(format!("Binary: {}", format_binary(trap_instr, 16))).monospace());
-                            ui.label(RichText::new(format!("Hex: {}", format_hex(trap_instr))).monospace());
-                        });
-                });
-
-                // RTI
-                ui.add_space(8.0);
-                ui.separator();
-                ui.label(RichText::new("RTI - Return from Interrupt").heading().strong().color(egui::Color32::LIGHT_GREEN));
-                ui.label("Returns from an interrupt service routine.");
-
-                ui.group(|ui| {
-                    ui.label(RichText::new("RTI").monospace().color(egui::Color32::LIGHT_GREEN));
-                    ui.label(RichText::new("Return from interrupt - restore PC and PSR from stack").italics());
-
-                    let pseudo_code = "if (Privilege Mode)\n    PC = MEM[R6]\n    PSR = MEM[R6+1]\n    R6 = R6 + 2\nelse\n    Privilege Mode Exception";
-                    ui.label(RichText::new(pseudo_code).monospace().color(egui::Color32::YELLOW));
-
-                    let rti_instr = 0b1000 << 12; // Opcode, all other bits are unused
-
-                    egui::CollapsingHeader::new("Binary Representation")
-                        .id_salt("rti_binary")
-                        .show(ui, |ui| {
-                            instruction_layout(ui, "Layout: 1000 | 000000000000", egui::Color32::GREEN);
-                            ui.horizontal(|ui| {
-                                ui.label(RichText::new("000000000000").monospace().color(egui::Color32::GRAY));
-                            });
-                            ui.label(RichText::new(format!("Hex: {}", format_hex(rti_instr))).monospace());
-                });
-            });
+        render_collapsible_section_with_id(ui, "Arithmetic & Logic", "arithmetic_logic", |ui| {
+            self.render_add_instruction(ui);
+            self.render_and_instruction(ui);
+            self.render_not_instruction(ui);
         });
+
+        render_collapsible_section_with_id(ui, "Data Movement", "data_movement", |ui| {
+            self.render_ld_instruction(ui);
+            self.render_ldi_instruction(ui);
+            self.render_ldr_instruction(ui);
+            self.render_lea_instruction(ui);
+            self.render_st_instruction(ui);
+            self.render_sti_instruction(ui);
+            self.render_str_instruction(ui);
+        });
+
+        render_collapsible_section_with_id(ui, "Control Flow", "control_flow", |ui| {
+            self.render_br_instruction(ui);
+            self.render_jmp_ret_instruction(ui);
+            self.render_jsr_jsrr_instruction(ui);
+        });
+
+        render_collapsible_section_with_id(ui, "System Operations", "system_ops", |ui| {
+            self.render_trap_instruction(ui);
+            self.render_rti_instruction(ui);
+        });
+    }
+
+    // --- Individual Instruction Rendering Functions ---
+
+    fn render_add_instruction(&mut self, ui: &mut Ui) {
+        let fields = &mut self.instruction_fields;
+        let theme_settings = CURRENT_THEME_SETTINGS.lock().unwrap();
+
+        render_instruction_card_content(
+            ui,
+            "ADD - Addition",
+            theme_settings.help_opcode_color,
+            "Adds two values and stores the result in a destination register.",
+            |ui, fields| {
+                ui.horizontal(|ui| {
+                    ui.checkbox(
+                        &mut fields.imm_mode,
+                        RichText::new("Immediate mode")
+                            .strong()
+                            .color(theme_settings.strong_text_color),
+                    );
+                });
+
+                if fields.imm_mode {
+                    ui_monospace_label_with_color(
+                        ui,
+                        "ADD DR, SR1, #imm5",
+                        theme_settings.help_opcode_color,
+                    );
+                    ui_italic_label(ui, "Adds SR1 and immediate value, stores in DR");
+                    ui_register_selector(ui, &mut fields.dr, "Destination Reg:");
+                    ui_register_selector(ui, &mut fields.sr1, "Source Reg 1:");
+                    ui_immediate_selector(ui, &mut fields.imm5, 5, "Immediate Value:");
+                    let pseudo_code = format!(
+                        "DR = R{} = R{} + {} = {}",
+                        fields.dr,
+                        fields.sr1,
+                        fields.imm5,
+                        format_hex((fields.sr1 as i16 + fields.imm5 as i16) as u16)
+                    );
+                    ui_monospace_label_with_color(
+                        ui,
+                        &pseudo_code,
+                        theme_settings.help_pseudo_code_color,
+                    );
+
+                    let add_imm = (0b0001 << 12)
+                        | ((fields.dr as u16) << 9)
+                        | ((fields.sr1 as u16) << 6)
+                        | (1 << 5) // Mode bit
+                        | (fields.imm5 as u16 & 0x1F);
+
+                    render_binary_representation_view(
+                        ui,
+                        "add_binary_imm",
+                        "Layout: 0001 | DR | SR1 | 1 | IMM5",
+                        theme_settings.help_binary_layout_fixed_bits_color,
+                        vec![
+                            BinarySegment {
+                                text: "0001".to_string(),
+                                color: theme_settings.help_opcode_color,
+                            },
+                            BinarySegment {
+                                text: format_binary(fields.dr as u16 & 0x7, 3),
+                                color: theme_settings.help_operand_color,
+                            },
+                            BinarySegment {
+                                text: format_binary(fields.sr1 as u16 & 0x7, 3),
+                                color: theme_settings.help_operand_color,
+                            },
+                            BinarySegment {
+                                text: "1".to_string(), // Mode bit
+                                color: theme_settings.help_binary_layout_fixed_bits_color,
+                            },
+                            BinarySegment {
+                                text: format_binary(fields.imm5 as u16 & 0x1F, 5),
+                                color: theme_settings.help_immediate_color,
+                            },
+                        ],
+                        add_imm,
+                    );
+                } else {
+                    ui_monospace_label_with_color(
+                        ui,
+                        "ADD DR, SR1, SR2",
+                        theme_settings.help_opcode_color,
+                    );
+                    ui_italic_label(ui, "Adds SR1 and SR2, stores in DR");
+                    ui_register_selector(ui, &mut fields.dr, "Destination Reg:");
+                    ui_register_selector(ui, &mut fields.sr1, "Source Reg 1:");
+                    ui_register_selector(ui, &mut fields.sr2, "Source Reg 2:");
+                    let pseudo_code =
+                        format!("DR = R{} = R{} + R{}", fields.dr, fields.sr1, fields.sr2);
+                    ui_monospace_label_with_color(
+                        ui,
+                        &pseudo_code,
+                        theme_settings.help_pseudo_code_color,
+                    );
+
+                    let add_reg = ((0b0001 << 12)
+                        | ((fields.dr as u16) << 9)
+                        | ((fields.sr1 as u16) << 6)) // Unused bits
+                        | (fields.sr2 as u16 & 0x7);
+
+                    render_binary_representation_view(
+                        ui,
+                        "add_binary_reg",
+                        "Layout: 0001 | DR | SR1 | 0 | 000 | SR2",
+                        theme_settings.help_binary_layout_fixed_bits_color,
+                        vec![
+                            BinarySegment {
+                                text: "0001".to_string(),
+                                color: theme_settings.help_opcode_color,
+                            },
+                            BinarySegment {
+                                text: format_binary(fields.dr as u16 & 0x7, 3),
+                                color: theme_settings.help_operand_color,
+                            },
+                            BinarySegment {
+                                text: format_binary(fields.sr1 as u16 & 0x7, 3),
+                                color: theme_settings.help_operand_color,
+                            },
+                            BinarySegment {
+                                text: "0".to_string(), // Mode bit
+                                color: theme_settings.help_binary_layout_fixed_bits_color,
+                            },
+                            BinarySegment {
+                                text: "000".to_string(), // Unused bits
+                                color: theme_settings.help_binary_layout_fixed_bits_color,
+                            },
+                            BinarySegment {
+                                text: format_binary(fields.sr2 as u16 & 0x7, 3),
+                                color: theme_settings.help_operand_color,
+                            },
+                        ],
+                        add_reg,
+                    );
+                }
+            },
+            fields,
+            Some("Sets condition codes: N, Z, P"),
+        );
+    }
+
+    fn render_and_instruction(&mut self, ui: &mut Ui) {
+        let fields = &mut self.instruction_fields;
+        let theme_settings = CURRENT_THEME_SETTINGS.lock().unwrap();
+
+        render_instruction_card_content(
+            ui,
+            "AND - Bitwise AND",
+            theme_settings.help_opcode_color,
+            "Performs bitwise AND of two values and stores the result.",
+            |ui, fields| {
+                ui.horizontal(|ui| {
+                    ui.checkbox(
+                        &mut fields.imm_mode,
+                        RichText::new("Immediate mode")
+                            .strong()
+                            .color(theme_settings.strong_text_color),
+                    );
+                });
+
+                if fields.imm_mode {
+                    ui_monospace_label_with_color(
+                        ui,
+                        "AND DR, SR1, #imm5",
+                        theme_settings.help_opcode_color,
+                    );
+                    ui_italic_label(ui, "Bitwise ANDs SR1 and immediate value, stores in DR");
+                    ui_register_selector(ui, &mut fields.dr, "Destination Reg:");
+                    ui_register_selector(ui, &mut fields.sr1, "Source Reg 1:");
+                    ui_immediate_selector(ui, &mut fields.imm5, 5, "Immediate Value:");
+                    let pseudo_code = format!(
+                        "DR = R{} = R{} & {} = {}",
+                        fields.dr,
+                        fields.sr1,
+                        fields.imm5,
+                        format_hex((fields.sr1 as u16) & (fields.imm5 as u16))
+                    );
+                    ui_monospace_label_with_color(
+                        ui,
+                        &pseudo_code,
+                        theme_settings.help_pseudo_code_color,
+                    );
+
+                    let and_imm = (0b0101 << 12)
+                        | ((fields.dr as u16) << 9)
+                        | ((fields.sr1 as u16) << 6)
+                        | (1 << 5) // Mode bit
+                        | (fields.imm5 as u16 & 0x1F);
+
+                    render_binary_representation_view(
+                        ui,
+                        "and_binary_imm",
+                        "Layout: 0101 | DR | SR1 | 1 | IMM5",
+                        theme_settings.help_binary_layout_fixed_bits_color,
+                        vec![
+                            BinarySegment {
+                                text: "0101".to_string(),
+                                color: theme_settings.help_opcode_color,
+                            },
+                            BinarySegment {
+                                text: format_binary(fields.dr as u16 & 0x7, 3),
+                                color: theme_settings.help_operand_color,
+                            },
+                            BinarySegment {
+                                text: format_binary(fields.sr1 as u16 & 0x7, 3),
+                                color: theme_settings.help_operand_color,
+                            },
+                            BinarySegment {
+                                text: "1".to_string(), // Mode bit
+                                color: theme_settings.help_binary_layout_fixed_bits_color,
+                            },
+                            BinarySegment {
+                                text: format_binary(fields.imm5 as u16 & 0x1F, 5),
+                                color: theme_settings.help_immediate_color,
+                            },
+                        ],
+                        and_imm,
+                    );
+                } else {
+                    ui_monospace_label_with_color(
+                        ui,
+                        "AND DR, SR1, SR2",
+                        theme_settings.help_opcode_color,
+                    );
+                    ui_italic_label(ui, "Bitwise ANDs SR1 and SR2, stores in DR");
+                    ui_register_selector(ui, &mut fields.dr, "Destination Reg:");
+                    ui_register_selector(ui, &mut fields.sr1, "Source Reg 1:");
+                    ui_register_selector(ui, &mut fields.sr2, "Source Reg 2:");
+                    let pseudo_code =
+                        format!("DR = R{} = R{} & R{}", fields.dr, fields.sr1, fields.sr2);
+                    ui_monospace_label_with_color(
+                        ui,
+                        &pseudo_code,
+                        theme_settings.help_pseudo_code_color,
+                    );
+
+                    let and_reg = ((0b0101 << 12)
+                        | ((fields.dr as u16) << 9)
+                        | ((fields.sr1 as u16) << 6)) // Unused bits
+                        | (fields.sr2 as u16 & 0x7);
+
+                    render_binary_representation_view(
+                        ui,
+                        "and_binary_reg",
+                        "Layout: 0101 | DR | SR1 | 0 | 000 | SR2",
+                        theme_settings.help_binary_layout_fixed_bits_color,
+                        vec![
+                            BinarySegment {
+                                text: "0101".to_string(),
+                                color: theme_settings.help_opcode_color,
+                            },
+                            BinarySegment {
+                                text: format_binary(fields.dr as u16 & 0x7, 3),
+                                color: theme_settings.help_operand_color,
+                            },
+                            BinarySegment {
+                                text: format_binary(fields.sr1 as u16 & 0x7, 3),
+                                color: theme_settings.help_operand_color,
+                            },
+                            BinarySegment {
+                                text: "0".to_string(), // Mode bit
+                                color: theme_settings.help_binary_layout_fixed_bits_color,
+                            },
+                            BinarySegment {
+                                text: "000".to_string(), // Unused bits
+                                color: theme_settings.help_binary_layout_fixed_bits_color,
+                            },
+                            BinarySegment {
+                                text: format_binary(fields.sr2 as u16 & 0x7, 3),
+                                color: theme_settings.help_operand_color,
+                            },
+                        ],
+                        and_reg,
+                    );
+                }
+            },
+            fields,
+            Some("Sets condition codes: N, Z, P"),
+        );
+    }
+
+    fn render_not_instruction(&mut self, ui: &mut Ui) {
+        let fields = &mut self.instruction_fields;
+        let theme_settings = CURRENT_THEME_SETTINGS.lock().unwrap();
+
+        render_instruction_card_content(
+            ui,
+            "NOT - Bitwise NOT",
+            theme_settings.help_opcode_color,
+            "Performs bitwise NOT (complement) of a value.",
+            |ui, fields| {
+                ui_monospace_label_with_color(ui, "NOT DR, SR", theme_settings.help_opcode_color);
+                ui_italic_label(ui, "Bitwise NOTs SR, stores in DR");
+                ui_register_selector(ui, &mut fields.dr, "Destination Reg:");
+                ui_register_selector(ui, &mut fields.sr1, "Source Reg:");
+                let pseudo_code = format!("DR = R{} = ~R{}", fields.dr, fields.sr1);
+                ui_monospace_label_with_color(
+                    ui,
+                    &pseudo_code,
+                    theme_settings.help_pseudo_code_color,
+                );
+
+                let not_instr =
+                    (0b1001 << 12) | ((fields.dr as u16) << 9) | ((fields.sr1 as u16) << 6) | 0x3F; // bits 5-0 are 111111
+
+                render_binary_representation_view(
+                    ui,
+                    "not_binary",
+                    "Layout: 1001 | DR | SR | 111111",
+                    theme_settings.help_binary_layout_fixed_bits_color,
+                    vec![
+                        BinarySegment {
+                            text: "1001".to_string(),
+                            color: theme_settings.help_opcode_color,
+                        },
+                        BinarySegment {
+                            text: format_binary(fields.dr as u16 & 0x7, 3),
+                            color: theme_settings.help_operand_color,
+                        },
+                        BinarySegment {
+                            text: format_binary(fields.sr1 as u16 & 0x7, 3),
+                            color: theme_settings.help_operand_color,
+                        },
+                        BinarySegment {
+                            text: "111111".to_string(), // Fixed bits for NOT
+                            color: theme_settings.help_binary_layout_fixed_bits_color,
+                        },
+                    ],
+                    not_instr,
+                );
+            },
+            fields,
+            Some("Sets condition codes: N, Z, P"),
+        );
+    }
+    fn render_ld_instruction(&mut self, ui: &mut Ui) {
+        let fields = &mut self.instruction_fields;
+        let theme_settings = CURRENT_THEME_SETTINGS.lock().unwrap();
+
+        render_instruction_card_content(
+            ui,
+            "LD - Load",
+            theme_settings.help_opcode_color,
+            "Loads a value from memory into a register.",
+            |ui, fields| {
+                ui_monospace_label_with_color(ui, "LD DR, LABEL", theme_settings.help_opcode_color);
+                ui_italic_label(
+                    ui,
+                    "PC-relative addressing: Loads from memory at PC+offset into DR",
+                );
+                ui_register_selector(ui, &mut fields.dr, "Destination Reg:");
+                ui_offset_selector(ui, &mut fields.offset9, 9, "PC Offset:");
+                let pseudo_code = format!("DR = R{} = MEM[PC + {}]", fields.dr, fields.offset9);
+                ui_monospace_label_with_color(
+                    ui,
+                    &pseudo_code,
+                    theme_settings.help_pseudo_code_color,
+                );
+
+                let ld_instr =
+                    (0b0010 << 12) | ((fields.dr as u16) << 9) | (fields.offset9 as u16 & 0x1FF);
+
+                render_binary_representation_view(
+                    ui,
+                    "ld_binary",
+                    "Layout: 0010 | DR | PCoffset9",
+                    theme_settings.help_binary_layout_fixed_bits_color,
+                    vec![
+                        BinarySegment {
+                            text: "0010".to_string(),
+                            color: theme_settings.help_opcode_color,
+                        },
+                        BinarySegment {
+                            text: format_binary(fields.dr as u16 & 0x7, 3),
+                            color: theme_settings.help_operand_color,
+                        },
+                        BinarySegment {
+                            text: format_binary(fields.offset9 as u16 & 0x1FF, 9),
+                            color: theme_settings.help_offset_color,
+                        },
+                    ],
+                    ld_instr,
+                );
+            },
+            fields,
+            Some("Sets condition codes: N, Z, P"),
+        );
+    }
+    fn render_ldi_instruction(&mut self, ui: &mut Ui) {
+        let fields = &mut self.instruction_fields;
+        let theme_settings = CURRENT_THEME_SETTINGS.lock().unwrap();
+
+        render_instruction_card_content(
+            ui,
+            "LDI - Load Indirect",
+            theme_settings.help_opcode_color,
+            "Loads a value using a pointer stored in memory.",
+            |ui, fields| {
+                ui_monospace_label_with_color(
+                    ui,
+                    "LDI DR, LABEL",
+                    theme_settings.help_opcode_color,
+                );
+                ui_italic_label(
+                    ui,
+                    "Loads value from memory at address stored at PC+offset into DR",
+                );
+                ui_register_selector(ui, &mut fields.dr, "Destination Reg:");
+                ui_offset_selector(ui, &mut fields.offset9, 9, "PC Offset:");
+                let pseudo_code =
+                    format!("DR = R{} = MEM[MEM[PC + {}]]", fields.dr, fields.offset9);
+                ui_monospace_label_with_color(
+                    ui,
+                    &pseudo_code,
+                    theme_settings.help_pseudo_code_color,
+                );
+
+                let ldi_instr =
+                    (0b1010 << 12) | ((fields.dr as u16) << 9) | (fields.offset9 as u16 & 0x1FF);
+
+                render_binary_representation_view(
+                    ui,
+                    "ldi_binary",
+                    "Layout: 1010 | DR | PCoffset9",
+                    theme_settings.help_binary_layout_fixed_bits_color,
+                    vec![
+                        BinarySegment {
+                            text: "1010".to_string(),
+                            color: theme_settings.help_opcode_color,
+                        },
+                        BinarySegment {
+                            text: format_binary(fields.dr as u16 & 0x7, 3),
+                            color: theme_settings.help_operand_color,
+                        },
+                        BinarySegment {
+                            text: format_binary(fields.offset9 as u16 & 0x1FF, 9),
+                            color: theme_settings.help_offset_color,
+                        },
+                    ],
+                    ldi_instr,
+                );
+            },
+            fields,
+            Some("Sets condition codes: N, Z, P"),
+        );
+    }
+
+    fn render_ldr_instruction(&mut self, ui: &mut Ui) {
+        let fields = &mut self.instruction_fields;
+        let theme_settings = CURRENT_THEME_SETTINGS.lock().unwrap();
+
+        render_instruction_card_content(
+            ui,
+            "LDR - Load Register",
+            theme_settings.help_opcode_color,
+            "Loads a value using base register + offset addressing.",
+            |ui, fields| {
+                ui_monospace_label_with_color(
+                    ui,
+                    "LDR DR, BaseR, #offset6",
+                    theme_settings.help_opcode_color,
+                );
+                ui_italic_label(ui, "Loads from memory at BaseR+offset into DR");
+                ui_register_selector(ui, &mut fields.dr, "Destination Reg:");
+                ui_register_selector(ui, &mut fields.base_r, "Base Reg:");
+                ui_immediate_selector(ui, &mut fields.offset6, 6, "Offset:");
+                let pseudo_code = format!(
+                    "DR = R{} = MEM[R{} + {}]",
+                    fields.dr, fields.base_r, fields.offset6
+                );
+                ui_monospace_label_with_color(
+                    ui,
+                    &pseudo_code,
+                    theme_settings.help_pseudo_code_color,
+                );
+
+                let ldr_instr = (0b0110 << 12)
+                    | ((fields.dr as u16) << 9)
+                    | ((fields.base_r as u16) << 6)
+                    | (fields.offset6 as u16 & 0x3F);
+
+                render_binary_representation_view(
+                    ui,
+                    "ldr_binary",
+                    "Layout: 0110 | DR | BaseR | offset6",
+                    theme_settings.help_binary_layout_fixed_bits_color,
+                    vec![
+                        BinarySegment {
+                            text: "0110".to_string(),
+                            color: theme_settings.help_opcode_color,
+                        },
+                        BinarySegment {
+                            text: format_binary(fields.dr as u16 & 0x7, 3),
+                            color: theme_settings.help_operand_color,
+                        },
+                        BinarySegment {
+                            text: format_binary(fields.base_r as u16 & 0x7, 3),
+                            color: theme_settings.help_operand_color,
+                        },
+                        BinarySegment {
+                            text: format_binary(fields.offset6 as u16 & 0x3F, 6),
+                            color: theme_settings.help_offset_color,
+                        },
+                    ],
+                    ldr_instr,
+                );
+            },
+            fields,
+            Some("Sets condition codes: N, Z, P"),
+        );
+    }
+
+    fn render_lea_instruction(&mut self, ui: &mut Ui) {
+        let fields = &mut self.instruction_fields;
+        let theme_settings = CURRENT_THEME_SETTINGS.lock().unwrap();
+
+        render_instruction_card_content(
+            ui,
+            "LEA - Load Effective Address",
+            theme_settings.help_opcode_color,
+            "Loads the address of a label into a register.",
+            |ui, fields| {
+                ui_monospace_label_with_color(
+                    ui,
+                    "LEA DR, LABEL",
+                    theme_settings.help_opcode_color,
+                );
+                ui_italic_label(ui, "Loads effective address PC+offset into DR");
+                ui_register_selector(ui, &mut fields.dr, "Destination Reg:");
+                ui_offset_selector(ui, &mut fields.offset9, 9, "PC Offset:");
+                let pseudo_code = format!("DR = R{} = PC + {}", fields.dr, fields.offset9);
+                ui_monospace_label_with_color(
+                    ui,
+                    &pseudo_code,
+                    theme_settings.help_pseudo_code_color,
+                );
+
+                let lea_instr =
+                    (0b1110 << 12) | ((fields.dr as u16) << 9) | (fields.offset9 as u16 & 0x1FF);
+
+                render_binary_representation_view(
+                    ui,
+                    "lea_binary",
+                    "Layout: 1110 | DR | PCoffset9",
+                    theme_settings.help_binary_layout_fixed_bits_color,
+                    vec![
+                        BinarySegment {
+                            text: "1110".to_string(),
+                            color: theme_settings.help_opcode_color,
+                        },
+                        BinarySegment {
+                            text: format_binary(fields.dr as u16 & 0x7, 3),
+                            color: theme_settings.help_operand_color,
+                        },
+                        BinarySegment {
+                            text: format_binary(fields.offset9 as u16 & 0x1FF, 9),
+                            color: theme_settings.help_offset_color,
+                        },
+                    ],
+                    lea_instr,
+                );
+            },
+            fields,
+            Some("Sets condition codes: N, Z, P"),
+        );
+    }
+
+    fn render_st_instruction(&mut self, ui: &mut Ui) {
+        let fields = &mut self.instruction_fields;
+        let theme_settings = CURRENT_THEME_SETTINGS.lock().unwrap();
+
+        render_instruction_card_content(
+            ui,
+            "ST - Store",
+            theme_settings.help_opcode_color,
+            "Stores a register value into memory.",
+            |ui, fields| {
+                ui_monospace_label_with_color(ui, "ST SR, LABEL", theme_settings.help_opcode_color);
+                ui_italic_label(ui, "Stores SR into memory at PC+offset");
+                ui_register_selector(ui, &mut fields.sr1, "Source Reg:");
+                ui_offset_selector(ui, &mut fields.offset9, 9, "PC Offset:");
+                let pseudo_code = format!("MEM[PC + {}] = SR = R{}", fields.offset9, fields.sr1);
+                ui_monospace_label_with_color(
+                    ui,
+                    &pseudo_code,
+                    theme_settings.help_pseudo_code_color,
+                );
+
+                let st_instr =
+                    (0b0011 << 12) | ((fields.sr1 as u16) << 9) | (fields.offset9 as u16 & 0x1FF);
+
+                render_binary_representation_view(
+                    ui,
+                    "st_binary",
+                    "Layout: 0011 | SR | PCoffset9",
+                    theme_settings.help_binary_layout_fixed_bits_color,
+                    vec![
+                        BinarySegment {
+                            text: "0011".to_string(),
+                            color: theme_settings.help_opcode_color,
+                        },
+                        BinarySegment {
+                            text: format_binary(fields.sr1 as u16 & 0x7, 3),
+                            color: theme_settings.help_operand_color,
+                        },
+                        BinarySegment {
+                            text: format_binary(fields.offset9 as u16 & 0x1FF, 9),
+                            color: theme_settings.help_offset_color,
+                        },
+                    ],
+                    st_instr,
+                );
+            },
+            fields,
+            None,
+        );
+    }
+    fn render_sti_instruction(&mut self, ui: &mut Ui) {
+        let fields = &mut self.instruction_fields;
+        let theme_settings = CURRENT_THEME_SETTINGS.lock().unwrap();
+
+        render_instruction_card_content(
+            ui,
+            "STI - Store Indirect",
+            theme_settings.help_opcode_color,
+            "Stores a register value using a pointer in memory.",
+            |ui, fields| {
+                ui_monospace_label_with_color(
+                    ui,
+                    "STI SR, LABEL",
+                    theme_settings.help_opcode_color,
+                );
+                ui_italic_label(ui, "Stores SR into memory at address stored at PC+offset");
+                ui_register_selector(ui, &mut fields.sr1, "Source Reg:");
+                ui_offset_selector(ui, &mut fields.offset9, 9, "PC Offset:");
+                let pseudo_code =
+                    format!("MEM[MEM[PC + {}]] = SR = R{}", fields.offset9, fields.sr1);
+                ui_monospace_label_with_color(
+                    ui,
+                    &pseudo_code,
+                    theme_settings.help_pseudo_code_color,
+                );
+
+                let sti_instr =
+                    (0b1011 << 12) | ((fields.sr1 as u16) << 9) | (fields.offset9 as u16 & 0x1FF);
+
+                render_binary_representation_view(
+                    ui,
+                    "sti_binary",
+                    "Layout: 1011 | SR | PCoffset9",
+                    theme_settings.help_binary_layout_fixed_bits_color,
+                    vec![
+                        BinarySegment {
+                            text: "1011".to_string(),
+                            color: theme_settings.help_opcode_color,
+                        },
+                        BinarySegment {
+                            text: format_binary(fields.sr1 as u16 & 0x7, 3),
+                            color: theme_settings.help_operand_color,
+                        },
+                        BinarySegment {
+                            text: format_binary(fields.offset9 as u16 & 0x1FF, 9),
+                            color: theme_settings.help_offset_color,
+                        },
+                    ],
+                    sti_instr,
+                );
+            },
+            fields,
+            None,
+        );
+    }
+    fn render_str_instruction(&mut self, ui: &mut Ui) {
+        let fields = &mut self.instruction_fields;
+        let theme_settings = CURRENT_THEME_SETTINGS.lock().unwrap();
+
+        render_instruction_card_content(
+            ui,
+            "STR - Store Register",
+            theme_settings.help_opcode_color,
+            "Stores a value using base register + offset addressing.",
+            |ui, fields| {
+                ui_monospace_label_with_color(
+                    ui,
+                    "STR SR, BaseR, #offset6",
+                    theme_settings.help_opcode_color,
+                );
+                ui_italic_label(ui, "Stores SR into memory at BaseR+offset");
+                ui_register_selector(ui, &mut fields.sr1, "Source Reg:");
+                ui_register_selector(ui, &mut fields.base_r, "Base Reg:");
+                ui_immediate_selector(ui, &mut fields.offset6, 6, "Offset:");
+                let pseudo_code = format!(
+                    "MEM[R{} + {}] = SR = R{}",
+                    fields.base_r, fields.offset6, fields.sr1
+                );
+                ui_monospace_label_with_color(
+                    ui,
+                    &pseudo_code,
+                    theme_settings.help_pseudo_code_color,
+                );
+
+                let str_instr = (0b0111 << 12)
+                    | ((fields.sr1 as u16) << 9)
+                    | ((fields.base_r as u16) << 6)
+                    | (fields.offset6 as u16 & 0x3F);
+
+                render_binary_representation_view(
+                    ui,
+                    "str_binary",
+                    "Layout: 0111 | SR | BaseR | offset6",
+                    theme_settings.help_binary_layout_fixed_bits_color,
+                    vec![
+                        BinarySegment {
+                            text: "0111".to_string(),
+                            color: theme_settings.help_opcode_color,
+                        },
+                        BinarySegment {
+                            text: format_binary(fields.sr1 as u16 & 0x7, 3),
+                            color: theme_settings.help_operand_color,
+                        },
+                        BinarySegment {
+                            text: format_binary(fields.base_r as u16 & 0x7, 3),
+                            color: theme_settings.help_operand_color,
+                        },
+                        BinarySegment {
+                            text: format_binary(fields.offset6 as u16 & 0x3F, 6),
+                            color: theme_settings.help_offset_color,
+                        },
+                    ],
+                    str_instr,
+                );
+            },
+            fields,
+            None,
+        );
+    }
+    fn render_br_instruction(&mut self, ui: &mut Ui) {
+        let fields = &mut self.instruction_fields;
+        let theme_settings = CURRENT_THEME_SETTINGS.lock().unwrap();
+
+        render_instruction_card_content(
+            ui,
+            "BR/BRn/BRz/BRp - Conditional Branch",
+            theme_settings.help_opcode_color,
+            "Branches to a label if condition codes match.",
+            |ui, fields| {
+                ui_monospace_label_with_color(ui, "BRnzp LABEL", theme_settings.help_opcode_color);
+                ui_italic_label(
+                    ui,
+                    "Branches to PC+offset if specified condition codes match",
+                );
+
+                ui.horizontal(|ui| {
+                    ui_strong_label(ui, "Condition Flags:");
+                    ui.checkbox(
+                        &mut fields.n_bit,
+                        RichText::new("N (negative)").color(theme_settings.help_strong_label_color),
+                    );
+                    ui.checkbox(
+                        &mut fields.z_bit,
+                        RichText::new("Z (zero)").color(theme_settings.help_strong_label_color),
+                    );
+                    ui.checkbox(
+                        &mut fields.p_bit,
+                        RichText::new("P (positive)").color(theme_settings.help_strong_label_color),
+                    );
+                });
+
+                ui_offset_selector(ui, &mut fields.offset9, 9, "PC Offset:");
+                let nzp_str = format!(
+                    "{}{}{}",
+                    if fields.n_bit { "N=1 " } else { "" },
+                    if fields.z_bit { "Z=1 " } else { "" },
+                    if fields.p_bit { "P=1" } else { "" }
+                )
+                .trim_end()
+                .to_string();
+                let pseudo_code = format!("if ({}) PC = PC + {}", nzp_str, fields.offset9);
+                ui_monospace_label_with_color(
+                    ui,
+                    &pseudo_code,
+                    theme_settings.help_pseudo_code_color,
+                );
+
+                let br_instr = ((fields.n_bit as u16) << 11)
+                    | ((fields.z_bit as u16) << 10)
+                    | ((fields.p_bit as u16) << 9)
+                    | (fields.offset9 as u16 & 0x1FF);
+
+                render_binary_representation_view(
+                    ui,
+                    "br_binary",
+                    "Layout: 0000 | n | z | p | PCoffset9",
+                    theme_settings.help_binary_layout_fixed_bits_color,
+                    vec![
+                        BinarySegment {
+                            text: "0000".to_string(),
+                            color: theme_settings.help_opcode_color,
+                        },
+                        BinarySegment {
+                            text: (if fields.n_bit { "1" } else { "0" }).to_string(),
+                            color: theme_settings.help_strong_label_color,
+                        },
+                        BinarySegment {
+                            text: (if fields.z_bit { "1" } else { "0" }).to_string(),
+                            color: theme_settings.help_strong_label_color,
+                        },
+                        BinarySegment {
+                            text: (if fields.p_bit { "1" } else { "0" }).to_string(),
+                            color: theme_settings.help_strong_label_color,
+                        },
+                        BinarySegment {
+                            text: format_binary(fields.offset9 as u16 & 0x1FF, 9),
+                            color: theme_settings.help_offset_color,
+                        },
+                    ],
+                    br_instr,
+                );
+            },
+            fields,
+            None,
+        );
+    }
+    fn render_jmp_ret_instruction(&mut self, ui: &mut Ui) {
+        let fields = &mut self.instruction_fields;
+        let theme_settings = CURRENT_THEME_SETTINGS.lock().unwrap();
+
+        render_instruction_card_content(
+            ui,
+            "JMP/RET - Jump",
+            theme_settings.help_opcode_color,
+            "Jumps to address in a register.",
+            |ui, fields| {
+                ui.horizontal(|ui| {
+                    let mut ret_mode = fields.base_r == 7;
+                    if ui
+                        .checkbox(
+                            &mut ret_mode,
+                            RichText::new("RET").color(theme_settings.strong_text_color),
+                        )
+                        .clicked()
+                    {
+                        fields.base_r = if ret_mode { 7 } else { 0 };
+                    }
+                });
+
+                if fields.base_r == 7 {
+                    ui_monospace_label_with_color(ui, "RET", theme_settings.help_opcode_color);
+                    ui_italic_label(ui, "Returns from subroutine - jumps to address in R7");
+                    ui_monospace_label_with_color(
+                        ui,
+                        "PC = R7",
+                        theme_settings.help_pseudo_code_color,
+                    );
+                } else {
+                    ui_monospace_label_with_color(
+                        ui,
+                        "JMP BaseR",
+                        theme_settings.help_opcode_color,
+                    );
+                    ui_italic_label(ui, "Jumps to address in BaseR");
+                    ui_register_selector(ui, &mut fields.base_r, "Base Reg:");
+                    let pseudo_code = format!("PC = BaseR = R{}", fields.base_r);
+                    ui_monospace_label_with_color(
+                        ui,
+                        &pseudo_code,
+                        theme_settings.help_pseudo_code_color,
+                    );
+                }
+
+                let jmp_instr = (0b1100 << 12) | ((fields.base_r as u16) << 6);
+
+                render_binary_representation_view(
+                    ui,
+                    "jmp_binary",
+                    "Layout: 1100 | 000 | BaseR | 000000",
+                    theme_settings.help_binary_layout_fixed_bits_color,
+                    vec![
+                        BinarySegment {
+                            text: "1100".to_string(),
+                            color: theme_settings.help_opcode_color,
+                        },
+                        BinarySegment {
+                            text: "000".to_string(),
+                            color: theme_settings.help_binary_layout_fixed_bits_color,
+                        },
+                        BinarySegment {
+                            text: format_binary(fields.base_r as u16 & 0x7, 3),
+                            color: theme_settings.help_operand_color,
+                        },
+                        BinarySegment {
+                            text: "000000".to_string(),
+                            color: theme_settings.help_binary_layout_fixed_bits_color,
+                        },
+                    ],
+                    jmp_instr,
+                );
+            },
+            fields,
+            None,
+        );
+    }
+    fn render_jsr_jsrr_instruction(&mut self, ui: &mut Ui) {
+        let fields = &mut self.instruction_fields;
+        let theme_settings = CURRENT_THEME_SETTINGS.lock().unwrap();
+
+        render_instruction_card_content(
+            ui,
+            "JSR/JSRR - Jump to Subroutine",
+            theme_settings.help_opcode_color,
+            "Jumps to a subroutine, saving return address in R7.",
+            |ui, fields| {
+                ui.horizontal(|ui| {
+                    ui.checkbox(
+                        &mut fields.jsr_mode,
+                        RichText::new("JSR mode (vs JSRR)").color(theme_settings.strong_text_color),
+                    );
+                });
+
+                if fields.jsr_mode {
+                    ui_monospace_label_with_color(
+                        ui,
+                        "JSR LABEL",
+                        theme_settings.help_opcode_color,
+                    );
+                    ui_italic_label(ui, "Jumps to PC+offset, saving return address in R7");
+                    ui_offset_selector(ui, &mut fields.offset11, 11, "PC Offset:");
+                    let pseudo_code = format!("R7 = PC\nPC = PC + {}", fields.offset11);
+                    ui_monospace_label_with_color(
+                        ui,
+                        &pseudo_code,
+                        theme_settings.help_pseudo_code_color,
+                    );
+
+                    let jsr_instr = (0b0100 << 12) | (1 << 11) | (fields.offset11 as u16 & 0x7FF);
+
+                    render_binary_representation_view(
+                        ui,
+                        "jsr_binary",
+                        "Layout: 0100 | 1 | PCoffset11",
+                        theme_settings.help_binary_layout_fixed_bits_color,
+                        vec![
+                            BinarySegment {
+                                text: "0100".to_string(),
+                                color: theme_settings.help_opcode_color,
+                            },
+                            BinarySegment {
+                                text: "1".to_string(), // JSR bit
+                                color: theme_settings.help_binary_layout_fixed_bits_color,
+                            },
+                            BinarySegment {
+                                text: format_binary(fields.offset11 as u16 & 0x7FF, 11),
+                                color: theme_settings.help_offset_color,
+                            },
+                        ],
+                        jsr_instr,
+                    );
+                } else {
+                    ui_monospace_label_with_color(
+                        ui,
+                        "JSRR BaseR",
+                        theme_settings.help_opcode_color,
+                    );
+                    ui_italic_label(ui, "Jumps to address in BaseR, saving return address in R7");
+                    ui_register_selector(ui, &mut fields.base_r, "Base Reg:");
+                    let pseudo_code = format!("R7 = PC\nPC = BaseR = R{}", fields.base_r);
+                    ui_monospace_label_with_color(
+                        ui,
+                        &pseudo_code,
+                        theme_settings.help_pseudo_code_color,
+                    );
+
+                    let jsrr_instr = (0b0100 << 12) | ((fields.base_r as u16) << 6);
+
+                    render_binary_representation_view(
+                        ui,
+                        "jsrr_binary",
+                        "Layout: 0100 | 0 | 00 | BaseR | 000000",
+                        theme_settings.help_binary_layout_fixed_bits_color,
+                        vec![
+                            BinarySegment {
+                                text: "0100".to_string(),
+                                color: theme_settings.help_opcode_color,
+                            },
+                            BinarySegment {
+                                text: "0".to_string(), // JSRR bit
+                                color: theme_settings.help_binary_layout_fixed_bits_color,
+                            },
+                            BinarySegment {
+                                text: "00".to_string(),
+                                color: theme_settings.help_binary_layout_fixed_bits_color,
+                            },
+                            BinarySegment {
+                                text: format_binary(fields.base_r as u16 & 0x7, 3),
+                                color: theme_settings.help_operand_color,
+                            },
+                            BinarySegment {
+                                text: "000000".to_string(),
+                                color: theme_settings.help_binary_layout_fixed_bits_color,
+                            },
+                        ],
+                        jsrr_instr,
+                    );
+                }
+            },
+            fields,
+            None,
+        );
+    }
+    fn render_trap_instruction(&mut self, ui: &mut Ui) {
+        let fields = &mut self.instruction_fields;
+        let theme_settings = CURRENT_THEME_SETTINGS.lock().unwrap();
+
+        render_instruction_card_content(
+            ui,
+            "TRAP - System Call",
+            theme_settings.help_opcode_color,
+            "Performs a system call based on the trap vector.",
+            |ui, fields| {
+                ui_monospace_label_with_color(
+                    ui,
+                    "TRAP trapvect8",
+                    theme_settings.help_opcode_color,
+                );
+                ui_italic_label(ui, "System call to vector specified by trapvect8");
+
+                ui.horizontal(|ui| {
+                    ui_strong_label(ui, "Trap Vector:");
+                    let mut trap_hex = format!("0x{:02X}", fields.trapvector);
+                    if ui
+                        .add(egui::TextEdit::singleline(&mut trap_hex).id_source("trap_hex_input"))
+                        .changed()
+                    {
+                        if let Ok(value) = u8::from_str_radix(trap_hex.trim_start_matches("0x"), 16)
+                        {
+                            fields.trapvector = value;
+                        }
+                    }
+                    ui.add(
+                        egui::DragValue::new(&mut fields.trapvector)
+                            .range(0..=0xFF) // Updated from range
+                            .speed(0.1),
+                    )
+                    .on_hover_text("Trap vector (0-255)");
+                });
+
+                ui.separator();
+                ui_strong_label(ui, "Common TRAP vectors:");
+
+                let trap_options = [
+                    (0x20, "GETC (x20)", "Read character from keyboard -> R0"),
+                    (0x21, "OUT (x21)", "Write character in R0 to console"),
+                    (
+                        0x22,
+                        "PUTS (x22)",
+                        "Output null-terminated string pointed to by R0",
+                    ),
+                    (0x23, "IN (x23)", "Print prompt and read character -> R0"),
+                    (0x25, "HALT (x25)", "Halt execution"),
+                ];
+
+                for (vec, label, desc) in trap_options {
+                    ui.horizontal(|ui| {
+                        if ui
+                            .selectable_label(
+                                fields.trapvector == vec,
+                                RichText::new(label).color(theme_settings.hyperlink_color),
+                            )
+                            .clicked()
+                        {
+                            fields.trapvector = vec;
+                        }
+                        ui_simple_label(ui, desc);
+                    });
+                }
+
+                let pseudo_code = format!("R7 = PC\nPC = MEM[x{:02X}]", fields.trapvector);
+                ui_monospace_label_with_color(
+                    ui,
+                    &pseudo_code,
+                    theme_settings.help_pseudo_code_color,
+                );
+
+                let trap_instr = (0b1111 << 12) | (fields.trapvector as u16);
+
+                render_binary_representation_view(
+                    ui,
+                    "trap_binary",
+                    "Layout: 1111 | 0000 | trapvect8",
+                    theme_settings.help_binary_layout_fixed_bits_color,
+                    vec![
+                        BinarySegment {
+                            text: "1111".to_string(),
+                            color: theme_settings.help_opcode_color,
+                        },
+                        BinarySegment {
+                            text: "0000".to_string(),
+                            color: theme_settings.help_binary_layout_fixed_bits_color,
+                        },
+                        BinarySegment {
+                            text: format_binary(fields.trapvector as u16, 8),
+                            color: theme_settings.help_operand_color,
+                        },
+                    ],
+                    trap_instr,
+                );
+            },
+            fields,
+            None,
+        );
+    }
+    fn render_rti_instruction(&mut self, ui: &mut Ui) {
+        let fields = &mut self.instruction_fields;
+        let theme_settings = CURRENT_THEME_SETTINGS.lock().unwrap();
+
+        render_instruction_card_content(
+            ui,
+            "RTI - Return from Interrupt",
+            theme_settings.help_opcode_color,
+            "Returns from an interrupt service routine.",
+            |ui, _fields| {
+                ui_monospace_label_with_color(ui, "RTI", theme_settings.help_opcode_color);
+                ui_italic_label(ui, "Return from interrupt - restore PC and PSR from stack");
+
+                let pseudo_code = "if (Privilege Mode)\n    PC = MEM[R6]\n    PSR = MEM[R6+1]\n    R6 = R6 + 2\nelse\n    Privilege Mode Exception";
+                ui_monospace_label_with_color(
+                    ui,
+                    pseudo_code,
+                    theme_settings.help_pseudo_code_color,
+                );
+
+                let rti_instr = 0b1000 << 12;
+
+                render_binary_representation_view(
+                    ui,
+                    "rti_binary",
+                    "Layout: 1000 | 000000000000",
+                    theme_settings.help_binary_layout_fixed_bits_color,
+                    vec![
+                        BinarySegment {
+                            text: "1000".to_string(),
+                            color: theme_settings.help_opcode_color,
+                        },
+                        BinarySegment {
+                            text: "000000000000".to_string(),
+                            color: theme_settings.help_binary_layout_fixed_bits_color,
+                        },
+                    ],
+                    rti_instr,
+                );
+            },
+            fields,
+            None,
+        );
     }
 }

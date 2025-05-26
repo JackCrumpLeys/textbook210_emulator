@@ -33,7 +33,7 @@ fn main() -> eframe::Result {
     event_loop.set_control_flow(ControlFlow::Poll);
 
     let mut app = eframe::create_native(
-        "eframe template",
+        "210 tools",
         native_options,
         Box::new(|cc| Ok(Box::new(tools_for_210::TemplateApp::new(cc)))),
         &event_loop,
