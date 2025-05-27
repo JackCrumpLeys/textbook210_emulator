@@ -262,15 +262,6 @@ impl eframe::App for TemplateApp {
             .allowed_splits(AllowedSplits::None)
             .show(ctx, &mut self.tree_behavior);
 
-        let theme_settings = theme::CURRENT_THEME_SETTINGS.lock().unwrap().base_theme;
-        if theme_settings != curr_theme {
-            ctx.set_theme(match theme_settings {
-                BaseThemeChoice::Light => egui::Theme::Light,
-                BaseThemeChoice::Dark => egui::Theme::Dark,
-            });
-            theme::set_global_theme(theme_settings, Some(ctx));
-        }
-
         if let Some((nodei, sur)) = self.tree_behavior.last_added {
             self.tree_behavior.added_nodes.drain(..).for_each(|node| {
                 self.dock_state.set_focused_node_and_surface((sur, nodei));

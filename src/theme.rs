@@ -499,11 +499,6 @@ pub fn set_global_theme(choice: BaseThemeChoice, ctx: Option<&egui::Context>) {
         BaseThemeChoice::Dark => ThemeSettings::dark_default(),
     };
 
-    // Example of how to use the save function (optional, for testing/generation):
-    // if cfg!(debug_assertions) {
-    //     settings.save_to_ron_file();
-    // }
-
     if let Some(ctx) = ctx {
         let mut style = (*ctx.style()).clone();
         settings.apply_to_style(&mut style);

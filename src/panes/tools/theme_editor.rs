@@ -1,4 +1,4 @@
-use egui::{Color32, CornerRadius, RichText, ScrollArea, Stroke, Ui, Vec2};
+use egui::{Color32, CornerRadius, RichText, ScrollArea, Stroke, Theme, Ui, Vec2};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -30,6 +30,11 @@ impl ThemeEditorPane {
     fn apply_live_settings_to_global(&self, ctx: &egui::Context) {
         let mut global_settings = CURRENT_THEME_SETTINGS.lock().unwrap();
         *global_settings = self.live_settings.clone();
+
+        ctx.set_theme(match global_settings.base_theme {
+            BaseThemeChoice::Light => Theme::Light,
+            BaseThemeChoice::Dark => Theme::Dark,
+        });
 
         let mut style = (*ctx.style()).clone();
         global_settings.apply_to_style(&mut style);
@@ -133,12 +138,12 @@ impl PaneDisplay for ThemeEditorPane {
 // Returns true if any setting was changed
 
 fn render_color_setting(ui: &mut Ui, label: &str, color: &mut Color32) -> bool {
+    let mut chd = false;
     ui.horizontal(|ui| {
         ui.label(label);
-        ui.color_edit_button_srgba(color)
-    })
-    .response
-    .changed()
+        chd = ui.color_edit_button_srgba(color).changed()
+    });
+    chd
 }
 
 fn render_stroke_setting(ui: &mut Ui, label: &str, stroke: &mut Stroke) -> bool {
