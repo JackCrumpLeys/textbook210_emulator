@@ -66,22 +66,66 @@ pub struct ThemeSettings {
     pub info_bg_color: Color32,
 
     // --- Emulator Specific Colors ---
+    // General Emulator Highlights
     pub pc_line_bg: Color32, // Background for the line where PC is in memory/editor
     pub breakpoint_bg: Color32, // Background for breakpoint lines
     pub highlight_bg: Color32, // Background for temporarily highlighted items (e.g., jump target)
 
+    // Memory Pane
     pub memory_address_color: Color32,
     pub memory_label_color: Color32,
     pub memory_value_color: Color32,
     pub memory_ascii_color: Color32,
     pub memory_instruction_color: Color32,
+    pub memory_os_code_bg: Color32,
+    pub memory_os_data_bg: Color32,
+    pub memory_user_code_bg: Color32,
+    pub memory_user_data_bg: Color32,
+    pub memory_stack_bg: Color32,
+    pub memory_heap_bg: Color32, // For dynamically allocated memory if supported/visualized
+    pub memory_device_registers_bg: Color32,
+    pub memory_unused_bg: Color32, // For memory regions not otherwise categorized
+    pub memory_zone_label_color: Color32, // For legend or overlay text on zones
 
-    pub register_name_color: Color32,
+    // Registers Pane
+    pub register_name_color: Color32, // General purpose registers (R0-R7)
     pub register_value_color: Color32,
+    pub register_decoded_name_color: Color32, // For fields within a decoded register value
+    pub register_decoded_value_color: Color32,
+    pub register_special_purpose_name_color: Color32, // PC, IR, PSR etc.
+    pub register_special_purpose_value_color: Color32,
+    pub register_device_name_color: Color32, // KBSR, KBDR, DSR, DDR etc.
+    pub register_device_value_color: Color32,
 
-    pub cpu_state_active_color: Color32, // For the current CPU cycle step
-    pub cpu_state_inactive_color: Color32, // For other CPU cycle steps
+    // CPU State Pane
+    pub cpu_state_active_color: Color32, // For the current CPU cycle step text/icon
+    pub cpu_state_inactive_color: Color32, // For other CPU cycle steps text/icon
     pub cpu_state_description_color: Color32, // For the detailed text in CPU state
+    pub cpu_state_data_flow_color: Color32, // For arrows or highlights showing data movement
+    pub cpu_state_active_register_highlight: Color32, // Background highlight for active regs in detailed view
+    pub cpu_state_active_memory_highlight: Color32, // Background highlight for active mem access in detailed view
+
+    // IO Pane (Terminal)
+    pub terminal_text_color: Color32,
+    pub terminal_bg_color: Color32,
+    pub terminal_cursor_color: Color32,
+    pub terminal_selection_bg_color: Color32,
+    pub terminal_link_color: Color32, // If terminal supports hyperlinks
+
+    // Editor Pane (Syntax Highlighting)
+    pub editor_label_color: Color32,
+    pub editor_register_color: Color32,
+    pub editor_directive_color: Color32,
+    pub editor_opcode_color: Color32,
+    pub editor_literal_color: Color32, // General for numbers
+    pub editor_string_color: Color32,
+    pub editor_char_color: Color32,
+    pub editor_comment_color: Color32,
+    pub editor_error_underline_color: Color32,
+    pub editor_warning_underline_color: Color32,
+    pub editor_matching_bracket_bg_color: Color32,
+    pub editor_current_line_number_color: Color32,
+    pub editor_line_number_color: Color32, // Default line number color
 
     // Help/Reference Pane Specific
     pub help_opcode_color: Color32,
@@ -142,29 +186,31 @@ impl ThemeSettings {
             secondary_text_color: Color32::from_gray(160),
             strong_text_color: Color32::WHITE,
             hyperlink_color: Color32::from_rgb(100, 170, 255),
-            window_background: Color32::from_gray(20), // Darker window
-            panel_background: Color32::from_gray(30),  // Darker panels
+            window_background: Color32::from_gray(20),
+            panel_background: Color32::from_gray(30),
             code_bg_color: Color32::from_gray(25),
 
-            accent_color_primary: Color32::from_rgb(0, 150, 255), // Vibrant Blue
-            accent_color_secondary: Color32::from_rgb(0, 200, 200), // Teal
-            accent_color_tertiary: Color32::from_rgb(150, 150, 150), // Mid Gray
-            accent_color_positive: Color32::from_rgb(50, 200, 50), // Bright Green
-            accent_color_negative: Color32::from_rgb(255, 80, 80), // Bright Red
+            accent_color_primary: Color32::from_rgb(0, 150, 255),
+            accent_color_secondary: Color32::from_rgb(0, 200, 200),
+            accent_color_tertiary: Color32::from_rgb(150, 150, 150),
+            accent_color_positive: Color32::from_rgb(50, 200, 50),
+            accent_color_negative: Color32::from_rgb(255, 80, 80),
 
             widget_text_color: Color32::from_gray(230),
             widget_fill_interactive: Color32::from_gray(55),
             widget_fill_hovered: Color32::from_gray(70),
-            widget_fill_active: Color32::from_rgb(0, 110, 190), // Active uses primary accent
+            widget_fill_active: Color32::from_rgb(0, 110, 190),
             widget_fill_disabled: Color32::from_gray(45),
             bg_widget_stroke_interactive: Stroke::new(1.0, Color32::from_gray(80)),
             bg_widget_stroke_hovered: Stroke::new(1.5, Color32::from_gray(100)),
-            bg_widget_stroke_active: Stroke::new(1.5, Color32::from_rgb(0, 150, 255)), // Active uses primary accent
+            bg_widget_stroke_active: Stroke::new(1.5, Color32::from_rgb(0, 150, 255)),
             bg_widget_stroke_disabled: Stroke::new(1.0, Color32::from_gray(60)),
             fg_widget_stroke_interactive: Stroke::new(1.0, Color32::from_gray(180)),
             fg_widget_stroke_hovered: Stroke::new(1.5, Color32::from_gray(220)),
             fg_widget_stroke_active: Stroke::new(2.0, Color32::from_rgb(0, 150, 255)),
             fg_widget_stroke_disabled: Stroke::new(1.0, Color32::from_gray(80)),
+
+            selection_stroke: Stroke::new(1.0, Color32::from_gray(100)),
 
             error_fg_color: Color32::from_rgb(255, 100, 100),
             error_bg_color: Color32::from_rgb(60, 30, 30),
@@ -184,20 +230,58 @@ impl ThemeSettings {
             memory_value_color: Color32::from_gray(215),
             memory_ascii_color: Color32::from_gray(150),
             memory_instruction_color: Color32::from_rgb(150, 190, 220),
+            memory_os_code_bg: Color32::from_rgba_premultiplied(30, 35, 50, 200),
+            memory_os_data_bg: Color32::from_rgba_premultiplied(35, 40, 55, 200),
+            memory_user_code_bg: Color32::from_rgba_premultiplied(40, 30, 45, 200),
+            memory_user_data_bg: Color32::from_rgba_premultiplied(45, 35, 50, 200),
+            memory_stack_bg: Color32::from_rgba_premultiplied(50, 45, 30, 200),
+            memory_heap_bg: Color32::from_rgba_premultiplied(30, 50, 45, 200),
+            memory_device_registers_bg: Color32::from_rgba_premultiplied(55, 30, 30, 200),
+            memory_unused_bg: Color32::from_rgba_premultiplied(22, 22, 22, 200),
+            memory_zone_label_color: Color32::from_gray(160), // secondary_text_color
 
             register_name_color: Color32::from_rgb(140, 170, 210),
             register_value_color: Color32::from_gray(215),
+            register_decoded_name_color: Color32::from_gray(160), // secondary_text_color
+            register_decoded_value_color: Color32::from_gray(220), // primary_text_color
+            register_special_purpose_name_color: Color32::from_rgb(160, 190, 230),
+            register_special_purpose_value_color: Color32::WHITE, // strong_text_color
+            register_device_name_color: Color32::from_rgb(230, 160, 160),
+            register_device_value_color: Color32::WHITE, // strong_text_color
 
             cpu_state_active_color: Color32::from_rgb(80, 200, 80),
             cpu_state_inactive_color: Color32::from_gray(110),
             cpu_state_description_color: Color32::from_gray(195),
+            cpu_state_data_flow_color: Color32::from_rgb(0, 200, 200), // accent_color_secondary
+            cpu_state_active_register_highlight: Color32::from_rgba_premultiplied(70, 90, 120, 100),
+            cpu_state_active_memory_highlight: Color32::from_rgba_premultiplied(90, 120, 70, 100),
 
-            help_opcode_color: Color32::from_rgb(255, 100, 100), // Bright Red for opcodes
-            help_operand_color: Color32::from_rgb(100, 180, 255), // Light Blue for operands
-            help_immediate_color: Color32::from_rgb(100, 220, 100), // Light Green for immediates
-            help_offset_color: Color32::from_rgb(220, 160, 255), // Lavender for offsets
-            help_binary_layout_fixed_bits_color: Color32::from_gray(120), // Dimmer for fixed bits
-            help_pseudo_code_color: Color32::from_gray(180),     // Lighter for pseudo code
+            terminal_text_color: Color32::from_gray(220), // primary_text_color
+            terminal_bg_color: Color32::from_gray(18),
+            terminal_cursor_color: Color32::from_rgb(0, 150, 255), // accent_color_primary
+            terminal_selection_bg_color: Color32::from_rgb(0, 150, 255).linear_multiply(0.4),
+            terminal_link_color: Color32::from_rgb(100, 170, 255), // hyperlink_color
+
+            editor_label_color: Color32::from_rgb(220, 220, 150),
+            editor_register_color: Color32::from_rgb(150, 190, 220),
+            editor_directive_color: Color32::from_rgb(190, 150, 220),
+            editor_opcode_color: Color32::from_rgb(220, 150, 150),
+            editor_literal_color: Color32::from_rgb(150, 220, 150),
+            editor_string_color: Color32::from_rgb(200, 180, 130),
+            editor_char_color: Color32::from_rgb(200, 180, 130),
+            editor_comment_color: Color32::from_gray(120),
+            editor_error_underline_color: Color32::from_rgb(255, 100, 100), // error_fg_color
+            editor_warning_underline_color: Color32::from_rgb(255, 200, 80), // warn_fg_color
+            editor_matching_bracket_bg_color: Color32::from_gray(60),
+            editor_current_line_number_color: Color32::WHITE, // strong_text_color
+            editor_line_number_color: Color32::from_gray(100),
+
+            help_opcode_color: Color32::from_rgb(255, 100, 100),
+            help_operand_color: Color32::from_rgb(100, 180, 255),
+            help_immediate_color: Color32::from_rgb(100, 220, 100),
+            help_offset_color: Color32::from_rgb(220, 160, 255),
+            help_binary_layout_fixed_bits_color: Color32::from_gray(120),
+            help_pseudo_code_color: Color32::from_gray(180),
             help_title_color: Color32::WHITE,
             help_heading_color: Color32::from_gray(230),
             help_sub_heading_color: Color32::from_gray(200),
@@ -207,10 +291,12 @@ impl ThemeSettings {
             help_code_block_text_color: Color32::from_gray(210),
             help_collapsible_header_bg_color: Color32::from_gray(40),
             help_collapsible_header_text_color: Color32::from_gray(220),
-            help_info_list_icon_color: Color32::from_rgb(0, 150, 255), // Primary accent
-            help_link_color: Color32::from_rgb(120, 190, 255),         // Slightly brighter link
+            help_info_list_icon_color: Color32::from_rgb(0, 150, 255),
+            help_link_color: Color32::from_rgb(120, 190, 255),
 
-            item_spacing: Vec2::new(8.0, 7.0), // More vertical spacing
+            item_spacing: Vec2::new(8.0, 7.0),
+            widget_rounding: CornerRadius::same(2),
+            window_rounding: CornerRadius::same(6),
             scroll_bar_width: 12.0,
             window_stroke: Stroke::new(1.0, Color32::from_gray(50)),
             panel_stroke: Stroke::new(1.0, Color32::from_gray(45)),
@@ -224,10 +310,6 @@ impl ThemeSettings {
             scrollbar_rounding: CornerRadius::same(2),
             button_padding: Vec2::new(10.0, 6.0),
             indent_width: 20.0,
-            widget_rounding: CornerRadius::same(2),
-            window_rounding: CornerRadius::same(6),
-
-            selection_stroke: Stroke::new(1.0, Color32::from_gray(100)),
         }
     }
     pub fn light_default() -> Self {
@@ -239,7 +321,7 @@ impl ThemeSettings {
             }
         }
 
-        warn!("Failed to load dark theme from RON file: falling back");
+        warn!("Failed to load light theme from RON file: falling back");
 
         // Fallback: hardcoded light theme
         let _vis = Visuals::light(); // Base egui light visuals
@@ -250,29 +332,31 @@ impl ThemeSettings {
             secondary_text_color: Color32::from_gray(80),
             strong_text_color: Color32::BLACK,
             hyperlink_color: Color32::from_rgb(0, 100, 220),
-            window_background: Color32::WHITE,         // Pure white
-            panel_background: Color32::from_gray(245), // Off-white
+            window_background: Color32::WHITE,
+            panel_background: Color32::from_gray(245),
             code_bg_color: Color32::from_gray(240),
 
-            accent_color_primary: Color32::from_rgb(0, 120, 220), // Strong Blue
-            accent_color_secondary: Color32::from_rgb(0, 170, 170), // Teal
-            accent_color_tertiary: Color32::from_gray(100),       // Mid Gray
-            accent_color_positive: Color32::from_rgb(0, 150, 0),  // Dark Green
-            accent_color_negative: Color32::from_rgb(200, 0, 0),  // Strong Red
+            accent_color_primary: Color32::from_rgb(0, 120, 220),
+            accent_color_secondary: Color32::from_rgb(0, 170, 170),
+            accent_color_tertiary: Color32::from_gray(100),
+            accent_color_positive: Color32::from_rgb(0, 150, 0),
+            accent_color_negative: Color32::from_rgb(200, 0, 0),
 
             widget_text_color: Color32::from_gray(10),
             widget_fill_interactive: Color32::from_gray(230),
             widget_fill_hovered: Color32::from_gray(215),
-            widget_fill_active: Color32::from_rgb(0, 90, 180), // Active uses primary accent
+            widget_fill_active: Color32::from_rgb(0, 90, 180),
             widget_fill_disabled: Color32::from_gray(235),
             bg_widget_stroke_interactive: Stroke::new(1.0, Color32::from_gray(190)),
             bg_widget_stroke_hovered: Stroke::new(1.5, Color32::from_gray(160)),
-            bg_widget_stroke_active: Stroke::new(1.5, Color32::from_rgb(0, 120, 220)), // Active uses primary accent
+            bg_widget_stroke_active: Stroke::new(1.5, Color32::from_rgb(0, 120, 220)),
             bg_widget_stroke_disabled: Stroke::new(1.0, Color32::from_gray(210)),
             fg_widget_stroke_interactive: Stroke::new(1.0, Color32::from_gray(80)),
             fg_widget_stroke_hovered: Stroke::new(1.5, Color32::from_gray(40)),
             fg_widget_stroke_active: Stroke::new(2.0, Color32::from_rgb(0, 120, 220)),
             fg_widget_stroke_disabled: Stroke::new(1.0, Color32::from_gray(210)),
+
+            selection_stroke: Stroke::new(1.0, Color32::from_gray(100)),
 
             error_fg_color: Color32::from_rgb(190, 0, 0),
             error_bg_color: Color32::from_rgb(255, 225, 225),
@@ -292,13 +376,53 @@ impl ThemeSettings {
             memory_value_color: Color32::from_gray(30),
             memory_ascii_color: Color32::from_gray(90),
             memory_instruction_color: Color32::from_rgb(20, 70, 110),
+            memory_os_code_bg: Color32::from_rgba_premultiplied(220, 225, 240, 200),
+            memory_os_data_bg: Color32::from_rgba_premultiplied(225, 230, 245, 200),
+            memory_user_code_bg: Color32::from_rgba_premultiplied(230, 220, 235, 200),
+            memory_user_data_bg: Color32::from_rgba_premultiplied(235, 225, 240, 200),
+            memory_stack_bg: Color32::from_rgba_premultiplied(240, 235, 220, 200),
+            memory_heap_bg: Color32::from_rgba_premultiplied(220, 240, 235, 200),
+            memory_device_registers_bg: Color32::from_rgba_premultiplied(245, 220, 220, 200),
+            memory_unused_bg: Color32::from_rgba_premultiplied(242, 242, 242, 200),
+            memory_zone_label_color: Color32::from_gray(80), // secondary_text_color
 
             register_name_color: Color32::from_rgb(30, 80, 150),
             register_value_color: Color32::from_gray(30),
+            register_decoded_name_color: Color32::from_gray(80), // secondary_text_color
+            register_decoded_value_color: Color32::from_gray(10), // primary_text_color
+            register_special_purpose_name_color: Color32::from_rgb(50, 80, 140),
+            register_special_purpose_value_color: Color32::BLACK, // strong_text_color
+            register_device_name_color: Color32::from_rgb(140, 50, 50),
+            register_device_value_color: Color32::BLACK, // strong_text_color
 
             cpu_state_active_color: Color32::from_rgb(0, 150, 0),
             cpu_state_inactive_color: Color32::from_gray(120),
             cpu_state_description_color: Color32::from_gray(50),
+            cpu_state_data_flow_color: Color32::from_rgb(0, 170, 170), // accent_color_secondary
+            cpu_state_active_register_highlight: Color32::from_rgba_premultiplied(
+                180, 200, 230, 100,
+            ),
+            cpu_state_active_memory_highlight: Color32::from_rgba_premultiplied(200, 230, 180, 100),
+
+            terminal_text_color: Color32::from_gray(10), // primary_text_color
+            terminal_bg_color: Color32::from_gray(252),
+            terminal_cursor_color: Color32::from_rgb(0, 120, 220), // accent_color_primary
+            terminal_selection_bg_color: Color32::from_rgb(0, 120, 220).linear_multiply(0.4),
+            terminal_link_color: Color32::from_rgb(0, 100, 220), // hyperlink_color
+
+            editor_label_color: Color32::from_rgb(150, 130, 0),
+            editor_register_color: Color32::from_rgb(20, 70, 110),
+            editor_directive_color: Color32::from_rgb(110, 20, 130),
+            editor_opcode_color: Color32::from_rgb(130, 20, 20),
+            editor_literal_color: Color32::from_rgb(20, 130, 20),
+            editor_string_color: Color32::from_rgb(160, 90, 0),
+            editor_char_color: Color32::from_rgb(160, 90, 0),
+            editor_comment_color: Color32::from_gray(120),
+            editor_error_underline_color: Color32::from_rgb(190, 0, 0), // error_fg_color
+            editor_warning_underline_color: Color32::from_rgb(170, 110, 0), // warn_fg_color
+            editor_matching_bracket_bg_color: Color32::from_gray(200),
+            editor_current_line_number_color: Color32::BLACK, // strong_text_color
+            editor_line_number_color: Color32::from_gray(150),
 
             help_opcode_color: Color32::from_rgb(190, 30, 30),
             help_operand_color: Color32::from_rgb(30, 90, 170),
@@ -315,7 +439,7 @@ impl ThemeSettings {
             help_code_block_text_color: Color32::from_gray(30),
             help_collapsible_header_bg_color: Color32::from_gray(230),
             help_collapsible_header_text_color: Color32::from_gray(20),
-            help_info_list_icon_color: Color32::from_rgb(0, 120, 220), // Primary accent
+            help_info_list_icon_color: Color32::from_rgb(0, 120, 220),
             help_link_color: Color32::from_rgb(0, 110, 230),
 
             item_spacing: Vec2::new(8.0, 7.0),
@@ -334,8 +458,6 @@ impl ThemeSettings {
             scrollbar_rounding: CornerRadius::same(2),
             button_padding: Vec2::new(10.0, 6.0),
             indent_width: 20.0,
-
-            selection_stroke: Stroke::new(1.0, Color32::from_gray(100)),
         }
     }
 
@@ -360,12 +482,14 @@ impl ThemeSettings {
         // Inactive (interactive, but not hovered/clicked, e.g., a button)
         style.visuals.widgets.inactive.fg_stroke = self.fg_widget_stroke_interactive;
         style.visuals.widgets.inactive.bg_fill = self.widget_fill_interactive;
+        style.visuals.widgets.inactive.weak_bg_fill = self.widget_fill_interactive;
         style.visuals.widgets.inactive.bg_stroke = self.bg_widget_stroke_interactive;
         style.visuals.widgets.inactive.corner_radius = self.widget_rounding;
 
         // Hovered
         style.visuals.widgets.hovered.fg_stroke = self.fg_widget_stroke_hovered;
         style.visuals.widgets.hovered.bg_fill = self.widget_fill_hovered;
+        style.visuals.widgets.hovered.weak_bg_fill = self.widget_fill_hovered;
         style.visuals.widgets.hovered.bg_stroke = self.bg_widget_stroke_hovered;
         style.visuals.widgets.hovered.corner_radius = self.widget_rounding;
         style.visuals.widgets.hovered.expansion = 0.5; // No expansion on hover by default
@@ -373,6 +497,7 @@ impl ThemeSettings {
         // Active (clicked/dragged)
         style.visuals.widgets.active.fg_stroke = self.fg_widget_stroke_active;
         style.visuals.widgets.active.bg_fill = self.widget_fill_active;
+        style.visuals.widgets.active.weak_bg_fill = self.widget_fill_active;
         style.visuals.widgets.active.bg_stroke = self.bg_widget_stroke_active;
         style.visuals.widgets.active.corner_radius = self.widget_rounding;
         style.visuals.widgets.active.expansion = 1.0; // No expansion on active by default

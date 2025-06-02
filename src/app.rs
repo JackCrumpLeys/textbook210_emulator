@@ -135,7 +135,7 @@ impl Default for TemplateApp {
             EmulatorPane::Registers(crate::panes::emulator::registers::RegistersPane::default()),
         )));
         let controls_pane = Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Controls(
-            crate::panes::emulator::controls::ControlsPane,
+            crate::panes::emulator::controls::ControlsPane::default(),
         ))));
         let output_pane = Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Output(
             crate::panes::emulator::io::IoPane::default(),
