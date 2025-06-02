@@ -393,7 +393,6 @@ fn run_instruction_test(
     // Assert final state
     assert_fn(&machine);
 }
-
 #[traced_test]
 #[test]
 fn test_add_register() {
@@ -403,14 +402,14 @@ fn test_add_register() {
         |m| {
             m.r[2].set(5);
             m.r[3].set(10);
-            m.z.set(0); // Ensure initial flags are not zero
         },
         |m| {
             assert_eq!(m.r[1].get(), 15, "R1 should be 5 + 10 = 15");
             assert_eq!(m.pc.get(), 0x3001, "PC should increment");
-            assert_eq!(m.p.get(), 1, "Positive flag should be set");
-            assert_eq!(m.z.get(), 0, "Zero flag should be clear");
-            assert_eq!(m.n.get(), 0, "Negative flag should be clear");
+            let (n, z, p) = m.get_nzp();
+            assert!(p, "Positive flag should be set");
+            assert!(!z, "Zero flag should be clear");
+            assert!(!n, "Negative flag should be clear");
         },
     );
 }
@@ -423,12 +422,12 @@ fn test_add_immediate() {
         0b0001_001_010_1_00101, // ADD R1, R2, #5
         |m| {
             m.r[2].set(10);
-            m.z.set(0);
         },
         |m| {
             assert_eq!(m.r[1].get(), 15, "R1 should be 10 + 5 = 15");
             assert_eq!(m.pc.get(), 0x3001, "PC should increment");
-            assert_eq!(m.p.get(), 1, "Positive flag should be set");
+            let (.., p) = m.get_nzp();
+            assert!(p, "Positive flag should be set");
         },
     );
 }
@@ -441,12 +440,12 @@ fn test_add_immediate_negative() {
         0b0001_001_010_1_11111, // ADD R1, R2, #-1
         |m| {
             m.r[2].set(5);
-            m.z.set(0);
         },
         |m| {
             assert_eq!(m.r[1].get(), 4, "R1 should be 5 + (-1) = 4");
             assert_eq!(m.pc.get(), 0x3001, "PC should increment");
-            assert_eq!(m.p.get(), 1, "Positive flag should be set");
+            let (.., p) = m.get_nzp();
+            assert!(p, "Positive flag should be set");
         },
     );
 }
@@ -460,7 +459,6 @@ fn test_and_register() {
         |m| {
             m.r[2].set(0b1100);
             m.r[3].set(0b1010);
-            m.z.set(0);
         },
         |m| {
             assert_eq!(
@@ -469,7 +467,8 @@ fn test_and_register() {
                 "R1 should be 0b1100 & 0b1010 = 0b1000"
             );
             assert_eq!(m.pc.get(), 0x3001, "PC should increment");
-            assert_eq!(m.p.get(), 1, "Positive flag should be set");
+            let (.., p) = m.get_nzp();
+            assert!(p, "Positive flag should be set");
         },
     );
 }
@@ -482,12 +481,12 @@ fn test_and_immediate() {
         0b0101_001_010_1_01010, // AND R1, R2, #10 (0b01010)
         |m| {
             m.r[2].set(0b1111); // 15
-            m.z.set(0);
         },
         |m| {
             assert_eq!(m.r[1].get(), 0b01010, "R1 should be 0b1111 & 0b01010 = 10");
             assert_eq!(m.pc.get(), 0x3001, "PC should increment");
-            assert_eq!(m.p.get(), 1, "Positive flag should be set");
+            let (.., p) = m.get_nzp();
+            assert!(p, "Positive flag should be set");
         },
     );
 }
@@ -499,9 +498,8 @@ fn test_br_taken() {
         0x3000,
         0b0000_0_0_1_000001010, // BRP +10 (PC -> 0x300B)
         |m| {
-            m.p.set(1); // Set positive flag
-            m.z.set(0);
-            m.n.set(0);
+            // Set positive flag in PSR
+            m.set_p();
         },
         |m| {
             assert_eq!(m.pc.get(), 0x300B, "PC should jump to 0x3000 + 1 + 10");
@@ -516,9 +514,8 @@ fn test_br_not_taken() {
         0x3000,
         0b0000_1_0_0_000001010, // BRn +10
         |m| {
-            m.p.set(1); // Set positive flag (condition doesn't match)
-            m.z.set(0);
-            m.n.set(0);
+            // Set positive flag (condition doesn't match)
+            m.set_p()
         },
         |m| {
             assert_eq!(m.pc.get(), 0x3001, "PC should only increment");
@@ -606,12 +603,12 @@ fn test_ld() {
         0b0010_001_000000101, // LD R1, +5 (Load from 0x3006)
         |m| {
             m.memory[0x3006].set(0xABCD); // Value to load
-            m.z.set(0);
         },
         |m| {
             assert_eq!(m.r[1].get(), 0xABCD, "R1 should contain value from memory");
             assert_eq!(m.pc.get(), 0x3001, "PC should increment");
-            assert_eq!(m.n.get(), 1, "Negative flag should be set (0xABCD)");
+            let (n, ..) = m.get_nzp();
+            assert!(n, "Negative flag should be set (0xABCD)");
         },
     );
 }
@@ -625,12 +622,12 @@ fn test_ldr() {
         |m| {
             m.r[2].set(0x4000); // Base address
             m.memory[0x4005].set(0x1234); // Value to load (0x4000 + 5)
-            m.z.set(0);
         },
         |m| {
             assert_eq!(m.r[1].get(), 0x1234, "R1 should contain value from memory");
             assert_eq!(m.pc.get(), 0x3001, "PC should increment");
-            assert_eq!(m.p.get(), 1, "Positive flag should be set (0x1234)");
+            let (.., p) = m.get_nzp();
+            assert!(p, "Positive flag should be set (0x1234)");
         },
     );
 }
@@ -641,9 +638,7 @@ fn test_lea() {
     run_instruction_test(
         0x3000,
         0b1110_001_000000101, // LEA R1, +5 (Load address 0x3006)
-        |m| {
-            m.z.set(0);
-        },
+        |_| {},
         |m| {
             assert_eq!(
                 m.r[1].get(),
@@ -663,7 +658,6 @@ fn test_not() {
         0b1001_001_010_111111, // NOT R1, R2
         |m| {
             m.r[2].set(0b0000_1111_0000_1111); // Input value
-            m.z.set(0);
         },
         |m| {
             assert_eq!(
@@ -672,7 +666,8 @@ fn test_not() {
                 "R1 should contain the bitwise NOT"
             );
             assert_eq!(m.pc.get(), 0x3001, "PC should increment");
-            assert_eq!(m.n.get(), 1, "Negative flag should be set");
+            let (n, ..) = m.get_nzp();
+            assert!(n, "Negative flag should be set");
         },
     );
 }

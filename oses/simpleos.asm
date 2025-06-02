@@ -642,9 +642,6 @@ STACK_POP ; R0 IS OUTPUT
 ; Standard LC-3 Trap Routines (from original OS)
 ;------------------------------------------------------------------------------
 
-; TODO: investigate the use of RTI in traps and consider implementing the trap
-; setup as a function for compatibility
-
 TRAP_GETC
         LDI R0, OS_KBSR      ; wait for a keystroke
         BRzp TRAP_GETC

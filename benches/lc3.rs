@@ -123,7 +123,7 @@ fn criterion_benchmark(c: &mut Criterion) {
             || {
                 let mut emulator = Emulator::new();
                 emulator.pc.set(0x3000);
-                emulator.n.set(1);
+                emulator.set_n();
                 // BRn #10 (branch if negative)
                 emulator.ir.set(0b0000_100_000001010);
                 emulator.cpu_state = CpuState::Decode;

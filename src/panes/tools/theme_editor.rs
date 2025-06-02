@@ -356,21 +356,58 @@ fn render_settings_editor(ui: &mut Ui, settings: &mut ThemeSettings) -> bool {
                 "Fill Interactive:",
                 &mut settings.widget_fill_interactive,
             );
+
+            ui.separator();
             changed |= render_color_setting(ui, "Fill Hovered:", &mut settings.widget_fill_hovered);
             changed |= render_color_setting(ui, "Fill Active:", &mut settings.widget_fill_active);
+
+            ui.separator();
             changed |=
                 render_color_setting(ui, "Fill Disabled:", &mut settings.widget_fill_disabled);
             changed |= render_stroke_setting(
                 ui,
                 "Stroke Interactive:",
-                &mut settings.widget_stroke_interactive,
+                &mut settings.bg_widget_stroke_interactive,
+            );
+            changed |= render_stroke_setting(
+                ui,
+                "Stroke Hovered:",
+                &mut settings.bg_widget_stroke_hovered,
             );
             changed |=
-                render_stroke_setting(ui, "Stroke Hovered:", &mut settings.widget_stroke_hovered);
+                render_stroke_setting(ui, "Stroke Active:", &mut settings.bg_widget_stroke_active);
+            changed |= render_stroke_setting(
+                ui,
+                "Stroke Disabled:",
+                &mut settings.bg_widget_stroke_disabled,
+            );
+
+            ui.separator();
+
+            changed |= render_stroke_setting(
+                ui,
+                "FG Stroke Interactive:",
+                &mut settings.fg_widget_stroke_interactive,
+            );
+            changed |= render_stroke_setting(
+                ui,
+                "FG Stroke Hovered:",
+                &mut settings.fg_widget_stroke_hovered,
+            );
+            changed |= render_stroke_setting(
+                ui,
+                "FG Stroke Active:",
+                &mut settings.fg_widget_stroke_active,
+            );
+            changed |= render_stroke_setting(
+                ui,
+                "FG Stroke Disabled:",
+                &mut settings.fg_widget_stroke_disabled,
+            );
+            ui.separator();
+
             changed |=
-                render_stroke_setting(ui, "Stroke Active:", &mut settings.widget_stroke_active);
-            changed |=
-                render_stroke_setting(ui, "Stroke Disabled:", &mut settings.widget_stroke_disabled);
+                render_stroke_setting(ui, "Selection Stroke:", &mut settings.selection_stroke);
         });
 
     egui::CollapsingHeader::new("Semantic Colors")

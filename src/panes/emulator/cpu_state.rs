@@ -1,5 +1,5 @@
 use crate::app::EMULATOR;
-use crate::emulator::{CpuState, Emulator};
+use crate::emulator::{CpuState, Emulator, PSR_ADDR};
 use crate::panes::{Pane, PaneDisplay, PaneTree, RealPane};
 use egui::RichText;
 use serde::{Deserialize, Serialize};
@@ -16,35 +16,30 @@ impl PaneDisplay for CpuStatePane {
 
             // Flags view
             ui.collapsing("Flags", |ui| {
+                let (n, z, p) = emulator.get_nzp();
                 ui.horizontal(|ui| {
                     if ui
-                        .selectable_label(emulator.n.get() == 1, "N")
+                        .selectable_label(n, "N")
                         .on_hover_text("Negative Flag")
                         .clicked()
                     {
-                        emulator.n.set(1);
-                        emulator.z.set(0);
-                        emulator.p.set(0);
+                        emulator.set_n();
                     }
 
                     if ui
-                        .selectable_label(emulator.z.get() == 1, "Z")
+                        .selectable_label(z, "Z")
                         .on_hover_text("Zero Flag")
                         .clicked()
                     {
-                        emulator.z.set(1);
-                        emulator.n.set(0);
-                        emulator.p.set(0);
+                        emulator.set_z();
                     }
 
                     if ui
-                        .selectable_label(emulator.p.get() == 1, "P")
+                        .selectable_label(p, "P")
                         .on_hover_text("Positive Flag")
                         .clicked()
                     {
-                        emulator.p.set(1);
-                        emulator.n.set(0);
-                        emulator.z.set(0);
+                        emulator.set_p();
                     }
                 });
             });
@@ -151,6 +146,7 @@ impl CpuStatePane {
                         .color(egui::Color32::GREEN),
                 );
 
+                let (n, z, p) = emulator.get_nzp();
                 // Provide specific description based on the current cycle
                 description = match &emulator.cpu_state {
                     CpuState::Fetch => RichText::new(format!(
@@ -178,7 +174,7 @@ impl CpuStatePane {
                         "EXECUTE: Performing operation for {} ('{}', from line: '{}'). ALU computes, PC may change. Flags (N={}, Z={}, P={}) may update.",
                         op,
                          instruction_text, source_line_text,
-                        emulator.n.get(), emulator.z.get(), emulator.p.get()
+                        n as u8, z as u8, p as u8
                     )).color(egui::Color32::GOLD),
 
                     CpuState::StoreResult(op) => RichText::new(format!(
@@ -196,18 +192,16 @@ impl CpuStatePane {
 
         // Display relevant registers/flags for the current state
         ui.horizontal(|ui| {
+            let (n, z, p) = emulator.get_nzp();
             ui.label("Flags:");
-            let n_text = format!("N={}", emulator.n.get());
-            let z_text = format!("Z={}", emulator.z.get());
-            let p_text = format!("P={}", emulator.p.get());
+            let n_text = format!("N={}", n as u8);
+            let z_text = format!("Z={}", z as u8);
+            let p_text = format!("P={}", p as u8);
             // Flags might be updated in Execute or StoreResult
             let flag_color = if matches!(emulator.cpu_state, CpuState::ExecuteOperation(_))
                 || matches!(emulator.cpu_state, CpuState::StoreResult(_))
             {
-                if emulator.n.changed_peek()
-                    || emulator.z.changed_peek()
-                    || emulator.p.changed_peek()
-                {
+                if emulator.memory[PSR_ADDR].changed_peek() {
                     egui::Color32::LIGHT_GREEN // Highlight if changed this cycle
                 } else {
                     ui.visuals().text_color()

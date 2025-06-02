@@ -35,9 +35,7 @@ impl PaneDisplay for IoPane {
                     );
 
                     if response.changed() && emulator.output.len() < output_clone.len() {
-                        emulator
-                            .last_pressed_key
-                            .set((output_clone.chars().last().unwrap() as u8) as u16);
+                        emulator.set_in_char(output_clone.chars().last().unwrap());
                     }
                 });
 
@@ -91,7 +89,7 @@ impl PaneDisplay for IoPane {
                 if input_submitted && !self.terminal_input.is_empty() {
                     if let Some(c) = self.terminal_input.chars().next() {
                         // Update the emulator's last pressed key
-                        emulator.last_pressed_key.set((c as u8) as u16);
+                        emulator.set_in_char(c);
                         // Echo the character to output for visual feedback
                         emulator.output.push(c);
                         // Clear the input field

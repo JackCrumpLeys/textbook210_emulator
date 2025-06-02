@@ -41,10 +41,19 @@ pub struct ThemeSettings {
     pub widget_fill_hovered: Color32,
     pub widget_fill_active: Color32, // Clicked/dragged state
     pub widget_fill_disabled: Color32,
-    pub widget_stroke_interactive: Stroke, // Normal state stroke
-    pub widget_stroke_hovered: Stroke,
-    pub widget_stroke_active: Stroke,
-    pub widget_stroke_disabled: Stroke,
+
+    // -- Widget Stroke Styles ---
+    pub bg_widget_stroke_interactive: Stroke,
+    pub bg_widget_stroke_hovered: Stroke,
+    pub bg_widget_stroke_active: Stroke,
+    pub bg_widget_stroke_disabled: Stroke,
+
+    pub fg_widget_stroke_interactive: Stroke, // Foreground stroke for normal state
+    pub fg_widget_stroke_hovered: Stroke,
+    pub fg_widget_stroke_active: Stroke,
+    pub fg_widget_stroke_disabled: Stroke,
+
+    pub selection_stroke: Stroke,
 
     // Semantic Colors (for messages, highlights)
     pub error_fg_color: Color32,
@@ -148,10 +157,14 @@ impl ThemeSettings {
             widget_fill_hovered: Color32::from_gray(70),
             widget_fill_active: Color32::from_rgb(0, 110, 190), // Active uses primary accent
             widget_fill_disabled: Color32::from_gray(45),
-            widget_stroke_interactive: Stroke::new(1.0, Color32::from_gray(80)),
-            widget_stroke_hovered: Stroke::new(1.5, Color32::from_gray(100)),
-            widget_stroke_active: Stroke::new(1.5, Color32::from_rgb(0, 150, 255)), // Active uses primary accent
-            widget_stroke_disabled: Stroke::new(1.0, Color32::from_gray(60)),
+            bg_widget_stroke_interactive: Stroke::new(1.0, Color32::from_gray(80)),
+            bg_widget_stroke_hovered: Stroke::new(1.5, Color32::from_gray(100)),
+            bg_widget_stroke_active: Stroke::new(1.5, Color32::from_rgb(0, 150, 255)), // Active uses primary accent
+            bg_widget_stroke_disabled: Stroke::new(1.0, Color32::from_gray(60)),
+            fg_widget_stroke_interactive: Stroke::new(1.0, Color32::from_gray(180)),
+            fg_widget_stroke_hovered: Stroke::new(1.5, Color32::from_gray(220)),
+            fg_widget_stroke_active: Stroke::new(2.0, Color32::from_rgb(0, 150, 255)),
+            fg_widget_stroke_disabled: Stroke::new(1.0, Color32::from_gray(80)),
 
             error_fg_color: Color32::from_rgb(255, 100, 100),
             error_bg_color: Color32::from_rgb(60, 30, 30),
@@ -213,6 +226,8 @@ impl ThemeSettings {
             indent_width: 20.0,
             widget_rounding: CornerRadius::same(2),
             window_rounding: CornerRadius::same(6),
+
+            selection_stroke: Stroke::new(1.0, Color32::from_gray(100)),
         }
     }
     pub fn light_default() -> Self {
@@ -250,10 +265,14 @@ impl ThemeSettings {
             widget_fill_hovered: Color32::from_gray(215),
             widget_fill_active: Color32::from_rgb(0, 90, 180), // Active uses primary accent
             widget_fill_disabled: Color32::from_gray(235),
-            widget_stroke_interactive: Stroke::new(1.0, Color32::from_gray(190)),
-            widget_stroke_hovered: Stroke::new(1.5, Color32::from_gray(160)),
-            widget_stroke_active: Stroke::new(1.5, Color32::from_rgb(0, 120, 220)), // Active uses primary accent
-            widget_stroke_disabled: Stroke::new(1.0, Color32::from_gray(210)),
+            bg_widget_stroke_interactive: Stroke::new(1.0, Color32::from_gray(190)),
+            bg_widget_stroke_hovered: Stroke::new(1.5, Color32::from_gray(160)),
+            bg_widget_stroke_active: Stroke::new(1.5, Color32::from_rgb(0, 120, 220)), // Active uses primary accent
+            bg_widget_stroke_disabled: Stroke::new(1.0, Color32::from_gray(210)),
+            fg_widget_stroke_interactive: Stroke::new(1.0, Color32::from_gray(80)),
+            fg_widget_stroke_hovered: Stroke::new(1.5, Color32::from_gray(40)),
+            fg_widget_stroke_active: Stroke::new(2.0, Color32::from_rgb(0, 120, 220)),
+            fg_widget_stroke_disabled: Stroke::new(1.0, Color32::from_gray(210)),
 
             error_fg_color: Color32::from_rgb(190, 0, 0),
             error_bg_color: Color32::from_rgb(255, 225, 225),
@@ -315,6 +334,8 @@ impl ThemeSettings {
             scrollbar_rounding: CornerRadius::same(2),
             button_padding: Vec2::new(10.0, 6.0),
             indent_width: 20.0,
+
+            selection_stroke: Stroke::new(1.0, Color32::from_gray(100)),
         }
     }
 
@@ -329,56 +350,45 @@ impl ThemeSettings {
         style.visuals.override_text_color = Some(self.primary_text_color);
         style.visuals.hyperlink_color = self.hyperlink_color;
         // For non-interactive labels, TextEdit, etc.
-        style.visuals.widgets.noninteractive.fg_stroke = Stroke::new(0.0, self.primary_text_color);
+        style.visuals.widgets.noninteractive.fg_stroke = Stroke::new(1.0, self.primary_text_color);
 
         // --- Backgrounds ---
         style.visuals.window_fill = self.window_background;
         style.visuals.widgets.noninteractive.bg_fill = self.panel_background; // For Frames, Groups
         style.visuals.code_bg_color = self.code_bg_color;
-
         // --- Widget States ---
         // Inactive (interactive, but not hovered/clicked, e.g., a button)
-        style.visuals.widgets.inactive.fg_stroke = Stroke::new(0.0, self.widget_text_color);
+        style.visuals.widgets.inactive.fg_stroke = self.fg_widget_stroke_interactive;
         style.visuals.widgets.inactive.bg_fill = self.widget_fill_interactive;
-        style.visuals.widgets.inactive.bg_stroke = self.widget_stroke_interactive;
+        style.visuals.widgets.inactive.bg_stroke = self.bg_widget_stroke_interactive;
         style.visuals.widgets.inactive.corner_radius = self.widget_rounding;
 
         // Hovered
-        style.visuals.widgets.hovered.fg_stroke = Stroke::new(0.0, self.widget_text_color);
+        style.visuals.widgets.hovered.fg_stroke = self.fg_widget_stroke_hovered;
         style.visuals.widgets.hovered.bg_fill = self.widget_fill_hovered;
-        style.visuals.widgets.hovered.bg_stroke = self.widget_stroke_hovered;
+        style.visuals.widgets.hovered.bg_stroke = self.bg_widget_stroke_hovered;
         style.visuals.widgets.hovered.corner_radius = self.widget_rounding;
-        style.visuals.widgets.hovered.expansion = 0.0; // No expansion on hover by default
+        style.visuals.widgets.hovered.expansion = 0.5; // No expansion on hover by default
 
         // Active (clicked/dragged)
-        style.visuals.widgets.active.fg_stroke = Stroke::new(0.0, self.strong_text_color);
+        style.visuals.widgets.active.fg_stroke = self.fg_widget_stroke_active;
         style.visuals.widgets.active.bg_fill = self.widget_fill_active;
-        style.visuals.widgets.active.bg_stroke = self.widget_stroke_active;
+        style.visuals.widgets.active.bg_stroke = self.bg_widget_stroke_active;
         style.visuals.widgets.active.corner_radius = self.widget_rounding;
-        style.visuals.widgets.active.expansion = 0.0; // No expansion on active by default
+        style.visuals.widgets.active.expansion = 1.0; // No expansion on active by default
 
-        // Disabled (non-interactive widgets that look disabled)
-        // Note: `noninteractive` is also used for general panel backgrounds.
-        // For explicitly disabled interactive widgets, egui often darkens/lightens them.
-        // We can provide more specific disabled visuals if needed by checking widget state.
-        // For now, let's assume egui's default handling for disabled is okay,
-        // or we can set style.visuals.widgets.disabled if that becomes available/necessary.
-        // For now, noninteractive is a catch-all for static elements.
-        // To specifically style disabled buttons, one might need to customize the button drawing logic.
-        // However, we can influence the general look of non-interactive things.
         let mut disabled_widget_style = style.visuals.widgets.inactive; // Start from inactive
-        disabled_widget_style.fg_stroke =
-            Stroke::new(0.0, self.secondary_text_color.gamma_multiply(0.7));
+        disabled_widget_style.fg_stroke = self.fg_widget_stroke_disabled;
         disabled_widget_style.bg_fill = self.widget_fill_disabled;
-        disabled_widget_style.bg_stroke = self.widget_stroke_disabled;
+        disabled_widget_style.bg_stroke = self.bg_widget_stroke_disabled;
         // style.visuals.widgets.disabled = disabled_widget_style; // If egui adds this field
 
         // Open (e.g., a combo box that is open)
         style.visuals.widgets.open = style.visuals.widgets.active; // Often same as active
 
         // Selection (e.g., for text selection in TextEdit or selected item in list)
-        style.visuals.selection.bg_fill = self.accent_color_primary.linear_multiply(0.4);
-        style.visuals.selection.stroke = Stroke::NONE;
+        style.visuals.selection.bg_fill = self.accent_color_primary.linear_multiply(0.6);
+        style.visuals.selection.stroke = self.selection_stroke;
 
         // --- Look & Feel ---
         style.spacing.item_spacing = self.item_spacing;
@@ -414,7 +424,7 @@ impl ThemeSettings {
         style.visuals.collapsing_header_frame = true; // Ensure frame is drawn
 
         // Interaction settings
-        style.interaction.tooltip_delay = 0.5; // seconds
+        style.interaction.tooltip_delay = 0.3; // seconds
         style.interaction.show_tooltips_only_when_still = true;
         style.interaction.selectable_labels = true; // Allow selecting text in labels
         style.interaction.multi_widget_text_select = true;

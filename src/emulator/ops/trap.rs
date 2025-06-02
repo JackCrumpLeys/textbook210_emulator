@@ -42,7 +42,7 @@ impl Op for TrapOp {
 
         // Check if the vector area is readable and within TVT bounds.
         let vector_area = area_from_address(&self.vector_table_entry_addr);
-        if vector_area.can_read(&machine_state.current_privilege_level)
+        if vector_area.can_read(&machine_state.priv_level())
             && self.vector_table_entry_addr.get() <= 0x00FF
         // Ensure it's within TVT
         {
@@ -86,7 +86,7 @@ impl Op for TrapOp {
 
             // --- Perform Mode and Stack Switch ---
             // Only switch if not already in Supervisor mode (though TRAP usually comes from User)
-            if matches!(machine_state.current_privilege_level, PrivilegeLevel::User) {
+            if matches!(machine_state.priv_level(), PrivilegeLevel::User) {
                 // Save current R6 (USP) into saved_usp
                 machine_state.saved_usp = machine_state.r[6];
                 // Load R6 with the Supervisor Stack Pointer (SSP) from saved_ssp
@@ -95,7 +95,7 @@ impl Op for TrapOp {
             }
 
             // Set privilege level to Supervisor *after* potential stack swap
-            machine_state.current_privilege_level = PrivilegeLevel::Supervisor;
+            machine_state.set_priv_level(PrivilegeLevel::Supervisor);
 
             // --- Push PSR onto the stack ---
             // This device stores the current PSR value

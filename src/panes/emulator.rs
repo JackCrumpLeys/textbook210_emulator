@@ -60,6 +60,7 @@ impl PaneDisplay for EmulatorPane {
             vec![
                 MemoryPane::children(),
                 EditorPane::children(),
+                RegistersPane::children(),
                 CpuStatePane::children(),
                 IoPane::children(),
                 HelpPane::children(),

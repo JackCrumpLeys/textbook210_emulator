@@ -1,5 +1,5 @@
 use crate::emulator::{
-    area_from_address, BitAddressable, Emulator, EmulatorCell, Exception, PrivilegeLevel,
+    area_from_address, BitAddressable, Emulator, EmulatorCell, Exception, PrivilegeLevel, PSR_ADDR,
 };
 
 use super::Op;
@@ -25,7 +25,7 @@ impl Op for RtiOp {
 
     fn evaluate_address(&mut self, machine_state: &mut Emulator) {
         // Pre-check: RTI can only be executed in Supervisor mode.
-        if matches!(machine_state.current_privilege_level, PrivilegeLevel::User) {
+        if matches!(machine_state.priv_level(), PrivilegeLevel::User) {
             machine_state.exception = Some(Exception::new_privilege_violation());
             self.is_valid_rti = false;
             tracing::warn!("RTI Privilege Violation: Attempted execution in User mode.");
@@ -41,7 +41,7 @@ impl Op for RtiOp {
 
         // Check if we can read PC from the stack
         let pc_area = area_from_address(&pc_addr);
-        if !pc_area.can_read(&machine_state.current_privilege_level) {
+        if !pc_area.can_read(&machine_state.priv_level()) {
             machine_state.exception = Some(Exception::new_access_control_violation());
             self.is_valid_rti = false;
             tracing::warn!(
@@ -53,7 +53,7 @@ impl Op for RtiOp {
 
         // Check if we can read PSR from the stack
         let psr_area = area_from_address(&psr_addr);
-        if !psr_area.can_read(&machine_state.current_privilege_level) {
+        if !psr_area.can_read(&machine_state.priv_level()) {
             machine_state.exception = Some(Exception::new_access_control_violation());
             self.is_valid_rti = false;
             tracing::warn!(
@@ -120,17 +120,9 @@ impl Op for RtiOp {
         } else {
             PrivilegeLevel::Supervisor
         };
-        let new_n = self.popped_psr.index(2);
-        let new_z = self.popped_psr.index(1);
-        let new_p = self.popped_psr.index(0);
-
-        // Restore condition codes
-        machine_state.n = new_n;
-        machine_state.z = new_z;
-        machine_state.p = new_p;
 
         // Check privilege level transition
-        let old_priv_level = &machine_state.current_privilege_level;
+        let old_priv_level = &machine_state.priv_level();
         if matches!(old_priv_level, PrivilegeLevel::Supervisor)
             && matches!(new_priv_level, PrivilegeLevel::User)
         {
@@ -142,8 +134,8 @@ impl Op for RtiOp {
         }
         // Note: Switching from User to Supervisor happens during exception/interrupt entry, not RTI.
 
-        // Update privilege level *after* potential stack switch
-        machine_state.current_privilege_level = new_priv_level;
+        // Update PSR after potential stack switch
+        machine_state.memory[PSR_ADDR].set(self.popped_psr.get());
 
         // Restore PC last
         machine_state.pc = self.popped_pc;

@@ -42,9 +42,10 @@ impl Op for BrOp {
 
     fn evaluate_address(&mut self, machine_state: &mut Emulator) {
         // Check if condition codes match current state
-        let n_match = self.n_bit.get() == 1 && machine_state.n.get() == 1;
-        let z_match = self.z_bit.get() == 1 && machine_state.z.get() == 1;
-        let p_match = self.p_bit.get() == 1 && machine_state.p.get() == 1;
+        let (n, z, p) = machine_state.get_nzp();
+        let n_match = self.n_bit.get() == 1 && n;
+        let z_match = self.z_bit.get() == 1 && z;
+        let p_match = self.p_bit.get() == 1 && p;
 
         // If any condition matches, calculate the target address and mark branch as taken
         if n_match || z_match || p_match {
@@ -63,7 +64,7 @@ impl Op for BrOp {
         if self.branch_taken {
             // Check memory permissions before jumping
             let target_area = area_from_address(&self.target_address);
-            if target_area.can_read(&machine_state.current_privilege_level) {
+            if target_area.can_read(&machine_state.priv_level()) {
                 machine_state.pc.set(self.target_address.get());
             } else {
                 // Cannot jump to non-readable memory

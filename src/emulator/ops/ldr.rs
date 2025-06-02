@@ -36,7 +36,7 @@ impl Op for LdrOp {
 
         // Check memory read permissions
         let target_area = area_from_address(&self.effective_address);
-        if target_area.can_read(&machine_state.current_privilege_level) {
+        if target_area.can_read(&machine_state.priv_level()) {
             self.is_valid_load = true;
         } else {
             // Privilege violation: Cannot read from this memory location

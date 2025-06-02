@@ -13,8 +13,6 @@ use parse::ParseOutput;
 
 use crate::panes::emulator::memory::BREAKPOINTS;
 
-const STEPS_BETWEEN_FLUSH_GOT_NEW_CHAR: u32 = 30; // 5 full instructions
-
 pub const MAX_OS_STEPS: usize = 1000;
 
 // Device registers at memory addresses xFE00-xFFFF
@@ -83,9 +81,6 @@ pub struct Emulator {
     // The alu component (this manages the maths operations)
     pub alu: Alu,
 
-    // Privilege Level
-    pub current_privilege_level: PrivilegeLevel,
-
     // Registers
     pub r: [EmulatorCell; 8],
 
@@ -95,11 +90,6 @@ pub struct Emulator {
     // memory registers
     pub mar: EmulatorCell,
     pub mdr: EmulatorCell,
-
-    // conditional registers
-    pub z: EmulatorCell,
-    pub n: EmulatorCell,
-    pub p: EmulatorCell,
 
     // instruction register
     pub ir: EmulatorCell,
@@ -122,10 +112,6 @@ pub struct Emulator {
 
     // exception
     pub exception: Option<Exception>,
-
-    // last pressed key
-    pub last_pressed_key: EmulatorCell,
-    pub flush_countdown: u32,
 }
 
 impl Emulator {
@@ -140,22 +126,16 @@ impl Emulator {
             pc: EmulatorCell::new(0x200),
             mar: EmulatorCell::new(0),
             mdr: EmulatorCell::new(0),
-            z: EmulatorCell::new(1),
-            n: EmulatorCell::new(0),
-            p: EmulatorCell::new(0),
             ir: EmulatorCell::new(0),
             output: String::new(),
             cpu_state: CpuState::Fetch,
             current_op: None,
             running: false,
             alu: Alu::default(),
-            current_privilege_level: PrivilegeLevel::Supervisor,
             write_bit: false,
             exception: None,
             saved_ssp: EmulatorCell::new(0),
             saved_usp: EmulatorCell::new(0),
-            last_pressed_key: EmulatorCell::new(0),
-            flush_countdown: 0,
         };
 
         let parse_output = Emulator::parse_program(include_str!("../oses/simpleos.asm"));
@@ -174,10 +154,60 @@ impl Emulator {
         }
 
         emulator.memory[DSR_ADDR].set(0x8000); // ready for a char
-        emulator.memory[PSR_ADDR].set(0x0002); // Z=1, N=0, P=0
+        emulator.memory[PSR_ADDR].set(0x0002); // Z=1, N=0, P=0 Supervisor
         emulator.memory[MCR_ADDR].set(0x8000); // machine is "running" from the perspective of the contained code
 
         emulator
+    }
+
+    pub fn priv_level(&self) -> PrivilegeLevel {
+        match self.memory[PSR_ADDR].index(15).get() {
+            0 => PrivilegeLevel::Supervisor,
+            1 => PrivilegeLevel::User,
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn set_priv_level(&mut self, level: PrivilegeLevel) {
+        let psr_val = self.memory[PSR_ADDR].get();
+        match level {
+            PrivilegeLevel::User => self.memory[PSR_ADDR].set(psr_val | 0x8000),
+            PrivilegeLevel::Supervisor => self.memory[PSR_ADDR].set(psr_val & !0x8000),
+        }
+    }
+
+    pub fn set_n(&mut self) {
+        let psr = self.memory[PSR_ADDR].get();
+        let new_psr = (psr & 0xFFF8) | 0x0004;
+        self.memory[PSR_ADDR].set(new_psr);
+    }
+
+    pub fn set_z(&mut self) {
+        let psr = self.memory[PSR_ADDR].get();
+        let new_psr = (psr & 0xFFF8) | 0x0002;
+        self.memory[PSR_ADDR].set(new_psr);
+    }
+
+    pub fn set_p(&mut self) {
+        let psr = self.memory[PSR_ADDR].get();
+        let new_psr = (psr & 0xFFF8) | 0x0001;
+        self.memory[PSR_ADDR].set(new_psr);
+    }
+
+    pub fn get_nzp(&self) -> (bool, bool, bool) {
+        let n = (self.memory[PSR_ADDR].get() & 0x0004) != 0;
+        let z = (self.memory[PSR_ADDR].get() & 0x0002) != 0;
+        let p = (self.memory[PSR_ADDR].get() & 0x0001) != 0;
+        debug_assert!(
+            (n as u8 + z as u8 + p as u8) == 1,
+            "Exactly one of N, Z, P must be true"
+        );
+        (n, z, p)
+    }
+
+    pub fn set_in_char(&mut self, c: char) {
+        self.memory[KBDR_ADDR].set(c as u16);
+        self.memory[KBSR_ADDR].set(0x8000); // indicates new char avalible
     }
 
     pub fn update_flags(&mut self, reg_index: usize) {
@@ -188,21 +218,11 @@ impl Emulator {
 
         // Set negative flag
         if is_negative {
-            self.n.set(1);
-            self.z.set(0);
-            self.p.set(0);
-        }
-        // Set zero flag
-        else if value == 0 {
-            self.n.set(0);
-            self.z.set(1);
-            self.p.set(0);
-        }
-        // Set positive flag
-        else {
-            self.n.set(0);
-            self.z.set(0);
-            self.p.set(1);
+            self.set_n();
+        } else if value == 0 {
+            self.set_z();
+        } else {
+            self.set_p();
         }
     }
 }
@@ -399,7 +419,7 @@ impl Emulator {
         let memory_area = area_from_address(&self.pc);
 
         // Check read permission for PC address
-        if !memory_area.can_read(&self.current_privilege_level) {
+        if !memory_area.can_read(&self.priv_level()) {
             self.exception = Some(Exception::new_access_control_violation());
             return Err(format!(
                 "Fetch Access Violation: Cannot read PC address 0x{:04X}",
@@ -448,7 +468,7 @@ impl Emulator {
             let mem_area = area_from_address(&self.mar);
             // Generally we have already checked the privilege level in the address evaluation phase but to be as
             // thorough as possible, we check again here.
-            if mem_area.can_read(&self.current_privilege_level) {
+            if mem_area.can_read(&self.priv_level()) {
                 self.mdr.set(self.memory[mar_val as usize].get());
             } else {
                 self.exception = Some(Exception::new_access_control_violation());
@@ -461,7 +481,7 @@ impl Emulator {
             let mar_val = self.mar.get();
             let mem_area = area_from_address(&self.mar);
             // Generally we have already checked the privilege level in the address evaluation phase but to be as
-            if mem_area.can_write(&self.current_privilege_level) {
+            if mem_area.can_write(&self.priv_level()) {
                 self.memory[mar_val as usize].set(self.mdr.get());
             } else {
                 self.exception = Some(Exception::new_access_control_violation());
@@ -512,7 +532,7 @@ impl Emulator {
         if self.write_bit {
             let mar_val = self.mar.get();
             let mem_area = area_from_address(&self.mar);
-            if mem_area.can_write(&self.current_privilege_level) {
+            if mem_area.can_write(&self.priv_level()) {
                 self.memory[mar_val as usize].set(self.mdr.get());
             } else {
                 self.exception = Some(Exception::new_access_control_violation());
@@ -539,30 +559,25 @@ impl Emulator {
         let handler_addr = exception.get_handler_address();
         let handler_addr = self.memory[handler_addr];
 
+        let psr_val = self.memory[PSR_ADDR].get(); // save the curr psr before changing priv
+
         // 2. Switch to Supervisor Mode & Stack
-        if matches!(self.current_privilege_level, PrivilegeLevel::User) {
+        if matches!(self.priv_level(), PrivilegeLevel::User) {
             self.saved_usp = self.r[6]; // Save User SP
             self.r[6] = self.saved_ssp; // Load Supervisor SP
         }
-        self.current_privilege_level = PrivilegeLevel::Supervisor;
+        self.set_priv_level(PrivilegeLevel::Supervisor);
 
         // 3. Push PSR and PC onto the Supervisor Stack (R6)
         let ssp = self.r[6].get();
         let psr_addr = ssp.wrapping_sub(1);
         let pc_addr = ssp.wrapping_sub(2);
 
-        // Create PSR value (simplified: PLevel=Supervisor, N Z P flags)
-        // Note: Actual LC-3 PSR has more bits, this is a basic representation
-        let psr_val = (1 << 15) // Supervisor mode
-                      | (self.n.get() << 2)
-                      | (self.z.get() << 1)
-                      | self.p.get();
-
         // Check stack write permissions (should be writable in Supervisor mode)
         // Basic check: Ensure stack pointer is within valid memory range
         if pc_addr > 1 && pc_addr < (self.memory.len() - 1) as u16 {
             self.memory[psr_addr as usize].set(psr_val);
-            self.memory[pc_addr as usize].set(self.pc.get()); // Push PC of *next* instruction
+            self.memory[pc_addr as usize].set(self.pc.get());
             self.r[6].set(pc_addr); // Update SSP
         } else {
             // Stack Overflow/Underflow - This is a critical error, potentially halt or double fault
@@ -619,13 +634,14 @@ impl Emulator {
 
         // --- Execute Current CPU State Phase ---
         let current_state = self.cpu_state.clone(); // Clone to allow modification within match arms
+        let (n, z, p) = self.get_nzp();
         tracing::debug!(
             state = format!("{:?}", current_state),
             pc = format!("0x{:04X}", self.pc.get()),
             ir = format!("0x{:04X}", self.ir.get()),
-            n = self.n.get(),
-            z = self.z.get(),
-            p = self.p.get(),
+            n = n,
+            z = z,
+            p = p,
             "Executing CPU state phase"
         );
 
@@ -754,6 +770,7 @@ impl Emulator {
                     // Instruction complete, go back to Fetch
                     tracing::debug!("Result store succeeded, cycling back to FETCH");
                     self.cpu_state = CpuState::Fetch;
+                    let (n, z, p) = self.get_nzp();
                     tracing::trace!(
                         r0 = format!("0x{:04X}", self.r[0].get()),
                         r1 = format!("0x{:04X}", self.r[1].get()),
@@ -763,9 +780,9 @@ impl Emulator {
                         r5 = format!("0x{:04X}", self.r[5].get()),
                         r6 = format!("0x{:04X}", self.r[6].get()),
                         r7 = format!("0x{:04X}", self.r[7].get()),
-                        n = self.n.get(),
-                        z = self.z.get(),
-                        p = self.p.get(),
+                        n = n,
+                        z = z,
+                        p = p,
                         "CPU state after instruction completion"
                     );
                 } else {
@@ -863,26 +880,6 @@ impl Emulator {
     // pixel display
     // For now keep it simple
     fn update_devices(&mut self) {
-        self.flush_countdown = if self.flush_countdown == 0 {
-            0
-        } else {
-            self.flush_countdown - 1
-        };
-
-        // Check if we're waiting for input
-        if self.flush_countdown == 0 || self.last_pressed_key.changed_peek() {
-            if self.last_pressed_key.changed() {
-                self.memory[KBSR_ADDR].set(0x8000);
-                // Update KBDR register with last pressed key
-                self.memory[KBDR_ADDR].set(self.last_pressed_key.get());
-            } else {
-                // If waiting for input, clear ready bit
-                self.memory[KBSR_ADDR].set(0x0000);
-            }
-
-            self.flush_countdown = STEPS_BETWEEN_FLUSH_GOT_NEW_CHAR;
-        }
-
         // Check if a program is trying to write to display
         let dsr_value = self.memory[DSR_ADDR].get();
         if (dsr_value & 0x8000) != 0 {
@@ -891,28 +888,13 @@ impl Emulator {
             // Check if a value has been written to DDR that hasn't been processed
             if (ddr_value & 0xFF) != 0 {
                 // Extract ASCII character
-                let character = (ddr_value & 0xFF) as u8;
+                let character = (ddr_value & 0xFF) as u8 as char;
                 // Convert to character and add to output
-                if let Some(c) = char::from_u32(character as u32) {
-                    self.output.push(c);
-                }
+                self.output.push(character);
                 // Clear DDR after processing
                 self.memory[DDR_ADDR].set(0);
-                // Set DSR to show we've handled the output
-                self.memory[DSR_ADDR].set(dsr_value | 0x8000);
             }
         }
-
-        // Update PSR if in supervisor mode
-        let privilege_bit = match self.current_privilege_level {
-            PrivilegeLevel::User => 1,
-            PrivilegeLevel::Supervisor => 0,
-        } << 15;
-        // Set condition code bits based on flags
-        let n_bit = self.n.get() << 2;
-        let z_bit = self.z.get() << 1;
-        let p_bit = self.p.get();
-        self.memory[PSR_ADDR].set(privilege_bit | n_bit | z_bit | p_bit);
 
         // Check Machine Control Register (MCR)
         let mcr_value = self.memory[MCR_ADDR].get();

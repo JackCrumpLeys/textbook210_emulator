@@ -38,7 +38,7 @@ impl Op for LdiOp {
 
         // Check memory read permissions for the pointer address
         let pointer_area = area_from_address(&self.pointer_address);
-        if pointer_area.can_read(&machine_state.current_privilege_level) {
+        if pointer_area.can_read(&machine_state.priv_level()) {
             self.is_valid_load_step1 = true;
         } else {
             // Privilege violation: Cannot read the pointer address
@@ -72,7 +72,7 @@ impl Op for LdiOp {
 
                 // Check permissions for the indirect address before setting MAR again.
                 let indirect_area = area_from_address(&self.indirect_address);
-                if indirect_area.can_read(&machine_state.current_privilege_level) {
+                if indirect_area.can_read(&machine_state.priv_level()) {
                     self.is_valid_load_step2 = true;
                     // Set MAR for the final memory read.
                     machine_state.mar = self.indirect_address;

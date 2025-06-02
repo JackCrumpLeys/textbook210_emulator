@@ -17,21 +17,41 @@
     widget_fill_hovered: ((215, 215, 215, 255)),
     widget_fill_active: ((0, 90, 180, 255)),
     widget_fill_disabled: ((235, 235, 235, 255)),
-    widget_stroke_interactive: (
+    bg_widget_stroke_interactive: (
         width: 1.0,
         color: ((190, 190, 190, 255)),
     ),
-    widget_stroke_hovered: (
+    bg_widget_stroke_hovered: (
         width: 1.5,
         color: ((160, 160, 160, 255)),
     ),
-    widget_stroke_active: (
+    bg_widget_stroke_active: (
         width: 1.5,
         color: ((0, 120, 220, 255)),
     ),
-    widget_stroke_disabled: (
+    bg_widget_stroke_disabled: (
         width: 1.0,
         color: ((210, 210, 210, 255)),
+    ),
+    fg_widget_stroke_interactive: (
+        width: 1.0,
+        color: ((80, 80, 80, 255)),
+    ),
+    fg_widget_stroke_hovered: (
+        width: 1.5,
+        color: ((40, 40, 40, 255)),
+    ),
+    fg_widget_stroke_active: (
+        width: 2.0,
+        color: ((0, 120, 220, 255)),
+    ),
+    fg_widget_stroke_disabled: (
+        width: 1.0,
+        color: ((210, 210, 210, 255)),
+    ),
+    selection_stroke: (
+        width: 1.0,
+        color: ((100, 100, 100, 255)),
     ),
     error_fg_color: ((190, 0, 0, 255)),
     error_bg_color: ((255, 225, 225, 255)),
@@ -41,9 +61,9 @@
     success_bg_color: ((215, 255, 215, 255)),
     info_fg_color: ((0, 110, 190, 255)),
     info_bg_color: ((215, 235, 255, 255)),
-    pc_line_bg: ((170, 255, 170, 200)),
-    breakpoint_bg: ((255, 170, 170, 200)),
-    highlight_bg: ((210, 190, 255, 150)),
+    pc_line_bg: ((170, 200, 170, 200)),
+    breakpoint_bg: ((200, 170, 170, 200)),
+    highlight_bg: ((150, 150, 150, 150)),
     memory_address_color: ((60, 60, 60, 255)),
     memory_label_color: ((140, 110, 0, 255)),
     memory_value_color: ((30, 30, 30, 255)),
@@ -110,8 +130,8 @@
         se: 2,
     ),
     button_padding: (
-        x: 10.0,
-        y: 6.0,
+        x: 5.0,
+        y: 5.0,
     ),
     indent_width: 20.0,
 )

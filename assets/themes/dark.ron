@@ -7,7 +7,7 @@
     window_background: ((20, 20, 20, 255)),
     panel_background: ((30, 30, 30, 255)),
     code_bg_color: ((25, 25, 25, 255)),
-    accent_color_primary: ((0, 150, 255, 255)),
+    accent_color_primary: ((18, 40, 149, 156)),
     accent_color_secondary: ((0, 200, 200, 255)),
     accent_color_tertiary: ((150, 150, 150, 255)),
     accent_color_positive: ((50, 200, 50, 255)),
@@ -17,21 +17,41 @@
     widget_fill_hovered: ((70, 70, 70, 255)),
     widget_fill_active: ((0, 110, 190, 255)),
     widget_fill_disabled: ((45, 45, 45, 255)),
-    widget_stroke_interactive: (
+    bg_widget_stroke_interactive: (
         width: 1.0,
         color: ((80, 80, 80, 255)),
     ),
-    widget_stroke_hovered: (
+    bg_widget_stroke_hovered: (
         width: 1.5,
         color: ((100, 100, 100, 255)),
     ),
-    widget_stroke_active: (
+    bg_widget_stroke_active: (
         width: 1.5,
         color: ((0, 150, 255, 255)),
     ),
-    widget_stroke_disabled: (
+    bg_widget_stroke_disabled: (
         width: 1.0,
         color: ((60, 60, 60, 255)),
+    ),
+    fg_widget_stroke_interactive: (
+        width: 1.0,
+        color: ((180, 180, 180, 255)),
+    ),
+    fg_widget_stroke_hovered: (
+        width: 1.5,
+        color: ((220, 220, 220, 255)),
+    ),
+    fg_widget_stroke_active: (
+        width: 2.0,
+        color: ((224, 234, 255, 255)),
+    ),
+    fg_widget_stroke_disabled: (
+        width: 1.0,
+        color: ((80, 80, 80, 255)),
+    ),
+    selection_stroke: (
+        width: 1.0,
+        color: ((255, 255, 255, 255)),
     ),
     error_fg_color: ((255, 100, 100, 255)),
     error_bg_color: ((60, 30, 30, 255)),
@@ -43,7 +63,7 @@
     info_bg_color: ((30, 45, 70, 255)),
     pc_line_bg: ((30, 90, 30, 200)),
     breakpoint_bg: ((100, 30, 30, 200)),
-    highlight_bg: ((90, 70, 160, 150)),
+    highlight_bg: ((90, 70, 150, 150)),
     memory_address_color: ((140, 140, 140, 255)),
     memory_label_color: ((210, 190, 110, 255)),
     memory_value_color: ((215, 215, 215, 255)),
@@ -110,8 +130,8 @@
         se: 2,
     ),
     button_padding: (
-        x: 10.0,
-        y: 6.0,
+        x: 5.0,
+        y: 5.0,
     ),
     indent_width: 20.0,
 )

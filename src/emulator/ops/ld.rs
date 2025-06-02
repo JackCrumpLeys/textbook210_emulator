@@ -34,7 +34,7 @@ impl Op for LdOp {
 
         // Check memory read permissions
         let target_area = area_from_address(&self.effective_address);
-        if target_area.can_read(&machine_state.current_privilege_level) {
+        if target_area.can_read(&machine_state.priv_level()) {
             // Mark the load as valid, MAR will be set in fetch_operands
             self.is_valid_load = true;
         } else {

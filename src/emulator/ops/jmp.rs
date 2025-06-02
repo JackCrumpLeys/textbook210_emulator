@@ -26,7 +26,7 @@ impl Op for JmpOp {
 
         // Check memory permissions for the target address
         let target_area = area_from_address(&self.target_address);
-        if target_area.can_read(&machine_state.current_privilege_level) {
+        if target_area.can_read(&machine_state.priv_level()) {
             self.is_valid_jump = true;
         } else {
             // Privilege violation: Cannot jump to non-readable memory

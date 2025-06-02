@@ -1,5 +1,5 @@
 use crate::emulator::{
-    area_from_address, BitAddressable, Emulator, EmulatorCell, Exception, PrivilegeLevel, PSR_ADDR,
+    area_from_address, BitAddressable, Emulator, EmulatorCell, Exception, PSR_ADDR,
 };
 
 use super::Op;
@@ -41,7 +41,7 @@ impl Op for StiOp {
 
         // Check memory read permissions for the pointer address.
         let pointer_area = area_from_address(&self.pointer_address);
-        if pointer_area.can_read(&machine_state.current_privilege_level) {
+        if pointer_area.can_read(&machine_state.priv_level()) {
             self.is_valid_read_step1 = true;
         } else {
             // Privilege violation: Cannot read the pointer address.
@@ -74,7 +74,7 @@ impl Op for StiOp {
 
         // Check write permissions for the final indirect address.
         let indirect_area = area_from_address(&self.indirect_address);
-        if indirect_area.can_write(&machine_state.current_privilege_level) {
+        if indirect_area.can_write(&machine_state.priv_level()) {
             self.is_valid_write_step2 = true;
             // Fetch the value to store from the source register (SR).
             self.value_to_store = machine_state.r[self.sr.get() as usize];
@@ -101,14 +101,7 @@ impl Op for StiOp {
         }
         if machine_state.mar.get() == PSR_ADDR as u16 {
             let new_psr = machine_state.mdr;
-            machine_state.current_privilege_level = if new_psr.index(15).get() == 1 {
-                PrivilegeLevel::User
-            } else {
-                PrivilegeLevel::Supervisor
-            };
-            machine_state.n = new_psr.index(2);
-            machine_state.z = new_psr.index(1);
-            machine_state.p = new_psr.index(0);
+            machine_state.memory[PSR_ADDR].set(new_psr.get());
         }
     }
 }
