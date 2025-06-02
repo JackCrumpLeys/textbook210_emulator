@@ -4,9 +4,9 @@ use super::Op;
 
 #[derive(Debug, Clone)]
 pub struct LeaOp {
-    dr: EmulatorCell,                // Destination Register index
-    pc_offset: EmulatorCell,         // PCoffset9 (sign-extended)
-    effective_address: EmulatorCell, // Calculated address
+    pub dr: EmulatorCell,                // Destination Register index
+    pub pc_offset: EmulatorCell,         // PCoffset9 (sign-extended)
+    pub effective_address: EmulatorCell, // Calculated address
 }
 
 impl Op for LeaOp {

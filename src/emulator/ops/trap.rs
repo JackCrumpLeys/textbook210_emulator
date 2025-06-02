@@ -13,11 +13,11 @@ use super::Op;
 // 6. Jumps to that handler routine address.
 #[derive(Debug, Clone)]
 pub struct TrapOp {
-    trap_vector: EmulatorCell, // The 8-bit vector number from the instruction
-    vector_table_entry_addr: EmulatorCell, // Address in TVT (0x00XX) where handler addr is stored
-    target_handler_addr: EmulatorCell, // Actual address of the handler routine (read from TVT)
-    is_valid_read_vector: bool, // Can we read the entry from the TVT?
-    is_valid_jump_target: bool, // Can we jump to the handler address?
+    pub trap_vector: EmulatorCell, // The 8-bit vector number from the instruction
+    pub vector_table_entry_addr: EmulatorCell, // Address in TVT (0x00XX) where handler addr is stored
+    pub target_handler_addr: EmulatorCell, // Actual address of the handler routine (read from TVT)
+    pub is_valid_read_vector: bool,        // Can we read the entry from the TVT?
+    pub is_valid_jump_target: bool,        // Can we jump to the handler address?
 }
 
 impl Op for TrapOp {

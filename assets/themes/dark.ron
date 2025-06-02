@@ -111,7 +111,7 @@
     editor_matching_bracket_bg_color: ((60, 60, 60, 255)),
     editor_current_line_number_color: ((255, 255, 255, 255)),
     editor_line_number_color: ((100, 100, 100, 255)),
-    help_opcode_color: ((255, 100, 100, 255)),
+    opcode_color: ((255, 100, 100, 255)),
     help_operand_color: ((100, 180, 255, 255)),
     help_immediate_color: ((100, 220, 100, 255)),
     help_offset_color: ((220, 160, 255, 255)),

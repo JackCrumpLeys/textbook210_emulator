@@ -4,12 +4,12 @@ use super::Op;
 
 #[derive(Debug, Clone)]
 pub struct LdiOp {
-    dr: EmulatorCell,               // Destination Register index
-    pc_offset: EmulatorCell,        // PCoffset9 (sign-extended)
-    pointer_address: EmulatorCell,  // Address containing the final address
-    indirect_address: EmulatorCell, // The final address loaded from pointer_address
-    is_valid_load_step1: bool,      // Flag if pointer_address is valid to read from
-    is_valid_load_step2: bool,      // Flag if indirect_address is valid to read from
+    pub dr: EmulatorCell,               // Destination Register index
+    pub pc_offset: EmulatorCell,        // PCoffset9 (sign-extended)
+    pub pointer_address: EmulatorCell,  // Address containing the final address
+    pub indirect_address: EmulatorCell, // The final address loaded from pointer_address
+    pub is_valid_load_step1: bool,      // Flag if pointer_address is valid to read from
+    pub is_valid_load_step2: bool,      // Flag if indirect_address is valid to read from
 }
 
 impl Op for LdiOp {

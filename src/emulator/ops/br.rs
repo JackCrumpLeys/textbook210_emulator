@@ -4,12 +4,12 @@ use super::Op;
 
 #[derive(Debug, Clone)]
 pub struct BrOp {
-    n_bit: EmulatorCell,
-    z_bit: EmulatorCell,
-    p_bit: EmulatorCell,
-    pc_offset: EmulatorCell,
-    branch_taken: bool,           // Set during evaluate_address
-    target_address: EmulatorCell, // Set during evaluate_address if branch_taken is true
+    pub n_bit: EmulatorCell,
+    pub z_bit: EmulatorCell,
+    pub p_bit: EmulatorCell,
+    pub pc_offset: EmulatorCell,
+    pub branch_taken: bool,           // Set during evaluate_address
+    pub target_address: EmulatorCell, // Set during evaluate_address if branch_taken is true
 }
 
 impl Op for BrOp {

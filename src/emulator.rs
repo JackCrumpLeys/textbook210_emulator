@@ -905,7 +905,7 @@ impl Emulator {
     }
 }
 
-trait BitAddressable {
+pub trait BitAddressable {
     fn index(&self, addr: u8) -> Self;
     fn range(&self, slice: Range<u8>) -> Self;
 }

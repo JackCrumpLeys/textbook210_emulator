@@ -631,7 +631,7 @@ impl HelpPane {
         render_instruction_card_content(
             ui,
             "ADD - Addition",
-            theme_settings.help_opcode_color,
+            theme_settings.opcode_color,
             "Adds two values and stores the result in a destination register.",
             |ui, fields| {
                 ui.horizontal(|ui| {
@@ -647,7 +647,7 @@ impl HelpPane {
                     ui_monospace_label_with_color(
                         ui,
                         "ADD DR, SR1, #imm5",
-                        theme_settings.help_opcode_color,
+                        theme_settings.opcode_color,
                     );
                     ui_italic_label(ui, "Adds SR1 and immediate value, stores in DR");
                     ui_register_selector(ui, &mut fields.dr, "Destination Reg:");
@@ -680,7 +680,7 @@ impl HelpPane {
                         vec![
                             BinarySegment {
                                 text: "0001".to_string(),
-                                color: theme_settings.help_opcode_color,
+                                color: theme_settings.opcode_color,
                             },
                             BinarySegment {
                                 text: format_binary(fields.dr as u16 & 0x7, 3),
@@ -705,7 +705,7 @@ impl HelpPane {
                     ui_monospace_label_with_color(
                         ui,
                         "ADD DR, SR1, SR2",
-                        theme_settings.help_opcode_color,
+                        theme_settings.opcode_color,
                     );
                     ui_italic_label(ui, "Adds SR1 and SR2, stores in DR");
                     ui_register_selector(ui, &mut fields.dr, "Destination Reg:");
@@ -732,7 +732,7 @@ impl HelpPane {
                         vec![
                             BinarySegment {
                                 text: "0001".to_string(),
-                                color: theme_settings.help_opcode_color,
+                                color: theme_settings.opcode_color,
                             },
                             BinarySegment {
                                 text: format_binary(fields.dr as u16 & 0x7, 3),
@@ -771,7 +771,7 @@ impl HelpPane {
         render_instruction_card_content(
             ui,
             "AND - Bitwise AND",
-            theme_settings.help_opcode_color,
+            theme_settings.opcode_color,
             "Performs bitwise AND of two values and stores the result.",
             |ui, fields| {
                 ui.horizontal(|ui| {
@@ -787,7 +787,7 @@ impl HelpPane {
                     ui_monospace_label_with_color(
                         ui,
                         "AND DR, SR1, #imm5",
-                        theme_settings.help_opcode_color,
+                        theme_settings.opcode_color,
                     );
                     ui_italic_label(ui, "Bitwise ANDs SR1 and immediate value, stores in DR");
                     ui_register_selector(ui, &mut fields.dr, "Destination Reg:");
@@ -820,7 +820,7 @@ impl HelpPane {
                         vec![
                             BinarySegment {
                                 text: "0101".to_string(),
-                                color: theme_settings.help_opcode_color,
+                                color: theme_settings.opcode_color,
                             },
                             BinarySegment {
                                 text: format_binary(fields.dr as u16 & 0x7, 3),
@@ -845,7 +845,7 @@ impl HelpPane {
                     ui_monospace_label_with_color(
                         ui,
                         "AND DR, SR1, SR2",
-                        theme_settings.help_opcode_color,
+                        theme_settings.opcode_color,
                     );
                     ui_italic_label(ui, "Bitwise ANDs SR1 and SR2, stores in DR");
                     ui_register_selector(ui, &mut fields.dr, "Destination Reg:");
@@ -872,7 +872,7 @@ impl HelpPane {
                         vec![
                             BinarySegment {
                                 text: "0101".to_string(),
-                                color: theme_settings.help_opcode_color,
+                                color: theme_settings.opcode_color,
                             },
                             BinarySegment {
                                 text: format_binary(fields.dr as u16 & 0x7, 3),
@@ -911,10 +911,10 @@ impl HelpPane {
         render_instruction_card_content(
             ui,
             "NOT - Bitwise NOT",
-            theme_settings.help_opcode_color,
+            theme_settings.opcode_color,
             "Performs bitwise NOT (complement) of a value.",
             |ui, fields| {
-                ui_monospace_label_with_color(ui, "NOT DR, SR", theme_settings.help_opcode_color);
+                ui_monospace_label_with_color(ui, "NOT DR, SR", theme_settings.opcode_color);
                 ui_italic_label(ui, "Bitwise NOTs SR, stores in DR");
                 ui_register_selector(ui, &mut fields.dr, "Destination Reg:");
                 ui_register_selector(ui, &mut fields.sr1, "Source Reg:");
@@ -936,7 +936,7 @@ impl HelpPane {
                     vec![
                         BinarySegment {
                             text: "1001".to_string(),
-                            color: theme_settings.help_opcode_color,
+                            color: theme_settings.opcode_color,
                         },
                         BinarySegment {
                             text: format_binary(fields.dr as u16 & 0x7, 3),
@@ -965,10 +965,10 @@ impl HelpPane {
         render_instruction_card_content(
             ui,
             "LD - Load",
-            theme_settings.help_opcode_color,
+            theme_settings.opcode_color,
             "Loads a value from memory into a register.",
             |ui, fields| {
-                ui_monospace_label_with_color(ui, "LD DR, LABEL", theme_settings.help_opcode_color);
+                ui_monospace_label_with_color(ui, "LD DR, LABEL", theme_settings.opcode_color);
                 ui_italic_label(
                     ui,
                     "PC-relative addressing: Loads from memory at PC+offset into DR",
@@ -993,7 +993,7 @@ impl HelpPane {
                     vec![
                         BinarySegment {
                             text: "0010".to_string(),
-                            color: theme_settings.help_opcode_color,
+                            color: theme_settings.opcode_color,
                         },
                         BinarySegment {
                             text: format_binary(fields.dr as u16 & 0x7, 3),
@@ -1018,14 +1018,10 @@ impl HelpPane {
         render_instruction_card_content(
             ui,
             "LDI - Load Indirect",
-            theme_settings.help_opcode_color,
+            theme_settings.opcode_color,
             "Loads a value using a pointer stored in memory.",
             |ui, fields| {
-                ui_monospace_label_with_color(
-                    ui,
-                    "LDI DR, LABEL",
-                    theme_settings.help_opcode_color,
-                );
+                ui_monospace_label_with_color(ui, "LDI DR, LABEL", theme_settings.opcode_color);
                 ui_italic_label(
                     ui,
                     "Loads value from memory at address stored at PC+offset into DR",
@@ -1051,7 +1047,7 @@ impl HelpPane {
                     vec![
                         BinarySegment {
                             text: "1010".to_string(),
-                            color: theme_settings.help_opcode_color,
+                            color: theme_settings.opcode_color,
                         },
                         BinarySegment {
                             text: format_binary(fields.dr as u16 & 0x7, 3),
@@ -1077,13 +1073,13 @@ impl HelpPane {
         render_instruction_card_content(
             ui,
             "LDR - Load Register",
-            theme_settings.help_opcode_color,
+            theme_settings.opcode_color,
             "Loads a value using base register + offset addressing.",
             |ui, fields| {
                 ui_monospace_label_with_color(
                     ui,
                     "LDR DR, BaseR, #offset6",
-                    theme_settings.help_opcode_color,
+                    theme_settings.opcode_color,
                 );
                 ui_italic_label(ui, "Loads from memory at BaseR+offset into DR");
                 ui_register_selector(ui, &mut fields.dr, "Destination Reg:");
@@ -1112,7 +1108,7 @@ impl HelpPane {
                     vec![
                         BinarySegment {
                             text: "0110".to_string(),
-                            color: theme_settings.help_opcode_color,
+                            color: theme_settings.opcode_color,
                         },
                         BinarySegment {
                             text: format_binary(fields.dr as u16 & 0x7, 3),
@@ -1142,14 +1138,10 @@ impl HelpPane {
         render_instruction_card_content(
             ui,
             "LEA - Load Effective Address",
-            theme_settings.help_opcode_color,
+            theme_settings.opcode_color,
             "Loads the address of a label into a register.",
             |ui, fields| {
-                ui_monospace_label_with_color(
-                    ui,
-                    "LEA DR, LABEL",
-                    theme_settings.help_opcode_color,
-                );
+                ui_monospace_label_with_color(ui, "LEA DR, LABEL", theme_settings.opcode_color);
                 ui_italic_label(ui, "Loads effective address PC+offset into DR");
                 ui_register_selector(ui, &mut fields.dr, "Destination Reg:");
                 ui_offset_selector(ui, &mut fields.offset9, 9, "PC Offset:");
@@ -1171,7 +1163,7 @@ impl HelpPane {
                     vec![
                         BinarySegment {
                             text: "1110".to_string(),
-                            color: theme_settings.help_opcode_color,
+                            color: theme_settings.opcode_color,
                         },
                         BinarySegment {
                             text: format_binary(fields.dr as u16 & 0x7, 3),
@@ -1197,10 +1189,10 @@ impl HelpPane {
         render_instruction_card_content(
             ui,
             "ST - Store",
-            theme_settings.help_opcode_color,
+            theme_settings.opcode_color,
             "Stores a register value into memory.",
             |ui, fields| {
-                ui_monospace_label_with_color(ui, "ST SR, LABEL", theme_settings.help_opcode_color);
+                ui_monospace_label_with_color(ui, "ST SR, LABEL", theme_settings.opcode_color);
                 ui_italic_label(ui, "Stores SR into memory at PC+offset");
                 ui_register_selector(ui, &mut fields.sr1, "Source Reg:");
                 ui_offset_selector(ui, &mut fields.offset9, 9, "PC Offset:");
@@ -1222,7 +1214,7 @@ impl HelpPane {
                     vec![
                         BinarySegment {
                             text: "0011".to_string(),
-                            color: theme_settings.help_opcode_color,
+                            color: theme_settings.opcode_color,
                         },
                         BinarySegment {
                             text: format_binary(fields.sr1 as u16 & 0x7, 3),
@@ -1247,14 +1239,10 @@ impl HelpPane {
         render_instruction_card_content(
             ui,
             "STI - Store Indirect",
-            theme_settings.help_opcode_color,
+            theme_settings.opcode_color,
             "Stores a register value using a pointer in memory.",
             |ui, fields| {
-                ui_monospace_label_with_color(
-                    ui,
-                    "STI SR, LABEL",
-                    theme_settings.help_opcode_color,
-                );
+                ui_monospace_label_with_color(ui, "STI SR, LABEL", theme_settings.opcode_color);
                 ui_italic_label(ui, "Stores SR into memory at address stored at PC+offset");
                 ui_register_selector(ui, &mut fields.sr1, "Source Reg:");
                 ui_offset_selector(ui, &mut fields.offset9, 9, "PC Offset:");
@@ -1277,7 +1265,7 @@ impl HelpPane {
                     vec![
                         BinarySegment {
                             text: "1011".to_string(),
-                            color: theme_settings.help_opcode_color,
+                            color: theme_settings.opcode_color,
                         },
                         BinarySegment {
                             text: format_binary(fields.sr1 as u16 & 0x7, 3),
@@ -1302,13 +1290,13 @@ impl HelpPane {
         render_instruction_card_content(
             ui,
             "STR - Store Register",
-            theme_settings.help_opcode_color,
+            theme_settings.opcode_color,
             "Stores a value using base register + offset addressing.",
             |ui, fields| {
                 ui_monospace_label_with_color(
                     ui,
                     "STR SR, BaseR, #offset6",
-                    theme_settings.help_opcode_color,
+                    theme_settings.opcode_color,
                 );
                 ui_italic_label(ui, "Stores SR into memory at BaseR+offset");
                 ui_register_selector(ui, &mut fields.sr1, "Source Reg:");
@@ -1337,7 +1325,7 @@ impl HelpPane {
                     vec![
                         BinarySegment {
                             text: "0111".to_string(),
-                            color: theme_settings.help_opcode_color,
+                            color: theme_settings.opcode_color,
                         },
                         BinarySegment {
                             text: format_binary(fields.sr1 as u16 & 0x7, 3),
@@ -1366,10 +1354,10 @@ impl HelpPane {
         render_instruction_card_content(
             ui,
             "BR/BRn/BRz/BRp - Conditional Branch",
-            theme_settings.help_opcode_color,
+            theme_settings.opcode_color,
             "Branches to a label if condition codes match.",
             |ui, fields| {
-                ui_monospace_label_with_color(ui, "BRnzp LABEL", theme_settings.help_opcode_color);
+                ui_monospace_label_with_color(ui, "BRnzp LABEL", theme_settings.opcode_color);
                 ui_italic_label(
                     ui,
                     "Branches to PC+offset if specified condition codes match",
@@ -1420,7 +1408,7 @@ impl HelpPane {
                     vec![
                         BinarySegment {
                             text: "0000".to_string(),
-                            color: theme_settings.help_opcode_color,
+                            color: theme_settings.opcode_color,
                         },
                         BinarySegment {
                             text: (if fields.n_bit { "1" } else { "0" }).to_string(),
@@ -1453,7 +1441,7 @@ impl HelpPane {
         render_instruction_card_content(
             ui,
             "JMP/RET - Jump",
-            theme_settings.help_opcode_color,
+            theme_settings.opcode_color,
             "Jumps to address in a register.",
             |ui, fields| {
                 ui.horizontal(|ui| {
@@ -1470,7 +1458,7 @@ impl HelpPane {
                 });
 
                 if fields.base_r == 7 {
-                    ui_monospace_label_with_color(ui, "RET", theme_settings.help_opcode_color);
+                    ui_monospace_label_with_color(ui, "RET", theme_settings.opcode_color);
                     ui_italic_label(ui, "Returns from subroutine - jumps to address in R7");
                     ui_monospace_label_with_color(
                         ui,
@@ -1478,11 +1466,7 @@ impl HelpPane {
                         theme_settings.help_pseudo_code_color,
                     );
                 } else {
-                    ui_monospace_label_with_color(
-                        ui,
-                        "JMP BaseR",
-                        theme_settings.help_opcode_color,
-                    );
+                    ui_monospace_label_with_color(ui, "JMP BaseR", theme_settings.opcode_color);
                     ui_italic_label(ui, "Jumps to address in BaseR");
                     ui_register_selector(ui, &mut fields.base_r, "Base Reg:");
                     let pseudo_code = format!("PC = BaseR = R{}", fields.base_r);
@@ -1503,7 +1487,7 @@ impl HelpPane {
                     vec![
                         BinarySegment {
                             text: "1100".to_string(),
-                            color: theme_settings.help_opcode_color,
+                            color: theme_settings.opcode_color,
                         },
                         BinarySegment {
                             text: "000".to_string(),
@@ -1532,7 +1516,7 @@ impl HelpPane {
         render_instruction_card_content(
             ui,
             "JSR/JSRR - Jump to Subroutine",
-            theme_settings.help_opcode_color,
+            theme_settings.opcode_color,
             "Jumps to a subroutine, saving return address in R7.",
             |ui, fields| {
                 ui.horizontal(|ui| {
@@ -1543,11 +1527,7 @@ impl HelpPane {
                 });
 
                 if fields.jsr_mode {
-                    ui_monospace_label_with_color(
-                        ui,
-                        "JSR LABEL",
-                        theme_settings.help_opcode_color,
-                    );
+                    ui_monospace_label_with_color(ui, "JSR LABEL", theme_settings.opcode_color);
                     ui_italic_label(ui, "Jumps to PC+offset, saving return address in R7");
                     ui_offset_selector(ui, &mut fields.offset11, 11, "PC Offset:");
                     let pseudo_code = format!("R7 = PC\nPC = PC + {}", fields.offset11);
@@ -1567,7 +1547,7 @@ impl HelpPane {
                         vec![
                             BinarySegment {
                                 text: "0100".to_string(),
-                                color: theme_settings.help_opcode_color,
+                                color: theme_settings.opcode_color,
                             },
                             BinarySegment {
                                 text: "1".to_string(), // JSR bit
@@ -1581,11 +1561,7 @@ impl HelpPane {
                         jsr_instr,
                     );
                 } else {
-                    ui_monospace_label_with_color(
-                        ui,
-                        "JSRR BaseR",
-                        theme_settings.help_opcode_color,
-                    );
+                    ui_monospace_label_with_color(ui, "JSRR BaseR", theme_settings.opcode_color);
                     ui_italic_label(ui, "Jumps to address in BaseR, saving return address in R7");
                     ui_register_selector(ui, &mut fields.base_r, "Base Reg:");
                     let pseudo_code = format!("R7 = PC\nPC = BaseR = R{}", fields.base_r);
@@ -1605,7 +1581,7 @@ impl HelpPane {
                         vec![
                             BinarySegment {
                                 text: "0100".to_string(),
-                                color: theme_settings.help_opcode_color,
+                                color: theme_settings.opcode_color,
                             },
                             BinarySegment {
                                 text: "0".to_string(), // JSRR bit
@@ -1639,14 +1615,10 @@ impl HelpPane {
         render_instruction_card_content(
             ui,
             "TRAP - System Call",
-            theme_settings.help_opcode_color,
+            theme_settings.opcode_color,
             "Performs a system call based on the trap vector.",
             |ui, fields| {
-                ui_monospace_label_with_color(
-                    ui,
-                    "TRAP trapvect8",
-                    theme_settings.help_opcode_color,
-                );
+                ui_monospace_label_with_color(ui, "TRAP trapvect8", theme_settings.opcode_color);
                 ui_italic_label(ui, "System call to vector specified by trapvect8");
 
                 ui.horizontal(|ui| {
@@ -1716,7 +1688,7 @@ impl HelpPane {
                     vec![
                         BinarySegment {
                             text: "1111".to_string(),
-                            color: theme_settings.help_opcode_color,
+                            color: theme_settings.opcode_color,
                         },
                         BinarySegment {
                             text: "0000".to_string(),
@@ -1741,10 +1713,10 @@ impl HelpPane {
         render_instruction_card_content(
             ui,
             "RTI - Return from Interrupt",
-            theme_settings.help_opcode_color,
+            theme_settings.opcode_color,
             "Returns from an interrupt service routine.",
             |ui, _fields| {
-                ui_monospace_label_with_color(ui, "RTI", theme_settings.help_opcode_color);
+                ui_monospace_label_with_color(ui, "RTI", theme_settings.opcode_color);
                 ui_italic_label(ui, "Return from interrupt - restore PC and PSR from stack");
 
                 let pseudo_code = "if (Privilege Mode)\n    PC = MEM[R6]\n    PSR = MEM[R6+1]\n    R6 = R6 + 2\nelse\n    Privilege Mode Exception";
@@ -1764,7 +1736,7 @@ impl HelpPane {
                     vec![
                         BinarySegment {
                             text: "1000".to_string(),
-                            color: theme_settings.help_opcode_color,
+                            color: theme_settings.opcode_color,
                         },
                         BinarySegment {
                             text: "000000000000".to_string(),

@@ -6,12 +6,12 @@ use super::Op;
 
 #[derive(Debug, Clone)]
 pub struct StrOp {
-    sr: EmulatorCell,                // Source Register index
-    base_r: EmulatorCell,            // Base Register index
-    offset6: EmulatorCell,           // offset6 (sign-extended)
-    effective_address: EmulatorCell, // Calculated address
-    value_to_store: EmulatorCell,    // Value from SR (fetched in fetch_operands)
-    is_valid_store: bool,            // Flag if the address is valid to write to
+    pub sr: EmulatorCell,                // Source Register index
+    pub base_r: EmulatorCell,            // Base Register index
+    pub offset6: EmulatorCell,           // offset6 (sign-extended)
+    pub effective_address: EmulatorCell, // Calculated address
+    pub value_to_store: EmulatorCell,    // Value from SR (fetched in fetch_operands)
+    pub is_valid_store: bool,            // Flag if the address is valid to write to
 }
 
 impl Op for StrOp {

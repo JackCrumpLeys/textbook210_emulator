@@ -3,9 +3,9 @@ use crate::emulator::{area_from_address, BitAddressable, Emulator, EmulatorCell,
 use super::Op;
 #[derive(Debug, Clone)]
 pub struct JmpOp {
-    base_r: EmulatorCell,         // Base register index
-    target_address: EmulatorCell, // Calculated during evaluate_address
-    is_valid_jump: bool,          // Set during evaluate_address
+    pub base_r: EmulatorCell,         // Base register index
+    pub target_address: EmulatorCell, // Calculated during evaluate_address
+    pub is_valid_jump: bool,          // Set during evaluate_address
 }
 
 impl Op for JmpOp {

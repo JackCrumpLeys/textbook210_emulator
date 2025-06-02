@@ -6,10 +6,10 @@ use super::Op;
 
 #[derive(Debug, Clone)]
 pub struct StOp {
-    sr: EmulatorCell,                // Source Register index
-    pc_offset: EmulatorCell,         // PCoffset9 (sign-extended)
-    effective_address: EmulatorCell, // Calculated address
-    is_valid_store: bool,            // Flag if the address is valid to write to
+    pub sr: EmulatorCell,                // Source Register index
+    pub pc_offset: EmulatorCell,         // PCoffset9 (sign-extended)
+    pub effective_address: EmulatorCell, // Calculated address
+    pub is_valid_store: bool,            // Flag if the address is valid to write to
 }
 
 impl Op for StOp {

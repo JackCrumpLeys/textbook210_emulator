@@ -128,7 +128,7 @@ pub struct ThemeSettings {
     pub editor_line_number_color: Color32, // Default line number color
 
     // Help/Reference Pane Specific
-    pub help_opcode_color: Color32,
+    pub opcode_color: Color32,
     pub help_operand_color: Color32, // For DR, SR, BaseR etc.
     pub help_immediate_color: Color32,
     pub help_offset_color: Color32,
@@ -276,7 +276,7 @@ impl ThemeSettings {
             editor_current_line_number_color: Color32::WHITE, // strong_text_color
             editor_line_number_color: Color32::from_gray(100),
 
-            help_opcode_color: Color32::from_rgb(255, 100, 100),
+            opcode_color: Color32::from_rgb(255, 100, 100),
             help_operand_color: Color32::from_rgb(100, 180, 255),
             help_immediate_color: Color32::from_rgb(100, 220, 100),
             help_offset_color: Color32::from_rgb(220, 160, 255),
@@ -424,7 +424,7 @@ impl ThemeSettings {
             editor_current_line_number_color: Color32::BLACK, // strong_text_color
             editor_line_number_color: Color32::from_gray(150),
 
-            help_opcode_color: Color32::from_rgb(190, 30, 30),
+            opcode_color: Color32::from_rgb(190, 30, 30),
             help_operand_color: Color32::from_rgb(30, 90, 170),
             help_immediate_color: Color32::from_rgb(20, 130, 20),
             help_offset_color: Color32::from_rgb(90, 50, 170),

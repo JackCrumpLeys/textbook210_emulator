@@ -3,16 +3,16 @@ use crate::emulator::{area_from_address, BitAddressable, Emulator, EmulatorCell,
 use super::Op;
 
 #[derive(Debug, Clone)]
-enum JsrMode {
+pub enum JsrMode {
     Relative { pc_offset: EmulatorCell },
     Register { base_r: EmulatorCell },
 }
 
 #[derive(Debug, Clone)]
 pub struct JsrOp {
-    mode: JsrMode,
-    target_address: EmulatorCell, // Calculated during evaluate_address
-    is_valid_jump: bool,          // Set during evaluate_address
+    pub mode: JsrMode,
+    pub target_address: EmulatorCell, // Calculated during evaluate_address
+    pub is_valid_jump: bool,          // Set during evaluate_address
 }
 
 impl Op for JsrOp {

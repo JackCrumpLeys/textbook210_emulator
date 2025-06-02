@@ -22,7 +22,7 @@ mod add;
 mod and;
 mod br;
 mod jmp;
-mod jsr;
+pub mod jsr;
 mod ld;
 mod ldi;
 mod ldr;

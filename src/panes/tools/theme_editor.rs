@@ -600,7 +600,7 @@ fn render_settings_editor(ui: &mut Ui, settings: &mut ThemeSettings) -> bool {
     egui::CollapsingHeader::new("Help Pane Colors")
         .default_open(false)
         .show(ui, |ui| {
-            changed |= render_color_setting(ui, "Opcode Color:", &mut settings.help_opcode_color);
+            changed |= render_color_setting(ui, "Opcode Color:", &mut settings.opcode_color);
             changed |= render_color_setting(ui, "Operand Color:", &mut settings.help_operand_color);
             changed |=
                 render_color_setting(ui, "Immediate Color:", &mut settings.help_immediate_color);
@@ -1232,7 +1232,7 @@ fn render_specialized_views_preview(ui: &mut Ui, settings: &ThemeSettings) {
                     .color(settings.help_monospace_color)
                     .monospace(),
             );
-            ui.label(RichText::new("Opcode Example").color(settings.help_opcode_color));
+            ui.label(RichText::new("Opcode Example").color(settings.opcode_color));
             ui.label(RichText::new("Operand Example").color(settings.help_operand_color));
             ui.label(RichText::new("#Immediate").color(settings.help_immediate_color));
             ui.label(RichText::new("Offset[val]").color(settings.help_offset_color));

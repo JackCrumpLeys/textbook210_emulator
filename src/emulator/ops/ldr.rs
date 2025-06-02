@@ -4,11 +4,11 @@ use super::Op;
 
 #[derive(Debug, Clone)]
 pub struct LdrOp {
-    dr: EmulatorCell,                // Destination Register index
-    base_r: EmulatorCell,            // Base Register index
-    offset6: EmulatorCell,           // offset6 (sign-extended)
-    effective_address: EmulatorCell, // Calculated address
-    is_valid_load: bool,             // Flag if the address is valid to read from
+    pub dr: EmulatorCell,                // Destination Register index
+    pub base_r: EmulatorCell,            // Base Register index
+    pub offset6: EmulatorCell,           // offset6 (sign-extended)
+    pub effective_address: EmulatorCell, // Calculated address
+    pub is_valid_load: bool,             // Flag if the address is valid to read from
 }
 
 impl Op for LdrOp {

@@ -6,13 +6,13 @@ use super::Op;
 
 #[derive(Debug, Clone)]
 pub struct StiOp {
-    sr: EmulatorCell,               // Source Register index
-    pc_offset: EmulatorCell,        // PCoffset9 (sign-extended)
-    pointer_address: EmulatorCell,  // Address containing the final address
-    indirect_address: EmulatorCell, // The final address loaded from pointer_address (set in execute)
-    value_to_store: EmulatorCell,   // Value from SR to be stored (set in execute)
-    is_valid_read_step1: bool,      // Flag if pointer_address is valid to read from
-    is_valid_write_step2: bool, // Flag if indirect_address is valid to write to (set in execute)
+    pub sr: EmulatorCell,               // Source Register index
+    pub pc_offset: EmulatorCell,        // PCoffset9 (sign-extended)
+    pub pointer_address: EmulatorCell,  // Address containing the final address
+    pub indirect_address: EmulatorCell, // The final address loaded from pointer_address (set in execute)
+    pub value_to_store: EmulatorCell,   // Value from SR to be stored (set in execute)
+    pub is_valid_read_step1: bool,      // Flag if pointer_address is valid to read from
+    pub is_valid_write_step2: bool, // Flag if indirect_address is valid to write to (set in execute)
 }
 
 impl Op for StiOp {
