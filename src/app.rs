@@ -11,6 +11,9 @@ use lazy_static::lazy_static;
 
 lazy_static! {
     pub static ref EMULATOR: Mutex<Emulator> = Mutex::new(Emulator::new());
+}
+#[cfg(not(target_arch = "wasm32"))]
+lazy_static! {
     pub static ref LAST_PAINT_ID: Mutex<u64> = Mutex::new(0); // this is pretty botch, more info later
 }
 
@@ -114,6 +117,12 @@ impl TreeBehavior {
 pub struct TemplateApp {
     dock_state: DockState<Pane>,
     tree_behavior: TreeBehavior,
+    #[cfg(target_arch = "wasm32")]
+    has_dismissed_fps: bool,
+    #[cfg(target_arch = "wasm32")]
+    bad_fps_score: u32,
+    #[cfg(target_arch = "wasm32")]
+    curr_bad_fps_prompt_open: bool,
 }
 
 impl Default for TemplateApp {
@@ -162,6 +171,12 @@ impl Default for TemplateApp {
         Self {
             dock_state,
             tree_behavior: TreeBehavior::default(),
+            #[cfg(target_arch = "wasm32")]
+            has_dismissed_fps: false,
+            #[cfg(target_arch = "wasm32")]
+            bad_fps_score: 0,
+            #[cfg(target_arch = "wasm32")]
+            curr_bad_fps_prompt_open: false,
         }
     }
 }
@@ -188,6 +203,40 @@ impl eframe::App for TemplateApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let update_span = tracing::info_span!("TemplateApp::update");
         let _update_guard = update_span.enter();
+
+        #[cfg(target_arch = "wasm32")]
+        if !self.has_dismissed_fps {
+            let fps = ctx.input(|i| i.stable_dt);
+            if fps < 50.0 {
+                self.bad_fps_score += 1;
+            } else {
+                self.bad_fps_score -= 1;
+            }
+
+            if self.bad_fps_score >= 300 {
+                self.curr_bad_fps_prompt_open = true;
+            }
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        if self.curr_bad_fps_prompt_open {
+            egui::Window::new("Bad fps detected").collapsible(false).show(ctx, |ui| {
+                ui.horizontal_wrapped(|ui| {
+                    use egui::{Hyperlink, RichText};
+
+                    ui.label("It seems you have bad fps on the web version of the tool. The desktop version is likely to run far better. You can find downloads");
+                    ui.add(Hyperlink::from_label_and_url(RichText::new("here").strong(), "https://github.com/JackCrumpLeys/textbook210_emulator/releases/tag/main").open_in_new_tab(true));
+                    ui.label(".");
+                });
+                ui.separator();
+                ui.horizontal_top(|ui| {
+                    if ui.button("Ok").clicked() {
+                        self.curr_bad_fps_prompt_open = false;
+                        self.has_dismissed_fps = true;
+                    }
+                })
+            });
+        }
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             // The top panel is often a good place for a menu bar:
@@ -272,8 +321,10 @@ impl eframe::App for TemplateApp {
         // why do we need this? Well our update loop cannot get the egui context so cannot
         // see the pass number, we need this to request a repaint if the emulator state
         // changes.
-        *LAST_PAINT_ID.lock().unwrap() = ctx.cumulative_pass_nr_for(egui::ViewportId::ROOT);
-
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            *LAST_PAINT_ID.lock().unwrap() = ctx.cumulative_pass_nr_for(egui::ViewportId::ROOT);
+        }
         #[cfg(target_arch = "wasm32")]
         ctx.request_repaint(); // I could not find a way to repaint on change on the wasm backend without forking eframe
     }
