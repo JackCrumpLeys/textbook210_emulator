@@ -374,7 +374,7 @@ impl Emulator {
                     // Break *before* fetching the instruction at the breakpoint
                     {
                         self.running = false;
-                        log::info!("Breakpoint hit at address 0x{:04X}", current_pc);
+                        log::info!("Breakpoint hit at address 0x{current_pc:04X}");
                         break;
                     }
 
@@ -422,8 +422,7 @@ impl Emulator {
         if !memory_area.can_read(&self.priv_level()) {
             self.exception = Some(Exception::new_access_control_violation());
             return Err(format!(
-                "Fetch Access Violation: Cannot read PC address 0x{:04X}",
-                pc_value
+                "Fetch Access Violation: Cannot read PC address 0x{pc_value:04X}"
             ));
         }
 
@@ -486,8 +485,7 @@ impl Emulator {
             } else {
                 self.exception = Some(Exception::new_access_control_violation());
                 return Err(format!(
-                    "Fetch Operands Access Violation: Cannot write to MAR=0x{:04X}",
-                    mar_val
+                    "Fetch Operands Access Violation: Cannot write to MAR=0x{mar_val:04X}"
                 ));
             }
         }
@@ -537,8 +535,7 @@ impl Emulator {
             } else {
                 self.exception = Some(Exception::new_access_control_violation());
                 return Err(format!(
-                    "Store Result Access Violation: Cannot write to MAR=0x{:04X}",
-                    mar_val
+                    "Store Result Access Violation: Cannot write to MAR=0x{mar_val:04X}"
                 ));
             }
             self.write_bit = false; // Reset after write
@@ -806,7 +803,7 @@ impl Emulator {
             // Don't log redundantly if it's just reporting an already set exception
             if self.exception.is_none() {
                 tracing::error!("Micro_step failed: {}", e);
-                debug_assert!(false, "Micro_step failed: {}", e);
+                debug_assert!(false, "Micro_step failed: {e}");
             }
         }
     }

@@ -206,12 +206,9 @@ impl eframe::App for TemplateApp {
 
         #[cfg(target_arch = "wasm32")]
         if !self.has_dismissed_fps {
-            let fps = ctx.input(|i| i.stable_dt);
-            if fps < 50.0 {
-                self.bad_fps_score += 1;
-            } else {
-                self.bad_fps_score -= 1;
-            }
+            use std::cmp::max;
+            let fps = 1. / ctx.input(|i| i.stable_dt);
+            self.bad_fps_score = max(0, self.bad_fps_score as i32 + 50 - fps as i32) as u32;
 
             if self.bad_fps_score >= 300 {
                 self.curr_bad_fps_prompt_open = true;

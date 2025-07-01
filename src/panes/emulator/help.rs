@@ -161,7 +161,7 @@ fn render_collapsible_section_with_id(
 
 fn render_info_list_item(ui: &mut Ui, text: &str) {
     // For items like "- Use 'Run'..."
-    ui.label(format!("- {}", text));
+    ui.label(format!("- {text}"));
 }
 
 // --- General Help UI ---
@@ -480,12 +480,12 @@ ARRAY:  .FILL #10           ; Array values
 
 // Helper for formatting binary numbers
 fn format_binary(value: u16, width: usize) -> String {
-    format!("{:0width$b}", value, width = width)
+    format!("{value:0width$b}")
 }
 
 // Helper for formatting hexadecimal numbers
 fn format_hex(value: u16) -> String {
-    format!("0x{:04X}", value)
+    format!("0x{value:04X}")
 }
 
 // Input field for selecting a register
@@ -494,7 +494,7 @@ fn ui_register_selector(ui: &mut Ui, value: &mut u8, label: &str) {
         ui_strong_label(ui, label);
         ui.add(egui::DragValue::new(value).range(0..=7).speed(0.1))
             .on_hover_text("Register value (0-7)");
-        ui_simple_label(ui, &format!("R{}", value));
+        ui_simple_label(ui, &format!("R{value}"));
     });
 }
 
@@ -509,8 +509,8 @@ fn ui_immediate_selector(ui: &mut Ui, value: &mut i8, bits: u8, label: &str) {
                 .range(min_val..=max_val)
                 .speed(0.1),
         )
-        .on_hover_text(format!("{}-bit immediate value", bits));
-        ui_simple_label(ui, &format!("#{}", value));
+        .on_hover_text(format!("{bits}-bit immediate value"));
+        ui_simple_label(ui, &format!("#{value}"));
     });
 }
 
@@ -525,8 +525,8 @@ fn ui_offset_selector(ui: &mut Ui, value: &mut i16, bits: u8, label: &str) {
                 .range(min_val..=max_val)
                 .speed(0.1),
         )
-        .on_hover_text(format!("{}-bit offset value", bits));
-        ui_simple_label(ui, &format!("PC+{}", value));
+        .on_hover_text(format!("{bits}-bit offset value"));
+        ui_simple_label(ui, &format!("PC+{value}"));
     });
 }
 

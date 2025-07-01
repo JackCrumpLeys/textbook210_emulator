@@ -151,7 +151,7 @@ impl fmt::Display for TrapOp {
             0x23 => write!(f, "IN"),
             0x24 => write!(f, "PUTSP"),
             0x25 => write!(f, "HALT"),
-            _ => write!(f, "TRAP x{:02X}", vector_val), // Fallback for unknown vectors
+            _ => write!(f, "TRAP x{vector_val:02X}"), // Fallback for unknown vectors
         }
     }
 }

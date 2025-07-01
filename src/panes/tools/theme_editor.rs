@@ -902,7 +902,7 @@ fn render_general_ui_preview(ui: &mut Ui, settings: &ThemeSettings) {
 }
 
 fn show_semantic_block(ui: &mut Ui, label: &str, text_color: Color32, bg_color: Color32) {
-    ui.label(format!("{}:", label));
+    ui.label(format!("{label}:"));
     egui::Frame::NONE
         .fill(bg_color)
         .stroke(Stroke::new(1.0, text_color.gamma_multiply(0.5)))
@@ -1069,7 +1069,7 @@ fn show_key_value_text(
     value: &str,
 ) {
     ui.horizontal(|ui| {
-        ui.label(RichText::new(format!("{}: ", key)).color(key_color));
+        ui.label(RichText::new(format!("{key}: ")).color(key_color));
         ui.label(RichText::new(value).color(value_color));
     });
 }
@@ -1351,7 +1351,7 @@ fn render_look_and_feel_preview(ui: &mut Ui, settings: &ThemeSettings) {
 
     ScrollArea::vertical().max_height(100.0).show(ui, |ui| {
         for i in 0..20 {
-            ui.label(format!("Scrollable content line {}", i));
+            ui.label(format!("Scrollable content line {i}"));
         }
     });
 }

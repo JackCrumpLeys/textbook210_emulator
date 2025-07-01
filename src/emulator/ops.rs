@@ -186,21 +186,21 @@ impl OpCode {
 impl Display for OpCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            OpCode::Add(op) => write!(f, "{}", op),
-            OpCode::And(op) => write!(f, "{}", op),
-            OpCode::Br(op) => write!(f, "{}", op),
-            OpCode::Jmp(op) => write!(f, "{}", op),
-            OpCode::Jsr(op) => write!(f, "{}", op),
-            OpCode::Ld(op) => write!(f, "{}", op),
-            OpCode::Ldi(op) => write!(f, "{}", op),
-            OpCode::Ldr(op) => write!(f, "{}", op),
-            OpCode::Lea(op) => write!(f, "{}", op),
-            OpCode::Not(op) => write!(f, "{}", op),
-            OpCode::Rti(op) => write!(f, "{}", op),
-            OpCode::St(op) => write!(f, "{}", op),
-            OpCode::Sti(op) => write!(f, "{}", op),
-            OpCode::Str(op) => write!(f, "{}", op),
-            OpCode::Trap(op) => write!(f, "{}", op),
+            OpCode::Add(op) => write!(f, "{op}"),
+            OpCode::And(op) => write!(f, "{op}"),
+            OpCode::Br(op) => write!(f, "{op}"),
+            OpCode::Jmp(op) => write!(f, "{op}"),
+            OpCode::Jsr(op) => write!(f, "{op}"),
+            OpCode::Ld(op) => write!(f, "{op}"),
+            OpCode::Ldi(op) => write!(f, "{op}"),
+            OpCode::Ldr(op) => write!(f, "{op}"),
+            OpCode::Lea(op) => write!(f, "{op}"),
+            OpCode::Not(op) => write!(f, "{op}"),
+            OpCode::Rti(op) => write!(f, "{op}"),
+            OpCode::St(op) => write!(f, "{op}"),
+            OpCode::Sti(op) => write!(f, "{op}"),
+            OpCode::Str(op) => write!(f, "{op}"),
+            OpCode::Trap(op) => write!(f, "{op}"),
         }
     }
 }

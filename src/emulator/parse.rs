@@ -195,7 +195,7 @@ impl<'a> Lexer<'a> {
                     } else if c.is_alphabetic() || *c == '.' || *c == '_' {
                         self.tokenize_word()
                     } else {
-                        Err((format!("Unexpected character: {}", c), self.line))
+                        Err((format!("Unexpected character: {c}"), self.line))
                     }
                 }
             }
@@ -319,7 +319,7 @@ impl<'a> Lexer<'a> {
 
         if !has_digits {
             return Err((
-                format!("Invalid number format at line {}", start_line),
+                format!("Invalid number format at line {start_line}"),
                 start_line,
             ));
         }
@@ -331,10 +331,7 @@ impl<'a> Lexer<'a> {
                 Ok(val) => Token::HexValue(val),
                 Err(_) => {
                     return Err((
-                        format!(
-                            "Invalid hex number format: {} at line {}",
-                            result, start_line
-                        ),
+                        format!("Invalid hex number format: {result} at line {start_line}"),
                         start_line,
                     ));
                 }
@@ -344,10 +341,7 @@ impl<'a> Lexer<'a> {
                 Ok(val) => Token::Immediate(val as u16),
                 Err(_) => {
                     return Err((
-                        format!(
-                            "Invalid decimal number format: {} at line {}",
-                            result, start_line
-                        ),
+                        format!("Invalid decimal number format: {result} at line {start_line}"),
                         start_line,
                     ));
                 }
@@ -378,7 +372,7 @@ impl<'a> Lexer<'a> {
 
         if word.is_empty() {
             return Err((
-                format!("Expected identifier at line {}", start_line),
+                format!("Expected identifier at line {start_line}"),
                 start_line,
             ));
         }
@@ -511,7 +505,7 @@ impl Parser {
                 Token::Label(label_name) => {
                     // Direct label declaration (already converted from LabelRef+Colon)
                     if labels.contains_key(label_name) {
-                        return Err((format!("Duplicate label '{}' defined", label_name), line));
+                        return Err((format!("Duplicate label '{label_name}' defined"), line));
                     }
 
                     tracing::debug!(
@@ -532,10 +526,7 @@ impl Parser {
                     {
                         // This is a label definition
                         if labels.contains_key(label_name) {
-                            return Err((
-                                format!("Duplicate label '{}' defined", label_name),
-                                line,
-                            ));
+                            return Err((format!("Duplicate label '{label_name}' defined"), line));
                         }
 
                         tracing::debug!(
@@ -553,7 +544,7 @@ impl Parser {
                         // Treat as an opcode or standalone label
                         // For first pass, we just need to calculate address increments
                         *address = address.checked_add(1).ok_or((
-                            format!("Address overflow past 0xFFFF on line {}", line),
+                            format!("Address overflow past 0xFFFF on line {line}"),
                             line,
                         ))?;
                         self.position += 1;
@@ -604,7 +595,7 @@ impl Parser {
                                 }
                                 _ => {
                                     return Err((
-                                        format!("Invalid .ORIG address at line {}", line),
+                                        format!("Invalid .ORIG address at line {line}"),
                                         line,
                                     ))
                                 }
@@ -629,7 +620,7 @@ impl Parser {
 
                             // .FILL takes one word
                             *address = address.checked_add(1).ok_or((
-                                format!("Address overflow past 0xFFFF on line {}", line),
+                                format!("Address overflow past 0xFFFF on line {line}"),
                                 line,
                             ))?;
 
@@ -659,8 +650,7 @@ impl Parser {
                                     if *size == 0 {
                                         return Err((
                                             format!(
-                                                "Invalid .BLKW size: must be positive, got {}",
-                                                size
+                                                "Invalid .BLKW size: must be positive, got {size}"
                                             ),
                                             line,
                                         ));
@@ -670,7 +660,7 @@ impl Parser {
                                 Token::HexValue(size) => *size,
                                 _ => {
                                     return Err((
-                                        format!("Invalid .BLKW size at line {}", line),
+                                        format!("Invalid .BLKW size at line {line}"),
                                         line,
                                     ))
                                 }
@@ -684,7 +674,7 @@ impl Parser {
                             );
 
                             *address = address.checked_add(block_size).ok_or((
-                                format!("Address overflow past 0xFFFF on line {}", line),
+                                format!("Address overflow past 0xFFFF on line {line}"),
                                 line,
                             ))?;
 
@@ -720,13 +710,13 @@ impl Parser {
                                     );
 
                                     *address = address.checked_add(string_size).ok_or((
-                                        format!("Address overflow past 0xFFFF on line {}", line),
+                                        format!("Address overflow past 0xFFFF on line {line}"),
                                         line,
                                     ))?;
                                 }
                                 _ => {
                                     return Err((
-                                        format!("Invalid .STRINGZ value at line {}", line),
+                                        format!("Invalid .STRINGZ value at line {line}"),
                                         line,
                                     ))
                                 }
@@ -737,7 +727,7 @@ impl Parser {
                         }
                         _ => {
                             return Err((
-                                format!("Unknown directive: {} at line {}", dir_name, line),
+                                format!("Unknown directive: {dir_name} at line {line}"),
                                 line,
                             ))
                         }
@@ -753,10 +743,9 @@ impl Parser {
                     }
 
                     // Instructions take one word
-                    *address = address.checked_add(1).ok_or((
-                        format!("Address overflow past 0xFFFF on line {}", line),
-                        line,
-                    ))?;
+                    *address = address
+                        .checked_add(1)
+                        .ok_or((format!("Address overflow past 0xFFFF on line {line}"), line))?;
 
                     // Skip past this opcode and its operands (simplified for first pass)
                     let mut op_position = self.position + 1;
@@ -864,12 +853,12 @@ impl Parser {
                                     if let Some(&label_addr) = labels.get(label) {
                                         label_addr
                                     } else {
-                                        return Err((format!("Unknown label: {}", label), line));
+                                        return Err((format!("Unknown label: {label}"), line));
                                     }
                                 }
                                 _ => {
                                     return Err((
-                                        format!("Invalid .FILL value at line {}", line),
+                                        format!("Invalid .FILL value at line {line}"),
                                         line,
                                     ));
                                 }
@@ -899,7 +888,7 @@ impl Parser {
                                 Token::HexValue(size) => *size,
                                 _ => {
                                     return Err((
-                                        format!("Invalid .BLKW size at line {}", line),
+                                        format!("Invalid .BLKW size at line {line}"),
                                         line,
                                     ));
                                 }
@@ -942,7 +931,7 @@ impl Parser {
                                 }
                                 _ => {
                                     return Err((
-                                        format!("Invalid .STRINGZ value at line {}", line),
+                                        format!("Invalid .STRINGZ value at line {line}"),
                                         line,
                                     ));
                                 }
@@ -952,7 +941,7 @@ impl Parser {
                         }
                         _ => {
                             return Err((
-                                format!("Unknown directive: {} at line {}", dir_name, line),
+                                format!("Unknown directive: {dir_name} at line {line}"),
                                 line,
                             ));
                         }
@@ -1037,7 +1026,7 @@ impl Parser {
                             (0b0001 << 12) | (dr << 9) | (sr1 << 6) | (1 << 5) | (imm5_val & 0x1F);
                         Ok(instruction)
                     }
-                    _ => Err((format!("Invalid ADD operand at line {}", line), line)),
+                    _ => Err((format!("Invalid ADD operand at line {line}"), line)),
                 }
             }
 
@@ -1063,7 +1052,7 @@ impl Parser {
                             (0b0101 << 12) | (dr << 9) | (sr1 << 6) | (1 << 5) | (imm5_val & 0x1F);
                         Ok(instruction)
                     }
-                    _ => Err((format!("Invalid AND operand at line {}", line), line)),
+                    _ => Err((format!("Invalid AND operand at line {line}"), line)),
                 }
             }
 
@@ -1260,10 +1249,10 @@ impl Parser {
                 if *reg <= 7 {
                     Ok(*reg)
                 } else {
-                    Err((format!("Register number out of range: {}", reg), line))
+                    Err((format!("Register number out of range: {reg}"), line))
                 }
             }
-            _ => Err((format!("Expected register at line {}", line), line)),
+            _ => Err((format!("Expected register at line {line}"), line)),
         }
     }
 
@@ -1285,7 +1274,7 @@ impl Parser {
                 };
                 self.check_immediate_range(signed_value, width, line)
             }
-            _ => Err((format!("Expected immediate value at line {}", line), line)),
+            _ => Err((format!("Expected immediate value at line {line}"), line)),
         }
     }
 
@@ -1303,7 +1292,7 @@ impl Parser {
                     let offset = (label_addr as i16) - (current_address as i16 + 1);
                     self.check_immediate_range(offset, width, line)
                 } else {
-                    Err((format!("Unknown label: {}", label), line))
+                    Err((format!("Unknown label: {label}"), line))
                 }
             }
             Token::Immediate(imm) => self.check_immediate_range(*imm as i16, width, line),
@@ -1318,7 +1307,7 @@ impl Parser {
                 };
                 self.check_immediate_range(signed_value, width, line)
             }
-            _ => Err((format!("Expected label or offset at line {}", line), line)),
+            _ => Err((format!("Expected label or offset at line {line}"), line)),
         }
     }
 
@@ -1334,8 +1323,7 @@ impl Parser {
         if value < min_value || value > max_value {
             Err((
                 format!(
-                    "Immediate value {} out of range for {}-bit field [{}, {}]",
-                    value, width, min_value, max_value
+                    "Immediate value {value} out of range for {width}-bit field [{min_value}, {max_value}]"
                 ),
                 line,
             ))

@@ -21,7 +21,7 @@ impl PaneDisplay for RegistersPane {
 
             for i in 0..8 {
                 ui.horizontal(|ui| {
-                    ui.label(format!("R{}:", i));
+                    ui.label(format!("R{i}:"));
                     register_view(ui, &mut emulator.r[i], self.use_negitive);
                 });
             }

@@ -59,7 +59,7 @@ impl fmt::Display for JmpOp {
         if base_r_index == 7 {
             write!(f, "RET")
         } else {
-            write!(f, "JMP R{}", base_r_index)
+            write!(f, "JMP R{base_r_index}")
         }
     }
 }

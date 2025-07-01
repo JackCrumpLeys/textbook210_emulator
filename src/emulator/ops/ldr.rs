@@ -87,8 +87,7 @@ impl fmt::Display for LdrOp {
 
         write!(
             f,
-            "LDR R{}, R{}, #{} (x{:02X})",
-            dr_index, base_r_index, offset_val_signed, offset_val_raw
+            "LDR R{dr_index}, R{base_r_index}, #{offset_val_signed} (x{offset_val_raw:02X})"
         )
     }
 }

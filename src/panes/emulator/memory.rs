@@ -254,9 +254,9 @@ impl PaneDisplay for MemoryPane {
 
                     let value_u16 = memory_cell.get();
                     let formatted_val = match self.display_base {
-                        2 => format!("{:016b}", value_u16),
-                        10 => format!("{}", value_u16),
-                        16 => format!("0x{:04X}", value_u16),
+                        2 => format!("{value_u16:016b}"),
+                        10 => format!("{value_u16}"),
+                        16 => format!("0x{value_u16:04X}"),
                         _ => base_to_base(
                             10,
                             self.display_base,
@@ -277,7 +277,7 @@ impl PaneDisplay for MemoryPane {
                     let decoded_op = crate::emulator::ops::OpCode::from_instruction(
                         EmulatorCell::new(value_u16),
                     )
-                    .map(|op| format!("{}", op));
+                    .map(|op| format!("{op}"));
 
                     if let Some(decoded_str) = decoded_op {
                         // Display decoded Op struct
@@ -291,7 +291,7 @@ impl PaneDisplay for MemoryPane {
                 row.col(|ui| {
                     let ascii_char = char::from_u32((memory_cell.get() & 0xFF) as u32)
                         .filter(|c| c.is_ascii_graphic() || *c == ' ') // Show printable ASCII or space
-                        .map(|c| format!("'{}'", c))
+                        .map(|c| format!("'{c}'"))
                         .unwrap_or_default();
 
                     ui.label(RichText::new(ascii_char).monospace().weak()); // Weak color for less emphasis

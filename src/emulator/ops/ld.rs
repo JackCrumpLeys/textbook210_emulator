@@ -92,6 +92,6 @@ impl fmt::Display for LdOp {
         let offset_val = self.pc_offset.get() as i16; // Cast to signed for display
         let offset_hex = self.pc_offset.get() & 0x1FF; // Mask to 9 bits for hex
 
-        write!(f, "LD R{}, #{} (x{:03X})", dr_index, offset_val, offset_hex)
+        write!(f, "LD R{dr_index}, #{offset_val} (x{offset_hex:03X})")
     }
 }

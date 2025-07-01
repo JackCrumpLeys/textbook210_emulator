@@ -72,7 +72,7 @@ impl PaneDisplay for EditorPane {
 
             if let Some((error, line)) = &artifacts.error {
                 ui.label(
-                    RichText::new(format!("Error on line {}: {}", line, error))
+                    RichText::new(format!("Error on line {line}: {error}"))
                         .small()
                         .color(ui.visuals().warn_fg_color),
                 );

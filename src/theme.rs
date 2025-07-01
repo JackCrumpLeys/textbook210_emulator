@@ -594,21 +594,21 @@ impl ThemeSettings {
 
             // Ensure assets directory exists
             if let Err(e) = fs::create_dir_all("assets") {
-                eprintln!("[Theme] Failed to create assets directory: {}", e);
+                eprintln!("[Theme] Failed to create assets directory: {e}");
                 return;
             }
             if let Err(e) = fs::create_dir_all("assets/themes") {
-                eprintln!("[Theme] Failed to create themes directory: {}", e);
+                eprintln!("[Theme] Failed to create themes directory: {e}");
                 return;
             }
 
             match ron::ser::to_string_pretty(self, ron::ser::PrettyConfig::default()) {
                 Ok(ron_string) => match fs::write(filename, ron_string) {
-                    Ok(_) => println!("[Theme] Successfully saved theme to {}", filename),
-                    Err(e) => eprintln!("[Theme] Failed to write theme to {}: {}", filename, e),
+                    Ok(_) => println!("[Theme] Successfully saved theme to {filename}"),
+                    Err(e) => eprintln!("[Theme] Failed to write theme to {filename}: {e}"),
                 },
                 Err(e) => {
-                    eprintln!("[Theme] Failed to serialize theme to RON: {}", e);
+                    eprintln!("[Theme] Failed to serialize theme to RON: {e}");
                 }
             }
         }

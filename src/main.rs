@@ -1,5 +1,6 @@
 #![warn(clippy::all, rust_2018_idioms)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
+#![allow(clippy::reversed_empty_ranges)] // We use ranges when adressing bits like how the textbook does it (like 7..0 to get last 8 bits)
 
 use tools_for_210::app::EMULATOR;
 

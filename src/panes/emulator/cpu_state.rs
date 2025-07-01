@@ -1,8 +1,7 @@
 use crate::app::EMULATOR;
 use crate::emulator::ops::jsr::JsrMode;
 use crate::emulator::ops::{
-    AddOp, AndOp, BrOp, JmpOp, JsrOp, LdOp, LdiOp, LdrOp, LeaOp, NotOp, OpCode, RtiOp, StOp, StiOp,
-    StrOp, TrapOp,
+    AddOp, AndOp, BrOp, JmpOp, LdOp, LdiOp, LdrOp, LeaOp, NotOp, OpCode, StOp, StiOp, StrOp, TrapOp,
 };
 use crate::emulator::{BitAddressable, CpuState, Emulator, EmulatorCell, PSR_ADDR};
 use crate::panes::{Pane, PaneDisplay, PaneTree, RealPane};
@@ -91,11 +90,11 @@ fn mono(text: impl Into<String>, color: egui::Color32) -> RichText {
 fn reg_name_mono(text: impl Into<String>, theme: &ThemeSettings) -> RichText {
     mono(text, theme.register_name_color)
 }
-fn reg_val_mono(val: u16, theme: &ThemeSettings) -> RichText {
-    mono(format!("{:#06x}", val), theme.register_value_color)
-}
+// fn reg_val_mono(val: u16, theme: &ThemeSettings) -> RichText {
+//     mono(format!("{val:#06x}"), theme.register_value_color)
+// }
 fn _reg_val_dec_mono(val: i16, theme: &ThemeSettings) -> RichText {
-    mono(format!("{}", val), theme.register_value_color)
+    mono(format!("{val}"), theme.register_value_color)
 }
 fn op_mono(text: impl Into<String>, theme: &ThemeSettings) -> RichText {
     mono(text, theme.secondary_text_color)
@@ -150,21 +149,20 @@ impl CpuStatePane {
                 }
             })
             .map(|s| s.trim().to_string())
-            .unwrap_or_else(|| format!("Instruction at {:#06x}", pc_for_source_lookup));
+            .unwrap_or_else(|| format!("Instruction at {pc_for_source_lookup:#06x}"));
 
         // Display cycle list
         ui.label(RichText::new("CPU Pipeline Stages:").strong());
         for (i, cycle_name_str) in cycle_names.iter().enumerate() {
             if i == current_cycle_index {
                 ui.label(
-                    RichText::new(format!("-> {}", cycle_name_str))
+                    RichText::new(format!("-> {cycle_name_str}"))
                         .strong()
                         .color(theme.cpu_state_active_color),
                 );
             } else {
                 ui.label(
-                    RichText::new(format!("   {}", cycle_name_str))
-                        .color(theme.secondary_text_color),
+                    RichText::new(format!("   {cycle_name_str}")).color(theme.secondary_text_color),
                 );
             }
         }
@@ -198,12 +196,12 @@ impl CpuStatePane {
                     ui.label(desc_color("Fetch instruction from memory and increment PC.", theme));
                     ui.horizontal_wrapped(|ui| {
                         ui.label(reg_name_mono("PC", theme));
-                        ui.label(mono(format!(" ({:#06x}) ", pc_val), theme.register_value_color));
+                        ui.label(mono(format!(" ({pc_val:#06x}) "), theme.register_value_color));
                         ui.label(op_mono("-> ", theme));
                         ui.label(reg_name_mono("MAR", theme));
                     });
                     ui.horizontal_wrapped(|ui| {
-                        ui.label(mem_addr_mono(format!("Mem[MAR] (Mem[{:#06x}]) ", pc_val), theme));
+                        ui.label(mem_addr_mono(format!("Mem[MAR] (Mem[{pc_val:#06x}]) "), theme));
                         ui.label(op_mono("-> ", theme));
                         ui.label(reg_name_mono("MDR", theme));
                         ui.label(mono(format!(" (loads {:#06x})", emulator.memory[pc_val as usize].get()), theme.register_value_color));
@@ -215,7 +213,7 @@ impl CpuStatePane {
                     });
                     ui.horizontal_wrapped(|ui| {
                         ui.label(reg_name_mono("PC", theme));
-                        ui.label(mono(format!(" ({:#06x}) ", pc_val), theme.register_value_color));
+                        ui.label(mono(format!(" ({pc_val:#06x}) "), theme.register_value_color));
                         ui.label(op_mono("+ 1 -> ", theme));
                         ui.label(reg_name_mono("PC", theme));
                         ui.label(mono(format!(" (becomes {:#06x})", pc_val.wrapping_add(1)), theme.register_value_color));
@@ -223,9 +221,10 @@ impl CpuStatePane {
                 }
                 CpuState::Decode => {
                     let ir_val = emulator.ir;
+                    #[allow(clippy::reversed_empty_ranges)]
                     let opcode_num = ir_val.range(15..12);
                     let mnemonic = OpCode::from_instruction(emulator.ir)
-                                       .map(|op| format!("{}", op))
+                                       .map(|op| format!("{op}"))
                                        .unwrap_or_else(|| "INVALID".to_string());
                     ui.label(desc_color(format!("Decode instruction in IR ({:#06x}).", ir_val.get()), theme));
                     ui.label(mono(format!("Opcode: {:#X} ({})", opcode_num.get(), mnemonic), theme.primary_text_color));
@@ -254,11 +253,8 @@ impl CpuStatePane {
                                 }
                                 _ => {}
                             },
-                            OpCode::Not(not_op_variant) => match not_op_variant {
-                                NotOp::Decoded { dr, sr } => {
-                                    ui.label(mono(format!("  DR: R{}, SR: R{}", dr.get(), sr.get()), theme.secondary_text_color));
-                                }
-                                _ => {}
+                            OpCode::Not(NotOp::Decoded { dr, sr }) => {
+                                ui.label(mono(format!("  DR: R{}, SR: R{}", dr.get(), sr.get()), theme.secondary_text_color));
                             },
                             OpCode::Ld(LdOp { dr, pc_offset, .. }) => {
                                 ui.label(mono(format!("  DR: R{}, PCOffset9: {:#x} ({})", dr.get(), pc_offset.get(), pc_offset.sext(8).get() as i16), theme.secondary_text_color));
@@ -276,13 +272,13 @@ impl CpuStatePane {
                             let eff_addr = pc_curr.wrapping_add(offset as u16);
                             ui.horizontal_wrapped(|ui| {
                                 ui.label(reg_name_mono("PC", theme));
-                                ui.label(mono(format!(" ({:#06x}) ", pc_curr), theme.register_value_color));
+                                ui.label(mono(format!(" ({pc_curr:#06x}) "), theme.register_value_color));
                                 ui.label(op_mono("+ PCOffset9 ", theme));
-                                ui.label(mono(format!("({:#06x}, dec: {}) ", offset, offset), theme.register_value_color));
+                                ui.label(mono(format!("({offset:#06x}, dec: {offset}) "), theme.register_value_color));
                             });
                             ui.horizontal_wrapped(|ui| {
                                 ui.label(op_mono("= Effective Address ", theme));
-                                ui.label(mono(format!("({:#06x}) ", eff_addr), theme.register_value_color));
+                                ui.label(mono(format!("({eff_addr:#06x}) "), theme.register_value_color));
                                 ui.label(op_mono("-> ", theme));
                                 ui.label(reg_name_mono("MAR", theme));
                             });
@@ -293,13 +289,13 @@ impl CpuStatePane {
                             let eff_addr = base_val.wrapping_add(offset as u16);
                             ui.horizontal_wrapped(|ui| {
                                 ui.label(reg_name_mono(format!("BaseR (R{})", base_r.get()), theme));
-                                ui.label(mono(format!(" ({:#06x}) ", base_val), theme.register_value_color));
+                                ui.label(mono(format!(" ({base_val:#06x}) "), theme.register_value_color));
                                 ui.label(op_mono("+ Offset6 ", theme));
-                                ui.label(mono(format!("({:#06x}, dec: {}) ", offset, offset), theme.register_value_color));
+                                ui.label(mono(format!("({offset:#06x}, dec: {offset}) "), theme.register_value_color));
                             });
                             ui.horizontal_wrapped(|ui| {
                                 ui.label(op_mono("= Effective Address ", theme));
-                                ui.label(mono(format!("({:#06x}) ", eff_addr), theme.register_value_color));
+                                ui.label(mono(format!("({eff_addr:#06x}) "), theme.register_value_color));
                                 ui.label(op_mono("-> ", theme));
                                 ui.label(reg_name_mono("MAR", theme));
                             });
@@ -308,7 +304,7 @@ impl CpuStatePane {
                             JsrMode::Relative { pc_offset } => {
                                 let offset = pc_offset.sext(10).get() as i16;
                                 let target_addr = pc_curr.wrapping_add(offset as u16);
-                                 ui.label(mono(format!("Target for JSR: PC + PCOffset11 = {:#06x}", target_addr), theme.secondary_text_color));
+                                 ui.label(mono(format!("Target for JSR: PC + PCOffset11 = {target_addr:#06x}"), theme.secondary_text_color));
                             }
                             _ => { ui.label(desc_color("JSRR: Target address is from BaseR, not calculated here.", theme));}
                         },
@@ -318,12 +314,12 @@ impl CpuStatePane {
                             if cond {
                                 let offset = pc_offset.sext(8).get() as i16;
                                 let target_addr = pc_curr.wrapping_add(offset as u16);
-                                ui.label(mono(format!("Branch taken. Target: PC + PCOffset9 = {:#06x}", target_addr), theme.secondary_text_color));
+                                ui.label(mono(format!("Branch taken. Target: PC + PCOffset9 = {target_addr:#06x}"), theme.secondary_text_color));
                             } else {
                                 ui.label(mono("Branch not taken.", theme.secondary_text_color));
                             }
                         }
-                        _ => { ui.label(desc_color(format!("No specific address evaluation for {}.", op), theme)); }
+                        _ => { ui.label(desc_color(format!("No specific address evaluation for {op}."), theme)); }
                     }
                 }
                 CpuState::FetchOperands(op) => {
@@ -373,7 +369,7 @@ impl CpuStatePane {
                                 ui.label(reg_name_mono("MDR", theme));
                             });
                         }
-                        _ => { ui.label(desc_color(format!("No specific operand fetch for {}.", op), theme)); }
+                        _ => { ui.label(desc_color(format!("No specific operand fetch for {op}."), theme)); }
                     }
                 }
                 CpuState::ExecuteOperation(op) => {
@@ -386,9 +382,9 @@ impl CpuStatePane {
                                 let val2 = op2.get();
                                 let result = val1.wrapping_add(val2);
                                 ui.label(mono(format!("  Operand1[{:#06x}] + Operand2[{:#06x}] = ALU_OUT[{:#06x}] (to R{})", val1, val2, result, dr.get()), theme.secondary_text_color));
-                                ui.label(mono(format!("  Flags (N,Z,P will be set based on {:#06x})", result), theme.secondary_text_color));
+                                ui.label(mono(format!("  Flags (N,Z,P will be set based on {result:#06x})"), theme.secondary_text_color));
                             }
-                            _ => {  ui.label(desc_color(format!("ADD not in Ready state for execute display."), theme)); }
+                            _ => {  ui.label(desc_color("ADD not in Ready state for execute display.".to_string(), theme)); }
                         },
                         OpCode::And(and_op) => match and_op {
                             AndOp::Ready { op1, op2, dr, .. } => {
@@ -396,18 +392,18 @@ impl CpuStatePane {
                                 let val2 = op2.get();
                                 let result = val1 & val2;
                                 ui.label(mono(format!("  Operand1[{:#06x}] & Operand2[{:#06x}] = ALU_OUT[{:#06x}] (to R{})", val1, val2, result, dr.get()), theme.secondary_text_color));
-                                ui.label(mono(format!("  Flags (N,Z,P will be set based on {:#06x})", result), theme.secondary_text_color));
+                                ui.label(mono(format!("  Flags (N,Z,P will be set based on {result:#06x})"), theme.secondary_text_color));
                             }
-                             _ => {  ui.label(desc_color(format!("AND not in Ready state for execute display."), theme)); }
+                             _ => {  ui.label(desc_color("AND not in Ready state for execute display.".to_string(), theme)); }
                         },
                         OpCode::Not(not_op) => match not_op {
                             NotOp::Ready { op: op1, dr, .. } => {
                                 let val1 = op1.get();
                                 let result = !val1;
                                 ui.label(mono(format!("  NOT Operand1[{:#06x}] = ALU_OUT[{:#06x}] (to R{})", val1, result, dr.get()), theme.secondary_text_color));
-                                ui.label(mono(format!("  Flags (N,Z,P will be set based on {:#06x})", result), theme.secondary_text_color));
+                                ui.label(mono(format!("  Flags (N,Z,P will be set based on {result:#06x})"), theme.secondary_text_color));
                             }
-                            _ => {  ui.label(desc_color(format!("NOT not in Ready state for execute display."), theme)); }
+                            _ => {  ui.label(desc_color("NOT not in Ready state for execute display.".to_string(), theme)); }
                         },
                         OpCode::Jmp(JmpOp{base_r, ..}) => {
                             let target_addr = emulator.r[base_r.get() as usize].get();
@@ -420,7 +416,7 @@ impl CpuStatePane {
                                      ui.label(mono(format!("  PC := R{}[{:#06x}]", base_r.get(), emulator.r[base_r.get() as usize].get()), theme.secondary_text_color));
                                 }
                                 crate::emulator::ops::jsr::JsrMode::Relative { .. } => {
-                                     ui.label(mono(format!("  PC := Target Address (calculated in EvalAddr)"), theme.secondary_text_color));
+                                     ui.label(mono("  PC := Target Address (calculated in EvalAddr)".to_string(), theme.secondary_text_color));
                                 }
                             }
                         }
@@ -429,7 +425,7 @@ impl CpuStatePane {
                             if cond {
                                 let offset = pc_offset.sext(8).get() as i16;
                                 let target_addr = emulator.pc.get().wrapping_sub(1).wrapping_add(offset as u16);
-                                ui.label(mono(format!("  Branch Taken. PC := Target ({:#06x})", target_addr), theme.secondary_text_color));
+                                ui.label(mono(format!("  Branch Taken. PC := Target ({target_addr:#06x})"), theme.secondary_text_color));
                             } else {
                                 ui.label(mono(format!("  Branch Not Taken. PC remains {:#06x}", emulator.pc.get()), theme.secondary_text_color));
                             }
@@ -441,7 +437,7 @@ impl CpuStatePane {
                         OpCode::Rti(_) => {
                              ui.label(mono("  If in supervisor mode: PC := Mem[R6]; R6 := R6+1; PSR := Mem[R6]; R6 := R6+1. Else privilege violation.", theme.secondary_text_color));
                         }
-                        _ => { ui.label(desc_color(format!("No specific execution detail for {}.", op), theme)); }
+                        _ => { ui.label(desc_color(format!("No specific execution detail for {op}."), theme)); }
                     }
                 }
                 CpuState::StoreResult(op) => {
@@ -486,7 +482,7 @@ impl CpuStatePane {
                                 ui.label(mem_addr_mono(format!("Mem[MAR] (Mem[{:#06x}])", emulator.mar.get()), theme));
                             });
                         }
-                        _ => { ui.label(desc_color(format!("No specific store result detail for {}.", op), theme)); }
+                        _ => { ui.label(desc_color(format!("No specific store result detail for {op}."), theme)); }
                     }
                 }
             }
@@ -514,7 +510,7 @@ impl CpuStatePane {
                 default_name_color
             }));
             ui.label(
-                RichText::new(format!("{:#06x}", val))
+                RichText::new(format!("{val:#06x}"))
                     .monospace()
                     .color(if changed {
                         active_color
@@ -546,7 +542,7 @@ impl CpuStatePane {
             if i % 4 == 0 && i > 0 {
                 ui.end_row();
             }
-            reg_ui(ui, &format!("R{} ", i), &emulator.r[i], false);
+            reg_ui(ui, &format!("R{i} "), &emulator.r[i], false);
             if i % 4 != 3 && i != 7 {
                 ui.add_space(theme.item_spacing.x * 2.0);
             }
