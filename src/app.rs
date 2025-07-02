@@ -130,23 +130,20 @@ impl Default for TemplateApp {
         let span = tracing::info_span!("TemplateApp::default");
         let _guard = span.enter();
 
-        tracing::info!("Creating new TemplateApp with comprehensive default layout");
-
         // Create all panes we want to include
-        tracing::debug!("Creating all panes for comprehensive layout");
         let memory_pane = Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Memory(
             crate::panes::emulator::memory::MemoryPane::default(),
         ))));
         let editor_pane = Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Editor(
             crate::panes::emulator::editor::EditorPane::default(),
         ))));
-        let _registers_pane = Pane::new(RealPane::EmulatorPanes(Box::new(
-            EmulatorPane::Registers(crate::panes::emulator::registers::RegistersPane::default()),
-        )));
+        let registers_pane = Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Registers(
+            crate::panes::emulator::registers::RegistersPane::default(),
+        ))));
         let controls_pane = Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Controls(
             crate::panes::emulator::controls::ControlsPane::default(),
         ))));
-        let output_pane = Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Output(
+        let terminal_pane = Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Output(
             crate::panes::emulator::io::IoPane::default(),
         ))));
         let _cpu_pane = Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Cpu(
@@ -156,16 +153,25 @@ impl Default for TemplateApp {
             crate::panes::emulator::help::HelpPane::default(),
         ))));
 
-        let mut dock_state = DockState::new(vec![editor_pane, memory_pane]);
+        let mut dock_state = DockState::new(vec![terminal_pane]);
         let root_id = NodeIndex::root();
 
-        dock_state
+        let ed_id = dock_state
             .main_surface_mut()
-            .split_left(root_id, 0.3, vec![controls_pane]);
+            .split_above(root_id, 0.333, vec![editor_pane]);
+
+        let mem_id = dock_state
+            .main_surface_mut()
+            .split_right(ed_id[1], 0.333, vec![memory_pane]);
+
+        let reg_id =
+            dock_state
+                .main_surface_mut()
+                .split_right(mem_id[1], 0.5, vec![registers_pane]);
 
         dock_state
             .main_surface_mut()
-            .split_below(root_id, 0.7, vec![output_pane]);
+            .split_right(ed_id[0], 0.666, vec![controls_pane]);
 
         tracing::info!("TemplateApp comprehensive initialization complete");
         Self {
@@ -255,7 +261,63 @@ impl eframe::App for TemplateApp {
                         tracing::info!("Resetting layout to default");
                         *self = Self::default(); // Reset the entire app state
                     }
-                    // You could add more layout options here
+                    if ui.button("Layout DEMO 2").clicked() {
+                        let memory_pane =
+                            Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Memory(
+                                crate::panes::emulator::memory::MemoryPane::default(),
+                            ))));
+                        let editor_pane =
+                            Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Editor(
+                                crate::panes::emulator::editor::EditorPane::default(),
+                            ))));
+                        let registers_pane =
+                            Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Registers(
+                                crate::panes::emulator::registers::RegistersPane::default(),
+                            ))));
+                        let controls_pane =
+                            Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Controls(
+                                crate::panes::emulator::controls::ControlsPane::default(),
+                            ))));
+                        let terminal_pane = Pane::new(RealPane::EmulatorPanes(Box::new(
+                            EmulatorPane::Output(crate::panes::emulator::io::IoPane::default()),
+                        )));
+                        let _cpu_pane =
+                            Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Cpu(
+                                crate::panes::emulator::cpu_state::CpuStatePane::default(),
+                            ))));
+                        let _help_pane = Pane::new(RealPane::EmulatorPanes(Box::new(
+                            EmulatorPane::Help(crate::panes::emulator::help::HelpPane::default()),
+                        )));
+
+                        let mut dock_state = DockState::new(vec![editor_pane]);
+                        let root_id = NodeIndex::root();
+
+                        let ed_id = dock_state.main_surface_mut().split_below(
+                            root_id,
+                            0.666,
+                            vec![terminal_pane],
+                        );
+
+                        let mem_id = dock_state.main_surface_mut().split_right(
+                            ed_id[1],
+                            0.333,
+                            vec![memory_pane],
+                        );
+
+                        let reg_id = dock_state.main_surface_mut().split_right(
+                            mem_id[1],
+                            0.5,
+                            vec![registers_pane],
+                        );
+
+                        dock_state.main_surface_mut().split_right(
+                            ed_id[0],
+                            0.666,
+                            vec![controls_pane],
+                        );
+
+                        self.dock_state = dock_state;
+                    }
                 });
 
                 // UI Menu (scaling, theme)
@@ -303,9 +365,9 @@ impl eframe::App for TemplateApp {
             .show_add_buttons(true)
             .show_add_popup(true)
             .show_leaf_close_all_buttons(false)
-            .draggable_tabs(false)
+            // .draggable_tabs(false)
             .style(Style::from_egui(ctx.style().as_ref()))
-            .allowed_splits(AllowedSplits::None)
+            // .allowed_splits(AllowedSplits::None)
             .show(ctx, &mut self.tree_behavior);
 
         if let Some((nodei, sur)) = self.tree_behavior.last_added {
