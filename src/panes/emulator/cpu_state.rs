@@ -3,7 +3,7 @@ use crate::emulator::ops::jsr::JsrMode;
 use crate::emulator::ops::{
     AddOp, AndOp, BrOp, JmpOp, LdOp, LdiOp, LdrOp, LeaOp, NotOp, OpCode, StOp, StiOp, StrOp, TrapOp,
 };
-use crate::emulator::{BitAddressable, CpuState, Emulator, EmulatorCell, PSR_ADDR};
+use crate::emulator::{BitAddressable, CpuState, Emulator, PSR_ADDR};
 use crate::panes::{Pane, PaneDisplay, PaneTree, RealPane};
 use crate::theme::{ThemeSettings, CURRENT_THEME_SETTINGS};
 use egui::RichText;

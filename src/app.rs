@@ -6,7 +6,7 @@ use crate::{
     theme::{self, BaseThemeChoice},
 };
 use egui::Theme;
-use egui_dock::{AllowedSplits, DockArea, DockState, NodeIndex, Style, SurfaceIndex, TabViewer};
+use egui_dock::{DockArea, DockState, NodeIndex, Style, SurfaceIndex, TabViewer};
 use lazy_static::lazy_static;
 
 lazy_static! {
@@ -164,7 +164,7 @@ impl Default for TemplateApp {
             .main_surface_mut()
             .split_right(ed_id[1], 0.333, vec![memory_pane]);
 
-        let reg_id =
+        let _eg_id =
             dock_state
                 .main_surface_mut()
                 .split_right(mem_id[1], 0.5, vec![registers_pane]);
@@ -304,7 +304,7 @@ impl eframe::App for TemplateApp {
                             vec![memory_pane],
                         );
 
-                        let reg_id = dock_state.main_surface_mut().split_right(
+                        let _reg_id = dock_state.main_surface_mut().split_right(
                             mem_id[1],
                             0.5,
                             vec![registers_pane],
