@@ -3,9 +3,12 @@ use crate::emulator::{area_from_address, BitAddressable, Emulator, EmulatorCell,
 use super::Op;
 #[derive(Debug, Clone)]
 pub struct JmpOp {
-    pub base_r: EmulatorCell,         // Base register index
+    /// Base register index, this is added to the offset to calculate where to jump
+    pub base_r: EmulatorCell,
+    /// Where we boutta go
     pub target_address: EmulatorCell, // Calculated during evaluate_address
-    pub is_valid_jump: bool,          // Set during evaluate_address
+    /// Can we go there?
+    pub is_valid_jump: bool, // Set during evaluate_address
 }
 
 impl Op for JmpOp {
@@ -52,14 +55,20 @@ use std::fmt;
 
 impl fmt::Display for JmpOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // The Display implementation should reflect the state immediately after decode.
-        // target_address and is_valid_jump are determined later.
         let base_r_index = self.base_r.get();
 
         if base_r_index == 7 {
-            write!(f, "RET")
+            write!(f, "RET")?;
         } else {
-            write!(f, "JMP R{base_r_index}")
+            write!(f, "JMP R{base_r_index}")?;
         }
+        if self.is_valid_jump {
+            write!(f, " [jumping")?;
+            if self.target_address.get() != 0 {
+                write!(f, " to x{:04X}", self.target_address.get())?;
+            }
+            write!(f, "]")?;
+        }
+        Ok(())
     }
 }

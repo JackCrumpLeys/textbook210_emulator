@@ -4,17 +4,21 @@ use std::fmt;
 use super::Op;
 
 #[derive(Debug, Clone)]
+/// The add operation
 pub enum AddOp {
+    /// We have been suplied a 5 bit value to add to some register we have not yet fetched
     Immidiate {
         dr: EmulatorCell,
         sr1: EmulatorCell,
         imm5: EmulatorCell,
     },
+    /// We have been suplied a register we have not yet fetched to add to some register we have not yet fetched
     Register {
         dr: EmulatorCell,
         sr1: EmulatorCell,
         sr2: EmulatorCell,
     },
+    /// We have 2 values and a destination register ready to invoke alu
     Ready {
         dr: EmulatorCell,
         op1: EmulatorCell,
@@ -73,11 +77,8 @@ impl Op for AddOp {
                 // This state implies operands might have been fetched differently,
                 // but based on the typical instruction cycle, fetch_operands
                 // shouldn't encounter this state if called correctly.
-                // If using temporary Emulator state, this branch is likely unreachable.
                 tracing::warn!("ADD: Encountered Ready state during fetch_operands phase. This might indicate unexpected state flow.");
                 debug_assert!(false, "Unexpected state flow");
-                // Depending on design, might need to extract from self here,
-                // but current implementation uses Emulator temp state.
             }
         }
         if let Some(op) = new_op {
@@ -141,9 +142,14 @@ impl fmt::Display for AddOp {
             AddOp::Register { dr, sr1, sr2 } => {
                 write!(f, "ADD R{}, R{}, R{}", dr.get(), sr1.get(), sr2.get())
             }
-            AddOp::Ready { .. } => {
-                // This state represents an internal step, not a directly displayable instruction
-                write!(f, "INVALID READ")
+            AddOp::Ready { dr, op1, op2 } => {
+                write!(
+                    f,
+                    "ADD R{}, x{:02X}, x{:02X}",
+                    dr.get(),
+                    op1.get(),
+                    op2.get()
+                )
             }
         }
     }

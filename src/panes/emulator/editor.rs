@@ -1,8 +1,7 @@
 use crate::app::EMULATOR;
-use crate::emulator::parse::ParseOutput;
+use crate::emulator::parse::{ParseError, ParseOutput};
 use crate::emulator::Emulator;
 use crate::panes::{Pane, PaneDisplay, PaneTree, RealPane};
-use egui::RichText;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
@@ -23,7 +22,7 @@ pub struct CompilationArtifacts {
     pub labels: HashMap<String, u16>,
     pub addr_to_label: HashMap<u16, String>, // to optimise when fetching lable from addr
     pub orig_address: u16,
-    pub error: Option<(String, usize)>,
+    pub error: Option<ParseError>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
@@ -70,12 +69,16 @@ impl PaneDisplay for EditorPane {
 
             let mut artifacts = COMPILATION_ARTIFACTS.lock().unwrap();
 
-            if let Some((error, line)) = &artifacts.error {
-                ui.label(
-                    RichText::new(format!("Error on line {line}: {error}"))
-                        .small()
-                        .color(ui.visuals().warn_fg_color),
-                );
+            // TODO proper error reporting
+            if let Some(error) = &artifacts.error {
+                match error {
+                    ParseError::TokenizeError(s, l) => {
+                        ui.label(format!("Syntax error on line {l}: {s}"));
+                    }
+                    ParseError::GenerationError(s, token_span) => {
+                        ui.label(format!("Code generation error at {token_span:?}: {s}"));
+                    }
+                }
             }
 
             ui.horizontal(|ui| {

@@ -5,17 +5,21 @@ use crate::emulator::{AluOp, EmulatorCell};
 use super::Op;
 
 #[derive(Debug, Clone)]
+/// The AND alu op
 pub enum AndOp {
+    /// We have been given some 5 bit value to AND with a register we have not yet fetched
     Immediate {
         dr: EmulatorCell,
         sr1: EmulatorCell,
         imm5: EmulatorCell,
     },
+    /// We have been given some register we have nopt yet fetched to AND with a register we have not yet fetched
     Register {
         dr: EmulatorCell,
         sr1: EmulatorCell,
         sr2: EmulatorCell,
     },
+    /// We have 2 values ready to pipe into alu (then store at given register)
     Ready {
         dr: EmulatorCell,
         op1: EmulatorCell,
@@ -124,12 +128,7 @@ impl fmt::Display for AndOp {
                 // Get the raw 5-bit value
                 let imm_val_5bit = imm5.get() & 0x1F;
                 // Calculate the sign-extended value (as i16 for display)
-                let imm_val_sext = if (imm_val_5bit >> 4) & 1 == 1 {
-                    // Negative number, extend with 1s
-                    (imm_val_5bit as i16) | !0x1F // or (imm_val_5bit as i16) - 32
-                } else {
-                    imm_val_5bit as i16
-                };
+                let imm_val_sext = imm5.sext(4).get() as i16;
                 write!(
                     f,
                     "AND R{}, R{}, #{} (x{:02X})",
@@ -139,8 +138,14 @@ impl fmt::Display for AndOp {
                     imm_val_5bit  // Display raw 5-bit hex
                 )
             }
-            AndOp::Ready { .. } => {
-                write!(f, "INVALID READ") // Cannot display from Ready state
+            AndOp::Ready { dr, op1, op2 } => {
+                write!(
+                    f,
+                    "AND R{}, x{:02X}, x{:02X}",
+                    dr.get(),
+                    op1.get(),
+                    op2.get()
+                )
             }
         }
     }

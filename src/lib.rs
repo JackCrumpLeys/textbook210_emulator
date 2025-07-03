@@ -7,4 +7,4 @@ pub mod panes;
 pub mod theme;
 pub mod turing;
 
-pub use app::TemplateApp;
+pub use app::EmulatorApp;

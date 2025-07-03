@@ -13,27 +13,42 @@ use parse::ParseOutput;
 
 use crate::panes::emulator::memory::BREAKPOINTS;
 
+/// The amount of steps to skip when os skips are enabled and we are in OS memory space
 pub const MAX_OS_STEPS: usize = 1000;
 
 // Device registers at memory addresses xFE00-xFFFF
+/// Keyboard status ADDR, KBSR[15] = 1 when we have input to be read
 pub const KBSR_ADDR: usize = 0xFE00;
+/// Keyboard destination ADDR, KBDR[7:0] = last typed in ascii
 pub const KBDR_ADDR: usize = 0xFE02;
+/// Display Status ADDR, DSR[15] = 1 when display service ready to display a new char (always 1 in this emulator)
 pub const DSR_ADDR: usize = 0xFE04;
+/// Display destination register, when DDR[7:0] set we write the ascii char contained to the output
 pub const DDR_ADDR: usize = 0xFE06;
+/// Program Status register, Contains Privlage mode and condition codes, PSR[15] = 0 when in superviser mode and 1 when user mode,
+///  PSR[2] = N, PSR[1] = Z, PSR[0] = P
 pub const PSR_ADDR: usize = 0xFFFC;
+/// Machine control register, when MCR[15] = 1 the program is running. To halt it is cleared.
 pub const MCR_ADDR: usize = 0xFFFE;
 
 #[derive(Debug, Default, Clone, Copy)]
+/// The core data structure for the emulator. Every value is stored via this using .get() and .set(). Stores a LC3 word (16 bits) and wether that word has changed
 pub struct EmulatorCell(u16, bool);
 
 impl EmulatorCell {
+    #[inline(always)]
     pub fn new(value: u16) -> Self {
         Self(value, true)
     }
+
+    /// get the word
+    #[inline(always)]
     pub fn get(&self) -> u16 {
         self.0
     }
 
+    /// Set the word
+    #[inline(always)]
     pub fn set(&mut self, value: u16) {
         if value != self.0 {
             self.0 = value;
@@ -41,24 +56,36 @@ impl EmulatorCell {
         }
     }
 
+    /// Check if value has changed, reseting changed.
+    #[inline(always)]
     pub fn changed(&mut self) -> bool {
         let changed = self.1;
         self.1 = false;
         changed
     }
 
+    /// Check if value has changed without reseting changed.
+    #[inline(always)]
     pub fn changed_peek(&self) -> bool {
         self.1
     }
 
     /// Sign extend from bit position to 16 bits
     /// bits to the left of pos must be 0
+    #[inline(always)]
     pub fn sext(&self, bit_pos: u8) -> Self {
         let value = self.0;
         let is_negative = (value >> bit_pos) & 1 == 1;
 
         if is_negative {
             // Set all bits above bit_pos to 1
+            // mask example: using 8 bits for simplicity:
+            // number = 00001010
+            // bit_pos = 3  ^
+            // bit_pos+1 =4^
+            // 1<<4 = 00010000
+            // -1 = 00001111
+            // ! = 11110000
             let mask = !((1 << (bit_pos + 1)) - 1);
             Self(value | mask, true)
         } else {
@@ -69,48 +96,64 @@ impl EmulatorCell {
 
 #[derive(Debug, Clone)]
 pub struct Emulator {
-    // update data
+    // --- not involved in the state machine ---
+    /// How many cycles to run per update call
     pub speed: u32,
+    /// How many update calls to wait before doing cycles equal to speed
     pub ticks_between_updates: u32,
+    /// What is the current tick, only really used for modulo so we could wrap it around
     pub tick: u64,
+    /// Do we jump over os instructions accouding to the [`MAX_OS_STEPS`] var
     pub skip_os_emulation: bool,
 
-    // why non an array? Becuase array sits on stack and takes alot of memory.
-    // wasm was unhappy so I put it on the heap using Vec
-    pub memory: Vec<EmulatorCell>, // MUST be initialized with 65536 EmulatorCells or we will get so many errors
-    // The alu component (this manages the maths operations)
+    // The summation of all MEM[DDR] sets aka the 'output' of the emulator
+    pub output: String,
+    // -----------------------------------------
+
+    // Why in a Box? Becuase array sits on stack and takes alot of memory.
+    // wasm was unhappy so I put it on the heap using Box
+    // TODO: How much faster is it on the stack? mabye it should be a compile time distinction
+    /// Holds all the instructions and data that the state machine munches on
+    pub memory: Box<[EmulatorCell; 65536]>,
+    /// The alu component (this manages ADD, NOT and AND operations)
     pub alu: Alu,
 
-    // Registers
+    /// Registers  R0-R7
     pub r: [EmulatorCell; 8],
 
-    // Program Counter
+    /// Program Counter. This stores the Adress that we will use to populate the IR on the next fetch cycle.
+    /// IR <- MEM[PC]
     pub pc: EmulatorCell,
 
-    // memory registers
+    /// The adress of the memory location to read from the memory on next reading phase
     pub mar: EmulatorCell,
+    /// Stores the input or output of the memory, we set it then do a write phase to set MEM[mar] <- mdr.
+    /// It also gets set on a read phase MEM[mar] -> mdr
     pub mdr: EmulatorCell,
 
-    // instruction register
+    /// Stores the instruction we are in the process of ececuting the first 4 bits are the op etc.
+    /// Set in the fetch phase (IR <- MEM[pc])
     pub ir: EmulatorCell,
 
-    pub output: String,
-
-    // CPU state for micro steps
+    /// CPU state. fetch -> decode -> evaluate address etc
+    /// Each instruction relys on its own struct of the instruction after the decode stage
     pub cpu_state: CpuState,
-    pub current_op: Option<u16>, // TODO: move this into cpustate
 
-    // saved stack pointers
+    // Saved stack pointers. These are used when going between os service routines and user code.
+    // For example when trap is executed from user code saved_usp <- R6 && R6 <- saved_ssp
+    // and when RTI is executed saved_ssp <- R6 && R6 <- saved_usp
+    /// The last known R6 used in an OS service
     pub saved_ssp: EmulatorCell,
+    /// The last known R6 used in user code
     pub saved_usp: EmulatorCell,
 
-    // Running state
+    /// Is the clock enabled. Should we remove this and just use mcr?
     pub running: bool,
 
-    // write bit (if this is set after the store stage mem[mar] <- mdr)
+    /// write bit (if this is set after the store stage mem[mar] <- mdr)
     pub write_bit: bool,
 
-    // exception
+    /// If our stste machine has reached an exeption state than this stores the particulars
     pub exception: Option<Exception>,
 }
 
@@ -121,15 +164,14 @@ impl Emulator {
             ticks_between_updates: 2,
             tick: 0,
             skip_os_emulation: true,
-            memory: vec![EmulatorCell::new(0); 65536],
+            memory: Box::new([EmulatorCell::new(0); 65536]),
             r: [EmulatorCell::new(0); 8],
-            pc: EmulatorCell::new(0x200),
+            pc: EmulatorCell::new(0x200), // start of os
             mar: EmulatorCell::new(0),
             mdr: EmulatorCell::new(0),
             ir: EmulatorCell::new(0),
             output: String::new(),
             cpu_state: CpuState::Fetch,
-            current_op: None,
             running: false,
             alu: Alu::default(),
             write_bit: false,
@@ -160,6 +202,7 @@ impl Emulator {
         emulator
     }
 
+    /// Are we running in superviser or user mode?
     pub fn priv_level(&self) -> PrivilegeLevel {
         match self.memory[PSR_ADDR].index(15).get() {
             0 => PrivilegeLevel::Supervisor,
@@ -168,6 +211,7 @@ impl Emulator {
         }
     }
 
+    /// Change the privlage mode.
     pub fn set_priv_level(&mut self, level: PrivilegeLevel) {
         let psr_val = self.memory[PSR_ADDR].get();
         match level {
@@ -176,28 +220,33 @@ impl Emulator {
         }
     }
 
+    /// Set the negitive condition bit (reseting the others)
     pub fn set_n(&mut self) {
         let psr = self.memory[PSR_ADDR].get();
         let new_psr = (psr & 0xFFF8) | 0x0004;
         self.memory[PSR_ADDR].set(new_psr);
     }
 
+    /// Set the zero condition bit (reseting the others)
     pub fn set_z(&mut self) {
         let psr = self.memory[PSR_ADDR].get();
         let new_psr = (psr & 0xFFF8) | 0x0002;
         self.memory[PSR_ADDR].set(new_psr);
     }
 
+    /// Set the positive condition bit (reseting the others)
     pub fn set_p(&mut self) {
         let psr = self.memory[PSR_ADDR].get();
         let new_psr = (psr & 0xFFF8) | 0x0001;
         self.memory[PSR_ADDR].set(new_psr);
     }
 
+    /// Get (n,z,p) as bools. Only one must be true at all times
     pub fn get_nzp(&self) -> (bool, bool, bool) {
-        let n = (self.memory[PSR_ADDR].get() & 0x0004) != 0;
-        let z = (self.memory[PSR_ADDR].get() & 0x0002) != 0;
-        let p = (self.memory[PSR_ADDR].get() & 0x0001) != 0;
+        let psr = self.memory[PSR_ADDR].get();
+        let n = (psr & 0x0004) != 0;
+        let z = (psr & 0x0002) != 0;
+        let p = (psr & 0x0001) != 0;
         debug_assert!(
             (n as u8 + z as u8 + p as u8) == 1,
             "Exactly one of N, Z, P must be true"
@@ -205,11 +254,14 @@ impl Emulator {
         (n, z, p)
     }
 
+    /// Input one char so that the os can read it.
+    // TODO: change this if/when we do interuption based input
     pub fn set_in_char(&mut self, c: char) {
         self.memory[KBDR_ADDR].set(c as u16);
         self.memory[KBSR_ADDR].set(0x8000); // indicates new char avalible
     }
 
+    /// Given a register we update flages based on value
     pub fn update_flags(&mut self, reg_index: usize) {
         let value = self.r[reg_index].get();
 
@@ -228,6 +280,11 @@ impl Emulator {
 }
 
 #[derive(Debug, Clone)]
+/// User: Can run code as long as it is not:
+///  - RTI
+///  - reading or writing outside of 0x3000..=0xFDFF
+///
+/// Supervisor: Can read or write anywhere
 pub enum PrivilegeLevel {
     User,
     Supervisor,
@@ -244,18 +301,18 @@ pub fn area_from_address(addr: &EmulatorCell) -> MemoryArea {
 }
 
 pub enum MemoryArea {
-    TrapVectorTable,     // x0000 - x00FF (jumpable by userspace (via trap) not storable)
-    IntrruptVectorTable, // x0100 - x01FF (No permissions for userspae)
-    OperatingSystem,     // x0200 - x2FFF (No permissions for userspae)
+    TrapVectorTable,     // x0000 - x00FF (No permissions for userspace)
+    IntrruptVectorTable, // x0100 - x01FF (No permissions for userspace)
+    OperatingSystem,     // x0200 - x2FFF (No permissions for userspace)
     UserSpace,           // x3000 - xFDFF (rwx for userspace)
-    DeviceRegisters,     // xFE00 - xFFFF (No permissions for userspae)
+    DeviceRegisters,     // xFE00 - xFFFF (No permissions for userspace)
 }
 
 impl MemoryArea {
     pub fn can_read(&self, level: &PrivilegeLevel) -> bool {
         match level {
             PrivilegeLevel::User => match self {
-                MemoryArea::TrapVectorTable => true,
+                MemoryArea::TrapVectorTable => false,
                 MemoryArea::IntrruptVectorTable => false,
                 MemoryArea::OperatingSystem => false,
                 MemoryArea::UserSpace => true,
@@ -308,12 +365,13 @@ impl Exception {
         match self {
             Exception::PrivilegeViolation => IVT_BASE, // Vector x00 in IVT for Privilege Violation
             Exception::IllegalInstruction => IVT_BASE + 0x01, // Vector x01 in IVT for Illegal Opcode
-            Exception::AccessControlViolation => IVT_BASE + 0x02, // Using x02 for Access Control, adjust if standard defines otherwise
+            Exception::AccessControlViolation => IVT_BASE + 0x02, // Using x02 for Access Control
         }
     }
 }
 
 #[derive(Debug, Clone, Default)]
+/// This component of the state machine takes some operation then a number of cells and outputs the result of a arthmatic op
 pub struct Alu {
     pub op: Option<AluOp>,
     pub alu_out: EmulatorCell,
@@ -342,9 +400,9 @@ impl Default for Emulator {
     }
 }
 
-// emulator logic core
+/// emulator logic core
 impl Emulator {
-    // this will be called every frame (bool if emulator state changed)
+    /// this will be called every clock cycle of the state machine (bool if emulator state changed)
     pub fn update(&mut self) -> bool {
         let breakpoints = BREAKPOINTS.lock().unwrap();
 
@@ -354,14 +412,6 @@ impl Emulator {
         self.tick = self.tick.wrapping_add(1);
 
         if self.running {
-            if self.skip_os_emulation {
-                while self.pc.get() < 0x3000 && os_steps < MAX_OS_STEPS && self.running {
-                    changed = true;
-                    self.step();
-                    os_steps += 1;
-                }
-            }
-
             // Automatic stepping logic when running
             if self.tick % self.ticks_between_updates as u64 == 0 {
                 let mut i = 0;
@@ -382,24 +432,14 @@ impl Emulator {
                     self.micro_step();
                     i += 1;
 
-                    // Skip OS code if enabled during running mode
-                    // Limit OS skipping to avoid freezing
-
-                    while self.skip_os_emulation
-                        && self.pc.get() < 0x3000
-                        && os_steps < MAX_OS_STEPS
-                        && self.running
-                    {
-                        self.step();
-                        os_steps += 1;
-                    }
-
                     if i >= self.speed {
                         break;
                     }
                 }
             }
 
+            // Skip OS code if enabled during running mode
+            // Limit OS skipping to avoid freezing
             if self.skip_os_emulation {
                 while self.pc.get() < 0x3000 && os_steps < MAX_OS_STEPS && self.running {
                     changed = true;
@@ -793,6 +833,7 @@ impl Emulator {
                 tracing::trace!(success = write_result.is_ok(), "Memory write step complete");
                 if let Err(e) = &write_result {
                     tracing::error!(error = e, "Memory write step failed");
+                    debug_assert!(false, "write STEP NOT OK AAAAAAAAAAAA");
                 }
             }
         }
@@ -803,7 +844,7 @@ impl Emulator {
             // Don't log redundantly if it's just reporting an already set exception
             if self.exception.is_none() {
                 tracing::error!("Micro_step failed: {}", e);
-                debug_assert!(false, "Micro_step failed: {e}");
+                debug_assert!(false, "Micro_step failed: {e}"); // If we did not set exeption somthing fishy is going on
             }
         }
     }
@@ -815,7 +856,9 @@ impl Emulator {
         self.running = true;
 
         // Execute micro-steps until we return to the Fetch state, completing one instruction.
-        self.micro_step(); // (potentially) Fetch
+        if matches!(self.cpu_state, CpuState::Fetch) {
+            self.micro_step(); // Step over  Fetch
+        }
         while !matches!(self.cpu_state, CpuState::Fetch) && self.running {
             // Continue micro-stepping until Fetch is reached or an exception occurs
             self.micro_step();
@@ -902,6 +945,7 @@ impl Emulator {
     }
 }
 
+/// if we can bit adress a type then we can index into the bits.
 pub trait BitAddressable {
     fn index(&self, addr: u8) -> Self;
     fn range(&self, slice: Range<u8>) -> Self;

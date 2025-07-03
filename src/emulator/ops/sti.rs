@@ -1,10 +1,9 @@
-use crate::emulator::{
-    area_from_address, BitAddressable, Emulator, EmulatorCell, Exception, PSR_ADDR,
-};
+use crate::emulator::{area_from_address, BitAddressable, Emulator, EmulatorCell, Exception};
 
 use super::Op;
 
 #[derive(Debug, Clone)]
+/// Store some register value at `mem[mem[pc+pc_offset]]`
 pub struct StiOp {
     pub sr: EmulatorCell,               // Source Register index
     pub pc_offset: EmulatorCell,        // PCoffset9 (sign-extended)
@@ -18,12 +17,12 @@ pub struct StiOp {
 impl Op for StiOp {
     fn decode(ir: EmulatorCell) -> Self {
         // LAYOUT: 1011 | SR | PCoffset9
-        let sr = ir.range(11..9);
+
         // Extract and sign-extend PCoffset9
         let pc_offset = ir.range(8..0).sext(8);
 
         Self {
-            sr,
+            sr: ir.range(11..9),
             pc_offset,
             pointer_address: EmulatorCell::new(0),
             indirect_address: EmulatorCell::new(0),
@@ -99,10 +98,6 @@ impl Op for StiOp {
             // Signal the main loop to perform the memory write (Mem[MAR] <- MDR).
             machine_state.write_bit = true;
         }
-        if machine_state.mar.get() == PSR_ADDR as u16 {
-            let new_psr = machine_state.mdr;
-            machine_state.memory[PSR_ADDR].set(new_psr.get());
-        }
     }
 }
 use std::fmt;
@@ -123,6 +118,17 @@ impl fmt::Display for StiOp {
             sr_index,
             offset_val,                   // Display signed decimal offset
             self.pc_offset.get() & 0x1FF  // Display raw 9-bit hex offset
-        )
+        )?;
+
+        if self.is_valid_read_step1 && self.is_valid_write_step2 {
+            write!(
+                f,
+                " [storing {:04X} to mem[mem[{:04X}]] = mem[{:04X}]]",
+                self.value_to_store.get(),
+                self.pointer_address.get(),
+                self.indirect_address.get()
+            )?;
+        }
+        Ok(())
     }
 }

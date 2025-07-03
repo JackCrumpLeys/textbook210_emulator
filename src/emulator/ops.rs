@@ -33,8 +33,9 @@ mod st;
 mod sti;
 mod str;
 mod trap;
-// TODO: Refactor state system to use finer-grained execution steps
+
 #[derive(Debug, Clone)]
+/// This encodes the key data used in the state machine to decide the next action to take
 pub enum CpuState {
     Fetch,                    // Fetch instruction from memory location pointed by PC into IR
     Decode,                   // Decode instruction in IR, identify opcode and operands
@@ -44,8 +45,7 @@ pub enum CpuState {
     StoreResult(OpCode),      // Write the result back to register or memory (if needed)
 }
 
-// Represents the decoded operation type.
-// The actual Op structs (AddOp, LdOp, etc.) implement the logic for each phase.
+/// Represents the decoded operation type.
 #[derive(Debug, Clone)]
 pub enum OpCode {
     Add(AddOp),
@@ -66,11 +66,12 @@ pub enum OpCode {
 }
 
 impl OpCode {
-    // Decodes an instruction from the machine state (usually from IR)
-    // and returns the corresponding OpCode variant containing the decoded operation details.
+    /// Decodes an instruction from the machine state (usually from IR)
+    /// and returns the corresponding OpCode variant containing the decoded operation details.
     pub fn from_instruction(instruction: EmulatorCell) -> Option<OpCode> {
         let opcode_val = instruction.range(15..12).get();
 
+        debug_assert!(opcode_val != 0xd, "Tried to decode non-existant op");
         match opcode_val {
             // Call the specific decode method for each opcode
             0x1 => Some(OpCode::Add(AddOp::decode(instruction))),
@@ -88,14 +89,13 @@ impl OpCode {
             0xB => Some(OpCode::Sti(StiOp::decode(instruction))),
             0x7 => Some(OpCode::Str(StrOp::decode(instruction))),
             0xF => Some(OpCode::Trap(TrapOp::decode(instruction))),
-            // Opcodes 13 (0xD) is unused/reserved in standard LC-3.
-            _ => None, // Return None for invalid/unused opcodes
+            // Opcode 13 (0xD) is unused/reserved in standard LC-3.
+            _ => None, // Return None for invalid/unused opcode
         }
     }
 
-    // Dispatch methods for each phase, calling the appropriate method on the specific Op struct.
-    // The main emulator loop will call these based on the current CpuState.
-
+    /// Dispatch methods for each phase, calling the appropriate method on the specific Op struct.
+    /// The main emulator loop will call these based on the current CpuState.
     pub fn evaluate_address(&mut self, machine_state: &mut Emulator) {
         match self {
             OpCode::Add(op) => op.evaluate_address(machine_state),
@@ -116,6 +116,7 @@ impl OpCode {
         }
     }
 
+    /// On this cyle instructions whos operands are at a given adress will fetch them.
     pub fn fetch_operands(&mut self, machine_state: &mut Emulator) {
         if match self {
             OpCode::Add(op) => op.fetch_operands(machine_state),
@@ -134,7 +135,6 @@ impl OpCode {
             OpCode::Str(op) => op.fetch_operands(machine_state),
             OpCode::Trap(op) => op.fetch_operands(machine_state),
         } {
-            // SA
             machine_state.step_read_memory();
 
             self.fetch_operands(machine_state);
@@ -142,6 +142,7 @@ impl OpCode {
         machine_state.step_read_memory();
     }
 
+    /// This is the meat of most instruction. This is when SHIT GOES DOWN
     pub fn execute_operation(&mut self, machine_state: &mut Emulator) {
         match self {
             OpCode::Add(op) => op.execute_operation(machine_state),
@@ -162,6 +163,7 @@ impl OpCode {
         }
     }
 
+    /// Store the result of the execute cyvle wherever it needs to be stored
     pub fn store_result(&mut self, machine_state: &mut Emulator) {
         match self {
             OpCode::Add(op) => op.store_result(machine_state),

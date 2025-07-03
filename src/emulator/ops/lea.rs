@@ -3,6 +3,7 @@ use crate::emulator::{BitAddressable, Emulator, EmulatorCell};
 use super::Op;
 
 #[derive(Debug, Clone)]
+/// Load the effective adress of some offset from PC
 pub struct LeaOp {
     pub dr: EmulatorCell,                // Destination Register index
     pub pc_offset: EmulatorCell,         // PCoffset9 (sign-extended)
@@ -30,11 +31,6 @@ impl Op for LeaOp {
         self.effective_address.set(effective_addr_val);
     }
 
-    fn fetch_operands(&mut self, _machine_state: &mut Emulator) -> bool {
-        // LEA does not fetch operands from memory or registers based on the address.
-        false
-    }
-
     fn store_result(&mut self, machine_state: &mut Emulator) {
         // Load the calculated effective address into the destination register.
         let dr_index = self.dr.get() as usize;
@@ -53,6 +49,15 @@ impl std::fmt::Display for LeaOp {
             dr_index,
             offset_val,
             self.pc_offset.get() & 0x1FF
-        )
+        )?;
+
+        if self.effective_address.get() != 0 {
+            write!(
+                f,
+                " [Calculated addr: x{:04X}]",
+                self.effective_address.get()
+            )?;
+        }
+        Ok(())
     }
 }

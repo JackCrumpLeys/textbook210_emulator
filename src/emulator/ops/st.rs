@@ -1,6 +1,4 @@
-use crate::emulator::{
-    area_from_address, BitAddressable, Emulator, EmulatorCell, Exception, PSR_ADDR,
-};
+use crate::emulator::{area_from_address, BitAddressable, Emulator, EmulatorCell, Exception};
 
 use super::Op;
 
@@ -58,10 +56,6 @@ impl Op for StOp {
             // we are writing mem[mar] <- mdr
             machine_state.write_bit = true;
         }
-        if machine_state.mar.get() == PSR_ADDR as u16 {
-            let new_psr = machine_state.mdr;
-            machine_state.memory[PSR_ADDR].set(new_psr.get());
-        }
     }
 }
 use std::fmt;
@@ -78,6 +72,15 @@ impl fmt::Display for StOp {
             sr_index,
             offset_val,
             self.pc_offset.get() & 0x1FF // Mask to 9 bits for hex
-        )
+        )?;
+
+        if self.is_valid_store {
+            write!(f, " [storing")?;
+            if self.effective_address.get() != 0 {
+                write!(f, " to x{:04X}", self.effective_address.get())?;
+            }
+            write!(f, "]")?;
+        }
+        Ok(())
     }
 }

@@ -3,6 +3,7 @@ use crate::emulator::{area_from_address, BitAddressable, Emulator, EmulatorCell,
 use super::Op;
 
 #[derive(Debug, Clone)]
+/// load from given register and offset Mem[Base_r + offset6]
 pub struct LdrOp {
     pub dr: EmulatorCell,                // Destination Register index
     pub base_r: EmulatorCell,            // Base Register index
@@ -77,8 +78,6 @@ use std::fmt;
 
 impl fmt::Display for LdrOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Display the decoded instruction form.
-        // effective_address and is_valid_load are determined later.
         let dr_index = self.dr.get();
         let base_r_index = self.base_r.get();
         // offset6 is already sign-extended from decode
@@ -88,6 +87,15 @@ impl fmt::Display for LdrOp {
         write!(
             f,
             "LDR R{dr_index}, R{base_r_index}, #{offset_val_signed} (x{offset_val_raw:02X})"
-        )
+        )?;
+
+        if self.is_valid_load {
+            write!(f, " [loading")?;
+            if self.effective_address.get() != 0 {
+                write!(f, " from x{:04X}", self.effective_address.get())?;
+            }
+            write!(f, "]")?;
+        }
+        Ok(())
     }
 }

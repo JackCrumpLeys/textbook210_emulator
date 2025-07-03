@@ -3,12 +3,19 @@ use crate::emulator::{area_from_address, BitAddressable, Emulator, EmulatorCell,
 use super::Op;
 
 #[derive(Debug, Clone)]
+
 pub struct BrOp {
+    /// Do we match on negitive?
     pub n_bit: EmulatorCell,
+    /// Do we match on zero?
     pub z_bit: EmulatorCell,
+    /// Do we match on positive?
     pub p_bit: EmulatorCell,
+    /// Offset from pc to take if we match
     pub pc_offset: EmulatorCell,
-    pub branch_taken: bool,           // Set during evaluate_address
+    /// Do the condition codes match and we are going to branch?
+    pub branch_taken: bool, // Set during evaluate_address
+    /// Where we boutta go
     pub target_address: EmulatorCell, // Set during evaluate_address if branch_taken is true
 }
 
@@ -16,24 +23,13 @@ impl Op for BrOp {
     fn decode(ir: EmulatorCell) -> Self {
         // LAYOUT: 0000 | N | Z | P | PCoffset9
 
-        // Extract NZP bits and PCoffset9
-        let mut n_bit = ir.index(11);
-        let mut z_bit = ir.index(10);
-        let mut p_bit = ir.index(9);
-
-        if ir.range(11..9).get() == 0 {
-            n_bit = EmulatorCell::new(1);
-            z_bit = EmulatorCell::new(1);
-            p_bit = EmulatorCell::new(1);
-        }
-
         // Extract and sign-extend PCoffset9
         let pc_offset = ir.range(8..0).sext(8);
 
         Self {
-            n_bit,
-            z_bit,
-            p_bit,
+            n_bit: ir.index(11),
+            z_bit: ir.index(10),
+            p_bit: ir.index(9),
             pc_offset,
             branch_taken: false,
             target_address: EmulatorCell::new(0),
@@ -87,10 +83,6 @@ impl std::fmt::Display for BrOp {
         if self.p_bit.get() == 1 {
             op_name.push('P');
         }
-        // If no flags are set, it's technically BR (unconditional)
-        if op_name == "BR" {
-            op_name.push_str("nzp"); // Or just "BR" depending on convention
-        }
 
         // Format offset as signed decimal
         let offset_val = self.pc_offset.get() as i16; // Cast to signed for proper display
@@ -101,6 +93,15 @@ impl std::fmt::Display for BrOp {
             op_name,
             offset_val,
             self.pc_offset.get() & 0x1FF
-        )
+        )?;
+
+        if self.branch_taken {
+            write!(f, " [branching")?;
+            if self.target_address.get() != 0 {
+                write!(f, " to x{:04X}", self.target_address.get())?;
+            }
+            write!(f, "]")?;
+        }
+        Ok(())
     }
 }

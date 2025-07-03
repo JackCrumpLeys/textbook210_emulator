@@ -3,6 +3,7 @@ use crate::emulator::{AluOp, BitAddressable, Emulator, EmulatorCell};
 use super::Op;
 
 #[derive(Debug, Clone)]
+/// Preform the alu Not op on some register then save the result into some other register
 pub enum NotOp {
     Decoded {
         dr: EmulatorCell, // Destination register index
@@ -78,9 +79,8 @@ impl fmt::Display for NotOp {
             NotOp::Decoded { dr, sr } => {
                 write!(f, "NOT R{}, R{}", dr.get(), sr.get())
             }
-            NotOp::Ready { .. } => {
-                // This state represents an internal step, not a directly displayable instruction
-                write!(f, "INVALID READ")
+            NotOp::Ready { dr, op } => {
+                write!(f, "not R{}, x{:04X}", dr.get(), op.get())
             }
         }
     }

@@ -3,11 +3,16 @@ use crate::emulator::{area_from_address, BitAddressable, Emulator, EmulatorCell,
 use super::Op;
 
 #[derive(Debug, Clone)]
+/// Load from some ofset of PC
 pub struct LdOp {
-    pub dr: EmulatorCell,                // Destination Register index
-    pub pc_offset: EmulatorCell,         // PCoffset9 (sign-extended)
+    /// Where do we Store the result of the load
+    pub dr: EmulatorCell, // Destination Register index
+    /// What to ofset our pc by to get the value
+    pub pc_offset: EmulatorCell, // PCoffset9 (sign-extended)
+    /// In the end where are we loading from
     pub effective_address: EmulatorCell, // Calculated address
-    pub is_valid_load: bool,             // Flag if the address is valid to read from
+    /// Are we allowed to load from this location
+    pub is_valid_load: bool, // Flag if the address is valid to read from
 }
 
 impl Op for LdOp {
@@ -41,7 +46,6 @@ impl Op for LdOp {
             // Privilege violation: Cannot read from this memory location
             machine_state.exception = Some(Exception::new_access_control_violation());
             self.is_valid_load = false;
-            // Optional: warn logging if needed
             tracing::warn!(
                 address = format!("0x{:04X}", self.effective_address.get()),
                 "LD Privilege Violation: Cannot read from address"
@@ -58,11 +62,6 @@ impl Op for LdOp {
         // The actual memory read (MDR <- Mem[MAR]) happens after this phase if MAR is set.
 
         false
-    }
-
-    fn execute_operation(&mut self, _machine_state: &mut Emulator) {
-        // No specific execution/ALU operation for LD.
-        // The main work (memory read and register write) happens around fetch/store phases.
     }
 
     fn store_result(&mut self, machine_state: &mut Emulator) {
@@ -92,6 +91,15 @@ impl fmt::Display for LdOp {
         let offset_val = self.pc_offset.get() as i16; // Cast to signed for display
         let offset_hex = self.pc_offset.get() & 0x1FF; // Mask to 9 bits for hex
 
-        write!(f, "LD R{dr_index}, #{offset_val} (x{offset_hex:03X})")
+        write!(f, "LD R{dr_index}, #{offset_val} (x{offset_hex:03X})")?;
+
+        if self.is_valid_load {
+            write!(f, " [loading")?;
+            if self.effective_address.get() != 0 {
+                write!(f, " from x{:04X}", self.effective_address.get())?;
+            }
+            write!(f, "]")?;
+        }
+        Ok(())
     }
 }

@@ -11,8 +11,15 @@ fn test_full_program_execution() {
         let program = r#"
             .ORIG x3000
 
+            BR CODE
+            
+            ; First subroutine
+            SUBROUTINE
+                ADD R0, R0, #5      ; Add 5 to R0
+                RET                 ; Return using R7
+
             ; Initialize registers
-            AND R0, R0, #0      ; Clear R0
+            CODE AND R0, R0, #0      ; Clear R0
             AND R1, R1, #0      ; Clear R1
             AND R2, R2, #0      ; Clear R2
             AND R3, R3, #0      ; Clear R3
@@ -80,10 +87,6 @@ fn test_full_program_execution() {
             INDIRECT_RESULT: .FILL x0000 ; To store indirect result
             REGISTER_STORE_ADDRESS: .FILL x4000
 
-            ; First subroutine
-            SUBROUTINE:
-                ADD R0, R0, #5      ; Add 5 to R0
-                RET                 ; Return using R7
 
             ; Second subroutine
             SECOND_SUB:

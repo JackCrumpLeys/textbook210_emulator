@@ -4,14 +4,14 @@ use crate::emulator::{
 
 use super::Op;
 
-// TRAP works like a special kind of jump instruction.
-// 1. Pushes the current PC (return address) onto the system stack
-// 2. Pushes PSR (processor status register) onto the system stack
-// 3. Switches the CPU to Supervisor mode.
-// 4. Switches the Stack Pointer (R6) from User SP (USP) to Supervisor SP (SSP).
-// 5. Reads the starting address of the trap handler routine from the Trap Vector Table (Memory[0x0000 + ZEXT(trapvect8)]).
-// 6. Jumps to that handler routine address.
 #[derive(Debug, Clone)]
+/// TRAP works like a special kind of jump instruction.
+/// 1. Pushes the current PC (return address) onto the system stack
+/// 2. Pushes PSR (processor status register) onto the system stack
+/// 3. Switches the CPU to Supervisor mode.
+/// 4. Switches the Stack Pointer (R6) from User SP (USP) to Supervisor SP (SSP).
+/// 5. Reads the starting address of the trap handler routine from the Trap Vector Table (Memory[0x0000 + ZEXT(trapvect8)]).
+/// 6. Jumps to that handler routine address.
 pub struct TrapOp {
     pub trap_vector: EmulatorCell, // The 8-bit vector number from the instruction
     pub vector_table_entry_addr: EmulatorCell, // Address in TVT (0x00XX) where handler addr is stored
@@ -40,12 +40,8 @@ impl Op for TrapOp {
         let vector_addr_val = self.trap_vector.get(); // Range already zero-extends.
         self.vector_table_entry_addr.set(vector_addr_val);
 
-        // Check if the vector area is readable and within TVT bounds.
-        let vector_area = area_from_address(&self.vector_table_entry_addr);
-        if vector_area.can_read(&machine_state.priv_level())
-            && self.vector_table_entry_addr.get() <= 0x00FF
-        // Ensure it's within TVT
-        {
+        // Check if the vector area is within TVT bounds.
+        if self.vector_table_entry_addr.get() <= 0x00FF {
             self.is_valid_read_vector = true;
         } else {
             // This indicates a potential issue with the TRAP vector itself or memory setup.
@@ -140,7 +136,6 @@ use std::fmt;
 
 impl fmt::Display for TrapOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // The display implementation should reflect the state immediately after decode.
         let vector_val = self.trap_vector.get(); // Get the 8-bit vector value
 
         // Check for common trap aliases

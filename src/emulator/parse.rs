@@ -1,8 +1,18 @@
 use std::{collections::HashMap, str::FromStr};
 
+use serde::{Deserialize, Serialize};
+
 use super::Emulator;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Copy)]
+/// Encodes all of the ops a user can use
+/// This is the second component in a line
+///
+/// ```norust
+/// X ADD R1, #3
+///   ^
+///   OpToken
+/// ```
 pub enum OpToken {
     Add,
     And,
@@ -28,7 +38,7 @@ impl FromStr for OpToken {
         match s.to_ascii_uppercase().as_str() {
             "ADD" => Ok(OpToken::Add),
             "AND" => Ok(OpToken::And),
-            "BR" => Ok(OpToken::Br(false, false, false)),
+            "BR" => Ok(OpToken::Br(true, true, true)),
             "BRN" => Ok(OpToken::Br(true, false, false)),
             "BRZ" => Ok(OpToken::Br(false, true, false)),
             "BRP" => Ok(OpToken::Br(false, false, true)),
@@ -63,7 +73,35 @@ impl FromStr for OpToken {
     type Err = ();
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+/// A list of theese is a program
+/// ```norust
+/// X ADD R1, #3
+/// ^ ^-- ^-^ ^-
+/// | |   | |   ^ EOL
+/// | |   | | Immediate(3)
+/// | |   | Comma
+/// | |   Register(1)
+/// | OpCode(OpToken::ADD)
+/// Label("X")
+/// ```
+///
+/// ```norust
+/// Y: JSR X
+/// ^^ ^-- ^
+/// || |   LabelRef("X")
+/// || OpCode(OpToken::Jsr)
+/// |Colon
+/// Label("Y")
+/// ```
+///
+/// ```norust
+/// .STRINGZ "hello"
+/// ^------- ^-----
+/// |        StringLiteral("hello")
+/// Directive("STRINGZ")
+/// ```
+///
 pub enum Token {
     // Instructions
     Opcode(OpToken),
@@ -93,7 +131,7 @@ pub enum Token {
     EOL,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TokenSpan {
     pub token: Token,
     pub line: usize,
@@ -457,7 +495,7 @@ impl Parser {
         }
     }
 
-    pub fn parse(&mut self) -> Result<ParseOutput, (String, usize)> {
+    pub fn parse(&mut self) -> Result<ParseOutput, (String, TokenSpan)> {
         let mut machine_code = vec![];
         let mut labels = HashMap::new();
         let mut line_to_address: HashMap<usize, usize> = HashMap::new();
@@ -495,17 +533,20 @@ impl Parser {
         address: &mut u16,
         orig_address: &mut u16,
         orig_set: &mut bool,
-    ) -> Result<(), (String, usize)> {
+    ) -> Result<(), (String, TokenSpan)> {
         while self.position < self.tokens.len() {
-            let token_span = &self.tokens[self.position];
-            let line = token_span.line;
+            let token_span = self.tokens[self.position].clone();
+            let line = token_span.line + 1;
 
             // Keep track of current line for error reporting
             match &token_span.token {
                 Token::Label(label_name) => {
                     // Direct label declaration (already converted from LabelRef+Colon)
                     if labels.contains_key(label_name) {
-                        return Err((format!("Duplicate label '{label_name}' defined"), line));
+                        return Err((
+                            format!("Duplicate label '{label_name}' defined"),
+                            token_span,
+                        ));
                     }
 
                     tracing::debug!(
@@ -526,7 +567,10 @@ impl Parser {
                     {
                         // This is a label definition
                         if labels.contains_key(label_name) {
-                            return Err((format!("Duplicate label '{label_name}' defined"), line));
+                            return Err((
+                                format!("Duplicate label '{label_name}' defined"),
+                                token_span,
+                            ));
                         }
 
                         tracing::debug!(
@@ -545,7 +589,7 @@ impl Parser {
                         // For first pass, we just need to calculate address increments
                         *address = address.checked_add(1).ok_or((
                             format!("Address overflow past 0xFFFF on line {line}"),
-                            line,
+                            token_span,
                         ))?;
                         self.position += 1;
                     }
@@ -559,7 +603,7 @@ impl Parser {
                             if *orig_set {
                                 return Err((
                                     ".ORIG must be the first directive in the program".to_string(),
-                                    line,
+                                    token_span,
                                 ));
                             }
 
@@ -567,7 +611,7 @@ impl Parser {
                             if self.position + 1 >= self.tokens.len() {
                                 return Err((
                                     "Invalid .ORIG directive: missing address".to_string(),
-                                    line,
+                                    token_span,
                                 ));
                             }
 
@@ -596,7 +640,7 @@ impl Parser {
                                 _ => {
                                     return Err((
                                         format!("Invalid .ORIG address at line {line}"),
-                                        line,
+                                        token_span,
                                     ))
                                 }
                             }
@@ -614,14 +658,14 @@ impl Parser {
                             if !*orig_set {
                                 return Err((
                                     ".ORIG must be the first directive in the program".to_string(),
-                                    line,
+                                    token_span,
                                 ));
                             }
 
                             // .FILL takes one word
                             *address = address.checked_add(1).ok_or((
                                 format!("Address overflow past 0xFFFF on line {line}"),
-                                line,
+                                token_span,
                             ))?;
 
                             // Skip directive and value
@@ -632,7 +676,7 @@ impl Parser {
                             if !*orig_set {
                                 return Err((
                                     ".ORIG must be the first directive in the program".to_string(),
-                                    line,
+                                    token_span,
                                 ));
                             }
 
@@ -640,7 +684,7 @@ impl Parser {
                             if self.position + 1 >= self.tokens.len() {
                                 return Err((
                                     "Invalid .BLKW directive: missing size".to_string(),
-                                    line,
+                                    token_span,
                                 ));
                             }
 
@@ -650,9 +694,9 @@ impl Parser {
                                     if *size == 0 {
                                         return Err((
                                             format!(
-                                                "Invalid .BLKW size: must be positive, got {size}"
+                                                "Invalid .BLKW size: must be positive, token_span{size}"
                                             ),
-                                            line,
+                                            token_span,
                                         ));
                                     }
                                     *size
@@ -661,7 +705,7 @@ impl Parser {
                                 _ => {
                                     return Err((
                                         format!("Invalid .BLKW size at line {line}"),
-                                        line,
+                                        token_span,
                                     ))
                                 }
                             };
@@ -675,7 +719,7 @@ impl Parser {
 
                             *address = address.checked_add(block_size).ok_or((
                                 format!("Address overflow past 0xFFFF on line {line}"),
-                                line,
+                                token_span,
                             ))?;
 
                             // Skip directive and size
@@ -686,7 +730,7 @@ impl Parser {
                             if !*orig_set {
                                 return Err((
                                     ".ORIG must be the first directive in the program".to_string(),
-                                    line,
+                                    token_span,
                                 ));
                             }
 
@@ -694,7 +738,7 @@ impl Parser {
                             if self.position + 1 >= self.tokens.len() {
                                 return Err((
                                     "Invalid .STRINGZ directive: missing string".to_string(),
-                                    line,
+                                    token_span,
                                 ));
                             }
 
@@ -711,13 +755,13 @@ impl Parser {
 
                                     *address = address.checked_add(string_size).ok_or((
                                         format!("Address overflow past 0xFFFF on line {line}"),
-                                        line,
+                                        token_span,
                                     ))?;
                                 }
                                 _ => {
                                     return Err((
                                         format!("Invalid .STRINGZ value at line {line}"),
-                                        line,
+                                        token_span,
                                     ))
                                 }
                             }
@@ -728,7 +772,7 @@ impl Parser {
                         _ => {
                             return Err((
                                 format!("Unknown directive: {dir_name} at line {line}"),
-                                line,
+                                token_span,
                             ))
                         }
                     }
@@ -738,14 +782,15 @@ impl Parser {
                     if !*orig_set {
                         return Err((
                             ".ORIG must be the first directive in the program".to_string(),
-                            line,
+                            token_span,
                         ));
                     }
 
                     // Instructions take one word
-                    *address = address
-                        .checked_add(1)
-                        .ok_or((format!("Address overflow past 0xFFFF on line {line}"), line))?;
+                    *address = address.checked_add(1).ok_or((
+                        format!("Address overflow past 0xFFFF on line {line}"),
+                        token_span,
+                    ))?;
 
                     // Skip past this opcode and its operands (simplified for first pass)
                     let mut op_position = self.position + 1;
@@ -770,7 +815,14 @@ impl Parser {
         }
 
         if !*orig_set {
-            return Err(("No .ORIG directive found".to_string(), 0));
+            return Err((
+                "No .ORIG directive found".to_owned(),
+                TokenSpan {
+                    token: Token::EOL,
+                    line: 0,
+                    column: 0,
+                },
+            ));
         }
 
         Ok(())
@@ -783,13 +835,13 @@ impl Parser {
         labels: &HashMap<String, u16>,
         line_to_address: &mut HashMap<usize, usize>,
         address: &mut u16,
-    ) -> Result<(), (String, usize)> {
-        let mut current_line = 0;
+    ) -> Result<(), (String, TokenSpan)> {
+        let mut current_line = 1;
         let mut line_has_address_mapping = false;
 
         while self.position < self.tokens.len() {
-            let token_span = &self.tokens[self.position].clone();
-            let line = token_span.line;
+            let token_span = self.tokens[self.position].clone();
+            let line = token_span.line + 1;
             let current_address = *address;
 
             // Track new line - record the starting address for this line
@@ -841,7 +893,7 @@ impl Parser {
                             if self.position + 1 >= self.tokens.len() {
                                 return Err((
                                     "Invalid .FILL directive: missing value".to_string(),
-                                    line,
+                                    token_span,
                                 ));
                             }
 
@@ -853,13 +905,16 @@ impl Parser {
                                     if let Some(&label_addr) = labels.get(label) {
                                         label_addr
                                     } else {
-                                        return Err((format!("Unknown label: {label}"), line));
+                                        return Err((
+                                            format!("Unknown label: {label}"),
+                                            value_token.clone(),
+                                        ));
                                     }
                                 }
                                 _ => {
                                     return Err((
                                         format!("Invalid .FILL value at line {line}"),
-                                        line,
+                                        value_token.clone(),
                                     ));
                                 }
                             };
@@ -878,7 +933,7 @@ impl Parser {
                             if self.position + 1 >= self.tokens.len() {
                                 return Err((
                                     "Invalid .BLKW directive: missing size".to_string(),
-                                    line,
+                                    token_span,
                                 ));
                             }
 
@@ -889,7 +944,7 @@ impl Parser {
                                 _ => {
                                     return Err((
                                         format!("Invalid .BLKW size at line {line}"),
-                                        line,
+                                        size_token.clone(),
                                     ));
                                 }
                             };
@@ -905,7 +960,7 @@ impl Parser {
                             if self.position + 1 >= self.tokens.len() {
                                 return Err((
                                     "Invalid .STRINGZ directive: missing string".to_string(),
-                                    line,
+                                    token_span,
                                 ));
                             }
 
@@ -932,7 +987,7 @@ impl Parser {
                                 _ => {
                                     return Err((
                                         format!("Invalid .STRINGZ value at line {line}"),
-                                        line,
+                                        string_token.clone(),
                                     ));
                                 }
                             }
@@ -942,7 +997,7 @@ impl Parser {
                         _ => {
                             return Err((
                                 format!("Unknown directive: {dir_name} at line {line}"),
-                                line,
+                                token_span,
                             ));
                         }
                     }
@@ -964,8 +1019,13 @@ impl Parser {
                         op_pos += 1;
                     }
 
-                    let instruction =
-                        self.generate_instruction(op, &operands, current_address, labels, line)?;
+                    let instruction = self.generate_instruction(
+                        op,
+                        &token_span,
+                        &operands,
+                        current_address,
+                        labels,
+                    )?;
                     machine_code.push(instruction);
                     *address += 1;
 
@@ -984,10 +1044,7 @@ impl Parser {
 
                 _ => {
                     // For other tokens, report an error - unexpected token
-                    return Err((
-                        format!("Unexpected token at line {}: {:?}", line, token_span.token),
-                        line,
-                    ));
+                    return Err(("Unexpected token".to_string(), token_span));
                 }
             }
         }
@@ -998,19 +1055,23 @@ impl Parser {
     fn generate_instruction(
         &self,
         op: &OpToken,
+        token_span: &TokenSpan,
         operands: &[TokenSpan],
         current_address: u16,
         labels: &HashMap<String, u16>,
-        line: usize,
-    ) -> Result<u16, (String, usize)> {
+    ) -> Result<u16, (String, TokenSpan)> {
+        let token_span = token_span.clone();
         match op {
             OpToken::Add => {
                 if operands.len() < 3 {
-                    return Err(("Invalid ADD format: not enough operands".to_string(), line));
+                    return Err((
+                        "Invalid ADD format: not enough operands".to_string(),
+                        token_span,
+                    ));
                 }
 
-                let dr = self.parse_register(&operands[0], line)?;
-                let sr1 = self.parse_register(&operands[1], line)?;
+                let dr = self.parse_register(&operands[0])?;
+                let sr1 = self.parse_register(&operands[1])?;
 
                 // Check mode (register or immediate)
                 match &operands[2].token {
@@ -1021,22 +1082,30 @@ impl Parser {
                     }
                     Token::Immediate(imm5) | Token::HexValue(imm5) => {
                         // Immediate mode: ADD DR, SR1, #IMM5
-                        let imm5_val = self.check_immediate_range(*imm5 as i16, 5, line)?;
+                        let imm5_val = self
+                            .check_immediate_range(*imm5 as i16, 5)
+                            .map_err(|x| (x, operands[2].clone()))?;
                         let instruction =
                             (0b0001 << 12) | (dr << 9) | (sr1 << 6) | (1 << 5) | (imm5_val & 0x1F);
                         Ok(instruction)
                     }
-                    _ => Err((format!("Invalid ADD operand at line {line}"), line)),
+                    _ => Err((
+                        "Invalid ADD operand. Expected register or immediate".to_string(),
+                        operands[2].clone(),
+                    )),
                 }
             }
 
             OpToken::And => {
                 if operands.len() < 3 {
-                    return Err(("Invalid AND format: not enough operands".to_string(), line));
+                    return Err((
+                        "Invalid AND format: not enough operands".to_string(),
+                        token_span,
+                    ));
                 }
 
-                let dr = self.parse_register(&operands[0], line)?;
-                let sr1 = self.parse_register(&operands[1], line)?;
+                let dr = self.parse_register(&operands[0])?;
+                let sr1 = self.parse_register(&operands[1])?;
 
                 // Check mode (register or immediate)
                 match &operands[2].token {
@@ -1047,21 +1116,23 @@ impl Parser {
                     }
                     Token::Immediate(imm5) | Token::HexValue(imm5) => {
                         // Immediate mode: AND DR, SR1, #IMM5
-                        let imm5_val = self.check_immediate_range(*imm5 as i16, 5, line)?;
+                        let imm5_val = self
+                            .check_immediate_range(*imm5 as i16, 5)
+                            .map_err(|x| (x, operands[2].clone()))?;
                         let instruction =
                             (0b0101 << 12) | (dr << 9) | (sr1 << 6) | (1 << 5) | (imm5_val & 0x1F);
                         Ok(instruction)
                     }
-                    _ => Err((format!("Invalid AND operand at line {line}"), line)),
+                    _ => Err(("Invalid AND operand".to_string(), token_span)),
                 }
             }
 
             OpToken::Br(n, z, p) => {
                 if operands.is_empty() {
-                    return Err(("Invalid BR format: missing target".to_string(), line));
+                    return Err(("Invalid BR format: missing target".to_string(), token_span));
                 }
 
-                let offset = self.parse_offset(&operands[0], current_address, labels, 9, line)?;
+                let offset = self.parse_offset(&operands[0], current_address, labels, 9)?;
                 let n_bit = (*n as u16) << 11;
                 let z_bit = (*z as u16) << 10;
                 let p_bit = (*p as u16) << 9;
@@ -1072,41 +1143,50 @@ impl Parser {
 
             OpToken::Jmp => {
                 if operands.is_empty() {
-                    return Err(("Invalid JMP format: missing register".to_string(), line));
+                    return Err((
+                        "Invalid JMP format: missing register".to_string(),
+                        token_span,
+                    ));
                 }
 
-                let base_r = self.parse_register(&operands[0], line)?;
+                let base_r = self.parse_register(&operands[0])?;
                 let instruction = (0b1100 << 12) | (base_r << 6);
                 Ok(instruction)
             }
 
             OpToken::Jsr => {
                 if operands.is_empty() {
-                    return Err(("Invalid JSR format: missing target".to_string(), line));
+                    return Err(("Invalid JSR format: missing target".to_string(), token_span));
                 }
 
-                let offset = self.parse_offset(&operands[0], current_address, labels, 11, line)?;
+                let offset = self.parse_offset(&operands[0], current_address, labels, 11)?;
                 let instruction = (0b0100 << 12) | (1 << 11) | (offset & 0x7FF);
                 Ok(instruction)
             }
 
             OpToken::Jsrr => {
                 if operands.is_empty() {
-                    return Err(("Invalid JSRR format: missing register".to_string(), line));
+                    return Err((
+                        "Invalid JSRR format: missing register".to_string(),
+                        token_span,
+                    ));
                 }
 
-                let base_r = self.parse_register(&operands[0], line)?;
+                let base_r = self.parse_register(&operands[0])?;
                 let instruction = (0b0100 << 12) | (base_r << 6);
                 Ok(instruction)
             }
 
             OpToken::Ld => {
                 if operands.len() < 2 {
-                    return Err(("Invalid LD format: not enough operands".to_string(), line));
+                    return Err((
+                        "Invalid LD format: not enough operands".to_string(),
+                        token_span,
+                    ));
                 }
 
-                let dr = self.parse_register(&operands[0], line)?;
-                let offset = self.parse_offset(&operands[1], current_address, labels, 9, line)?;
+                let dr = self.parse_register(&operands[0])?;
+                let offset = self.parse_offset(&operands[1], current_address, labels, 9)?;
 
                 let instruction = (0b0010 << 12) | (dr << 9) | (offset & 0x1FF);
                 Ok(instruction)
@@ -1114,11 +1194,14 @@ impl Parser {
 
             OpToken::Ldi => {
                 if operands.len() < 2 {
-                    return Err(("Invalid LDI format: not enough operands".to_string(), line));
+                    return Err((
+                        "Invalid LDI format: not enough operands".to_string(),
+                        token_span,
+                    ));
                 }
 
-                let dr = self.parse_register(&operands[0], line)?;
-                let offset = self.parse_offset(&operands[1], current_address, labels, 9, line)?;
+                let dr = self.parse_register(&operands[0])?;
+                let offset = self.parse_offset(&operands[1], current_address, labels, 9)?;
 
                 let instruction = (0b1010 << 12) | (dr << 9) | (offset & 0x1FF);
                 Ok(instruction)
@@ -1126,12 +1209,15 @@ impl Parser {
 
             OpToken::Ldr => {
                 if operands.len() < 3 {
-                    return Err(("Invalid LDR format: not enough operands".to_string(), line));
+                    return Err((
+                        "Invalid LDR format: not enough operands".to_string(),
+                        token_span,
+                    ));
                 }
 
-                let dr = self.parse_register(&operands[0], line)?;
-                let base_r = self.parse_register(&operands[1], line)?;
-                let offset = self.parse_immediate(&operands[2], 6, line)?;
+                let dr = self.parse_register(&operands[0])?;
+                let base_r = self.parse_register(&operands[1])?;
+                let offset = self.parse_immediate(&operands[2], 6)?;
 
                 let instruction = (0b0110 << 12) | (dr << 9) | (base_r << 6) | (offset & 0x3F);
                 Ok(instruction)
@@ -1139,11 +1225,14 @@ impl Parser {
 
             OpToken::Lea => {
                 if operands.len() < 2 {
-                    return Err(("Invalid LEA format: not enough operands".to_string(), line));
+                    return Err((
+                        "Invalid LEA format: not enough operands".to_string(),
+                        token_span,
+                    ));
                 }
 
-                let dr = self.parse_register(&operands[0], line)?;
-                let offset = self.parse_offset(&operands[1], current_address, labels, 9, line)?;
+                let dr = self.parse_register(&operands[0])?;
+                let offset = self.parse_offset(&operands[1], current_address, labels, 9)?;
 
                 let instruction = (0b1110 << 12) | (dr << 9) | (offset & 0x1FF);
                 Ok(instruction)
@@ -1151,11 +1240,14 @@ impl Parser {
 
             OpToken::Not => {
                 if operands.len() < 2 {
-                    return Err(("Invalid NOT format: not enough operands".to_string(), line));
+                    return Err((
+                        "Invalid NOT format: not enough operands".to_string(),
+                        token_span,
+                    ));
                 }
 
-                let dr = self.parse_register(&operands[0], line)?;
-                let sr = self.parse_register(&operands[1], line)?;
+                let dr = self.parse_register(&operands[0])?;
+                let sr = self.parse_register(&operands[1])?;
 
                 let instruction = (0b1001 << 12) | (dr << 9) | (sr << 6) | 0x3F;
                 Ok(instruction)
@@ -1175,11 +1267,14 @@ impl Parser {
 
             OpToken::St => {
                 if operands.len() < 2 {
-                    return Err(("Invalid ST format: not enough operands".to_string(), line));
+                    return Err((
+                        "Invalid ST format: not enough operands".to_string(),
+                        token_span,
+                    ));
                 }
 
-                let sr = self.parse_register(&operands[0], line)?;
-                let offset = self.parse_offset(&operands[1], current_address, labels, 9, line)?;
+                let sr = self.parse_register(&operands[0])?;
+                let offset = self.parse_offset(&operands[1], current_address, labels, 9)?;
 
                 let instruction = (0b0011 << 12) | (sr << 9) | (offset & 0x1FF);
                 Ok(instruction)
@@ -1187,11 +1282,14 @@ impl Parser {
 
             OpToken::Sti => {
                 if operands.len() < 2 {
-                    return Err(("Invalid STI format: not enough operands".to_string(), line));
+                    return Err((
+                        "Invalid STI format: not enough operands".to_string(),
+                        token_span,
+                    ));
                 }
 
-                let sr = self.parse_register(&operands[0], line)?;
-                let offset = self.parse_offset(&operands[1], current_address, labels, 9, line)?;
+                let sr = self.parse_register(&operands[0])?;
+                let offset = self.parse_offset(&operands[1], current_address, labels, 9)?;
 
                 let instruction = (0b1011 << 12) | (sr << 9) | (offset & 0x1FF);
                 Ok(instruction)
@@ -1199,12 +1297,15 @@ impl Parser {
 
             OpToken::Str => {
                 if operands.len() < 3 {
-                    return Err(("Invalid STR format: not enough operands".to_string(), line));
+                    return Err((
+                        "Invalid STR format: not enough operands".to_string(),
+                        token_span,
+                    ));
                 }
 
-                let sr = self.parse_register(&operands[0], line)?;
-                let base_r = self.parse_register(&operands[1], line)?;
-                let offset = self.parse_immediate(&operands[2], 6, line)?;
+                let sr = self.parse_register(&operands[0])?;
+                let base_r = self.parse_register(&operands[1])?;
+                let offset = self.parse_immediate(&operands[2], 6)?;
 
                 let instruction = (0b0111 << 12) | (sr << 9) | (base_r << 6) | (offset & 0x3F);
                 Ok(instruction)
@@ -1217,23 +1318,32 @@ impl Parser {
                 } else {
                     // Parse custom trap vector
                     if operands.is_empty() {
-                        return Err(("Invalid TRAP format: missing vector".to_string(), line));
+                        return Err((
+                            "Invalid TRAP format: missing vector".to_string(),
+                            token_span,
+                        ));
                     }
 
                     match &operands[0].token {
                         Token::HexValue(vector) => {
                             if *vector > 0xFF {
-                                return Err(("Trap vector out of range (0-255)".to_string(), line));
+                                return Err((
+                                    "Trap vector out of range (0-255)".to_string(),
+                                    token_span,
+                                ));
                             }
                             *vector
                         }
                         Token::Immediate(vector) => {
                             if *vector > 255 {
-                                return Err(("Trap vector out of range (0-255)".to_string(), line));
+                                return Err((
+                                    "Trap vector out of range (0-255)".to_string(),
+                                    token_span,
+                                ));
                             }
                             *vector
                         }
-                        _ => return Err(("Invalid trap vector format".to_string(), line)),
+                        _ => return Err(("Invalid trap vector format".to_string(), token_span)),
                     }
                 };
 
@@ -1243,27 +1353,27 @@ impl Parser {
         }
     }
 
-    fn parse_register(&self, token: &TokenSpan, line: usize) -> Result<u16, (String, usize)> {
+    fn parse_register(&self, token: &TokenSpan) -> Result<u16, (String, TokenSpan)> {
         match &token.token {
             Token::Register(reg) => {
                 if *reg <= 7 {
                     Ok(*reg)
                 } else {
-                    Err((format!("Register number out of range: {reg}"), line))
+                    Err((
+                        format!("Register number out of range: {reg}"),
+                        token.clone(),
+                    ))
                 }
             }
-            _ => Err((format!("Expected register at line {line}"), line)),
+            _ => Err(("Expected register".to_string(), token.clone())),
         }
     }
 
-    fn parse_immediate(
-        &self,
-        token: &TokenSpan,
-        width: u8,
-        line: usize,
-    ) -> Result<u16, (String, usize)> {
+    fn parse_immediate(&self, token: &TokenSpan, width: u8) -> Result<u16, (String, TokenSpan)> {
         match &token.token {
-            Token::Immediate(imm) => self.check_immediate_range(*imm as i16, width, line),
+            Token::Immediate(imm) => self
+                .check_immediate_range(*imm as i16, width)
+                .map_err(|x| (x, token.clone())),
             Token::HexValue(hex) => {
                 let signed_value = if *hex & (1 << (width - 1)) != 0 {
                     // Value would be negative when sign-extended
@@ -1272,9 +1382,10 @@ impl Parser {
                     // Value is positive
                     *hex as i16
                 };
-                self.check_immediate_range(signed_value, width, line)
+                self.check_immediate_range(signed_value, width)
+                    .map_err(|x| (x, token.clone()))
             }
-            _ => Err((format!("Expected immediate value at line {line}"), line)),
+            _ => Err(("Expected immediate value".to_string(), token.clone())),
         }
     }
 
@@ -1284,18 +1395,20 @@ impl Parser {
         current_address: u16,
         labels: &HashMap<String, u16>,
         width: u8,
-        line: usize,
-    ) -> Result<u16, (String, usize)> {
+    ) -> Result<u16, (String, TokenSpan)> {
         match &token.token {
             Token::LabelRef(label) => {
                 if let Some(&label_addr) = labels.get(label) {
                     let offset = (label_addr as i16) - (current_address as i16 + 1);
-                    self.check_immediate_range(offset, width, line)
+                    self.check_immediate_range(offset, width)
+                        .map_err(|x| (x, token.clone()))
                 } else {
-                    Err((format!("Unknown label: {label}"), line))
+                    Err((format!("Unknown label: {label}"), token.clone()))
                 }
             }
-            Token::Immediate(imm) => self.check_immediate_range(*imm as i16, width, line),
+            Token::Immediate(imm) => self
+                .check_immediate_range(*imm as i16, width)
+                .map_err(|x| (x, token.clone())),
             Token::HexValue(hex) => {
                 // Convert to signed value based on bit width
                 let signed_value = if *hex & (1 << (width - 1)) != 0 {
@@ -1305,28 +1418,23 @@ impl Parser {
                     // Value is positive
                     *hex as i16
                 };
-                self.check_immediate_range(signed_value, width, line)
+                self.check_immediate_range(signed_value, width)
+                    .map_err(|x| (x, token.clone()))
             }
-            _ => Err((format!("Expected label or offset at line {line}"), line)),
+            _ => Err(("Expected label or offset".to_string(), token.clone())),
         }
     }
 
-    fn check_immediate_range(
-        &self,
-        value: i16,
-        width: u8,
-        line: usize,
-    ) -> Result<u16, (String, usize)> {
+    fn check_immediate_range(&self, value: i16, width: u8) -> Result<u16, String> {
         let min_value = -(1 << (width - 1));
         let max_value = (1 << (width - 1)) - 1;
 
         if value < min_value || value > max_value {
-            Err((
+            Err(
                 format!(
                     "Immediate value {value} out of range for {width}-bit field [{min_value}, {max_value}]"
-                ),
-                line,
-            ))
+                )
+            )
         } else {
             // For negative values, we need to properly represent in 2's complement
             if value < 0 {
@@ -1336,6 +1444,12 @@ impl Parser {
             }
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ParseError {
+    TokenizeError(String, usize),
+    GenerationError(String, TokenSpan),
 }
 
 impl Emulator {
@@ -1365,7 +1479,7 @@ impl Emulator {
         }
     }
 
-    pub fn parse_program(program: &str) -> Result<ParseOutput, (String, usize)> {
+    pub fn parse_program(program: &str) -> Result<ParseOutput, ParseError> {
         let span = tracing::info_span!("parse_program", program_length = program.len());
         let _guard = span.enter();
 
@@ -1373,14 +1487,18 @@ impl Emulator {
 
         // step 1: tokenize the input
         let lexer = Lexer::new(program);
-        let tokens = lexer.tokenize()?;
+        let tokens = lexer
+            .tokenize()
+            .map_err(|(str, line)| ParseError::TokenizeError(str, line))?;
 
         tracing::debug!("tokenization complete: {} tokens", tokens.len());
         tracing::trace!("tokens: {:?}", tokens);
 
         // step 2: parse the tokens
         let mut parser = Parser::new(tokens);
-        let out = parser.parse();
+        let out = parser
+            .parse()
+            .map_err(|(str, tok)| ParseError::GenerationError(str, tok));
 
         tracing::trace!("parsed output: {:?}", out);
 

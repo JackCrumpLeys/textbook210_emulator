@@ -3,6 +3,7 @@ use crate::emulator::{area_from_address, BitAddressable, Emulator, EmulatorCell,
 use super::Op;
 
 #[derive(Debug, Clone)]
+/// Load indirectly from an offset so we load Mem[Mem[PC + PCoffset9]]
 pub struct LdiOp {
     pub dr: EmulatorCell,               // Destination Register index
     pub pc_offset: EmulatorCell,        // PCoffset9 (sign-extended)
@@ -126,6 +127,16 @@ impl fmt::Display for LdiOp {
             self.dr.get(),
             offset_val,
             self.pc_offset.get() & 0x1FF // Mask to 9 bits for hex
-        )
+        )?;
+
+        if self.is_valid_load_step1 && self.is_valid_load_step2 {
+            write!(
+                f,
+                " [taking mem[mem[{:04X}]] = mem[{:04X}]]",
+                self.pointer_address.get(),
+                self.indirect_address.get()
+            )?;
+        }
+        Ok(())
     }
 }

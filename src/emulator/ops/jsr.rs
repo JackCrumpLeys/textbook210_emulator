@@ -3,16 +3,23 @@ use crate::emulator::{area_from_address, BitAddressable, Emulator, EmulatorCell,
 use super::Op;
 
 #[derive(Debug, Clone)]
+/// Are we looking at jsr or jsrr
 pub enum JsrMode {
+    /// JSR: jump to a sub-routine the adress at pc + imm11
     Relative { pc_offset: EmulatorCell },
+    /// JSRR: jump to a sub-routine the adress stored at a given register
     Register { base_r: EmulatorCell },
 }
 
 #[derive(Debug, Clone)]
+/// Jump to a sub routine either directly or via pc offset
 pub struct JsrOp {
+    /// are we looking at jst or jsrr?
     pub mode: JsrMode,
+    /// Where we boutta jump?
     pub target_address: EmulatorCell, // Calculated during evaluate_address
-    pub is_valid_jump: bool,          // Set during evaluate_address
+    /// Can we jump to teh place we going?
+    pub is_valid_jump: bool, // Set during evaluate_address
 }
 
 impl Op for JsrOp {
@@ -96,12 +103,20 @@ impl fmt::Display for JsrOp {
                     "JSR #{} (x{:03X})",
                     offset_val,
                     pc_offset.get() & 0x7FF // Mask to 11 bits for hex
-                )
+                )?;
             }
             JsrMode::Register { base_r } => {
                 // JSRR: Display with base register
-                write!(f, "JSRR R{}", base_r.get())
+                write!(f, "JSRR R{}", base_r.get())?;
             }
         }
+        if self.is_valid_jump {
+            write!(f, " [jumping")?;
+            if self.target_address.get() != 0 {
+                write!(f, " to x{:04X}", self.target_address.get())?;
+            }
+            write!(f, "]")?;
+        }
+        Ok(())
     }
 }

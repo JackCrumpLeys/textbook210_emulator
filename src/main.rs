@@ -36,7 +36,7 @@ fn main() -> eframe::Result {
     let mut app = eframe::create_native(
         "210 tools",
         native_options,
-        Box::new(|cc| Ok(Box::new(tools_for_210::TemplateApp::new(cc)))),
+        Box::new(|cc| Ok(Box::new(tools_for_210::EmulatorApp::new(cc)))),
         &event_loop,
     );
 
@@ -103,7 +103,7 @@ fn main() {
             .start(
                 canvas,
                 web_options,
-                Box::new(|cc| Ok(Box::new(tools_for_210::TemplateApp::new(cc)))),
+                Box::new(|cc| Ok(Box::new(tools_for_210::EmulatorApp::new(cc)))),
             )
             .await;
 

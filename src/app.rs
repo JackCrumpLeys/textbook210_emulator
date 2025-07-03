@@ -2,7 +2,7 @@ use std::sync::Mutex;
 
 use crate::{
     emulator::Emulator,
-    panes::{EmulatorPane, Pane, PaneDisplay, RealPane},
+    panes::{EmulatorPane, Pane, PaneDisplay, PaneTree, RealPane},
     theme::{self, BaseThemeChoice},
 };
 use egui::Theme;
@@ -17,6 +17,9 @@ lazy_static! {
     pub static ref LAST_PAINT_ID: Mutex<u64> = Mutex::new(0); // this is pretty botch, more info later
 }
 
+/// Converts a number string in `base_in` to `base_out`.
+/// Uses the given alphabet (E.g. dec 10 in base 2 with the
+/// alphabet "01" looks like 1010 but with the alphabet "ab" it looks like baba)
 pub fn base_to_base(
     base_in: u32,
     base_out: u32,
@@ -55,30 +58,45 @@ pub fn base_to_base(
 }
 
 #[derive(Default)]
-struct TreeBehavior {
+/// A simple pane manager that handles adding panes. panes can be closed when they are not "alone"
+struct PaneManager {
     added_nodes: Vec<Pane>,
     last_added: Option<(NodeIndex, SurfaceIndex)>,
 }
 
-impl TabViewer for TreeBehavior {
+impl TabViewer for PaneManager {
     type Tab = Pane;
 
+    /// The pane manages the title
     fn title(&mut self, tab: &mut Self::Tab) -> egui::WidgetText {
         tab.title().into()
     }
 
+    /// This is important becuse we can span more than one pane with the same name (eg 2 editors).
     fn id(&mut self, tab: &mut Self::Tab) -> egui::Id {
         egui::Id::new(tab.id)
     }
 
+    /// The Pane enum defers rendering to the exact pane. (we could do overlays based on catagory)
     fn ui(&mut self, ui: &mut egui::Ui, tab: &mut Self::Tab) {
         tab.render(ui);
     }
 
-    fn closeable(&mut self, tab: &mut Self::Tab) -> bool {
-        !tab.alone
-    }
+    // TODO: DEMO: This needs to be uncommented after the ui demo, only commented so we can rearange
+    // the ui as we please
+    // /// If the pane is not one of multiple tabs we can close it
+    // fn closeable(&mut self, tab: &mut Self::Tab) -> bool {
+    //     !tab.alone
+    // }
 
+    // /// We can only drag a pane out to make a window if it is alone
+    // fn allowed_in_windows(&self, tab: &mut Self::Tab) -> bool {
+    //     !tab.alone
+    // }
+
+    /// This opens a popup menu. We use a tree-like structure where the main pane enum has catagoys
+    /// then those could have catagorys and the leaf is a pane to be added along with the name of the
+    /// button to add it. See [PaneTree].
     fn add_popup(&mut self, ui: &mut egui::Ui, surface: egui_dock::SurfaceIndex, node: NodeIndex) {
         ui.set_min_width(60.0); // this is vaguely the size of the "Panes" button
         ui.style_mut().visuals.button_frame = false;
@@ -86,15 +104,13 @@ impl TabViewer for TreeBehavior {
         self.add_pane_menu_items(ui, Pane::children());
         self.last_added = Some((node, surface));
     }
-
-    fn allowed_in_windows(&self, tab: &mut Self::Tab) -> bool {
-        !tab.alone
-    }
 }
-impl TreeBehavior {
-    fn add_pane_menu_items(&mut self, ui: &mut egui::Ui, pane_tree: crate::panes::PaneTree) {
+impl PaneManager {
+    /// This will recursavly iterate the [PaneTree] structure and use it to form a menu.
+    fn add_pane_menu_items(&mut self, ui: &mut egui::Ui, pane_tree: PaneTree) {
         match pane_tree {
             crate::panes::PaneTree::Pane(name, pane_variant) => {
+                // I am not sure why we need to keep making this call lol
                 ui.style_mut().visuals.button_frame = false;
                 if ui.button(name).clicked() {
                     // Queue the pane and the target node ID for addition in the next frame
@@ -114,20 +130,30 @@ impl TreeBehavior {
     }
 }
 
-pub struct TemplateApp {
+/// This is the core app state and pretty much everything involved with the ui comes though
+/// here as well as pane stuff like what is vcurrently put in the editor.
+pub struct EmulatorApp {
+    /// This stores the tree of panes (pretty much the entire pane state)
     dock_state: DockState<Pane>,
-    tree_behavior: TreeBehavior,
+    /// This struct provides interface between out pane tree and actual things like
+    /// render and title. See [PaneManager]
+    tree_behavior: PaneManager,
+
     #[cfg(target_arch = "wasm32")]
+    /// Have we clicked ok on the fps warning? This will mean it does not spawn for the rest of the session
     has_dismissed_fps: bool,
     #[cfg(target_arch = "wasm32")]
+    /// Used as a meter for how bad the fps is at the moment. Higher is worse.
     bad_fps_score: u32,
     #[cfg(target_arch = "wasm32")]
+    /// Is the bad fps prompt open?
     curr_bad_fps_prompt_open: bool,
 }
 
-impl Default for TemplateApp {
+impl Default for EmulatorApp {
+    /// New clean state.
     fn default() -> Self {
-        let span = tracing::info_span!("TemplateApp::default");
+        let span = tracing::info_span!("EmulatorApp::default");
         let _guard = span.enter();
 
         // Create all panes we want to include
@@ -173,10 +199,10 @@ impl Default for TemplateApp {
             .main_surface_mut()
             .split_right(ed_id[0], 0.666, vec![controls_pane]);
 
-        tracing::info!("TemplateApp comprehensive initialization complete");
+        tracing::info!("App initialization complete");
         Self {
             dock_state,
-            tree_behavior: TreeBehavior::default(),
+            tree_behavior: PaneManager::default(),
             #[cfg(target_arch = "wasm32")]
             has_dismissed_fps: false,
             #[cfg(target_arch = "wasm32")]
@@ -187,33 +213,34 @@ impl Default for TemplateApp {
     }
 }
 
-impl TemplateApp {
+impl EmulatorApp {
     /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        let span = tracing::info_span!("TemplateApp::new");
+        let span = tracing::info_span!("EmulatorApp::new");
         let _guard = span.enter();
 
         theme::set_global_theme(BaseThemeChoice::Dark, Some(&cc.egui_ctx));
 
         Default::default()
     }
-
-    // // Helper function to recursively build the pane menu
 }
 
-impl eframe::App for TemplateApp {
+impl eframe::App for EmulatorApp {
     /// Called by the frame work to save state before shutdown.
-    fn save(&mut self, _storage: &mut dyn eframe::Storage) {}
+    fn save(&mut self, _storage: &mut dyn eframe::Storage) {} // TODO: implement save logic
 
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        let update_span = tracing::info_span!("TemplateApp::update");
+        let update_span = tracing::info_span!("EmulatorApp::update");
         let _update_guard = update_span.enter();
 
         #[cfg(target_arch = "wasm32")]
         if !self.has_dismissed_fps {
             use std::cmp::max;
+            // This gets the fps as the number we know and love (1s/xdt gets the amount of x we need to reach 1s (frames per second)).
+            // (This is ONLY accruate for the web becuase we use a constant framerate (we call `ctx.request_repaint()`))
             let fps = 1. / ctx.input(|i| i.stable_dt);
+            // Clamp to a min of 0 and score based on differnce from 50 (anything lower than 50 will add to the score)
             self.bad_fps_score = max(0, self.bad_fps_score as i32 + 50 - fps as i32) as u32;
 
             if self.bad_fps_score >= 300 {
@@ -223,6 +250,7 @@ impl eframe::App for TemplateApp {
 
         #[cfg(target_arch = "wasm32")]
         if self.curr_bad_fps_prompt_open {
+            // TODO: use a modal
             egui::Window::new("Bad fps detected").collapsible(false).show(ctx, |ui| {
                 ui.horizontal_wrapped(|ui| {
                     use egui::{Hyperlink, RichText};
@@ -242,12 +270,10 @@ impl eframe::App for TemplateApp {
         }
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            // The top panel is often a good place for a menu bar:
-            #[allow(deprecated)] // idk what egui is on about here
+            #[allow(deprecated)] // idk what egui is on about here (Being a silly billy thats what)
             egui::menu::bar(ui, |ui| {
-                // File Menu (standard)
-                let is_web = cfg!(target_arch = "wasm32");
-                if !is_web {
+                #[cfg(not(target_arch = "wasm32"))]
+                {
                     ui.menu_button("File", |ui| {
                         if ui.button("Quit").clicked() {
                             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
@@ -255,12 +281,15 @@ impl eframe::App for TemplateApp {
                     });
                     ui.add_space(16.0);
                 }
-                // Windows Menu (layout reset)
                 ui.menu_button("Windows", |ui| {
-                    if ui.button("Reset Layout").clicked() {
+                    if ui
+                        .button("Reset Layout, REMOVES ALL PANE STATE!!!")
+                        .clicked()
+                    {
                         tracing::info!("Resetting layout to default");
-                        *self = Self::default(); // Reset the entire app state
+                        *self = Self::default(); // Reset the entire app state TODO: Keep some state? Mabye we find the last used for each pane then preserve it when recreating the layout
                     }
+                    // TODO: DEMO: This is only needed for demo, to be removed
                     if ui.button("Layout DEMO 2").clicked() {
                         let memory_pane =
                             Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Memory(
@@ -320,7 +349,6 @@ impl eframe::App for TemplateApp {
                     }
                 });
 
-                // UI Menu (scaling, theme)
                 ui.menu_button("UI", |ui| {
                     // slider for ui scale
                     let mut scale = ctx.zoom_factor();
@@ -329,6 +357,7 @@ impl eframe::App for TemplateApp {
                         tracing::info!("Setting new UI scale: {}", scale);
                         ctx.set_zoom_factor(scale);
                     }
+                    // TODO: Probably should do our own
                     egui::widgets::global_theme_preference_buttons(ui);
                 });
             });
@@ -341,11 +370,6 @@ impl eframe::App for TemplateApp {
         if theme::CURRENT_THEME_SETTINGS.lock().unwrap().base_theme != curr_theme {
             theme::set_global_theme(curr_theme, Some(ctx));
         }
-
-        egui::CentralPanel::default().show(ctx, |_ui| {
-            // The central panel the region left after adding TopPanel's and SidePanel's
-        });
-
         self.dock_state.iter_surfaces_mut().for_each(|sur| {
             sur.iter_nodes_mut().for_each(|n| {
                 if n.is_leaf() {
@@ -361,6 +385,7 @@ impl eframe::App for TemplateApp {
             });
         });
 
+        // TODO: DEMO: make tabs and splits gone after demo
         DockArea::new(&mut self.dock_state)
             .show_add_buttons(true)
             .show_add_popup(true)

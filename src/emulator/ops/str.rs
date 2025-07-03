@@ -1,10 +1,9 @@
-use crate::emulator::{
-    area_from_address, BitAddressable, Emulator, EmulatorCell, Exception, PSR_ADDR,
-};
+use crate::emulator::{area_from_address, BitAddressable, Emulator, EmulatorCell, Exception};
 
 use super::Op;
 
 #[derive(Debug, Clone)]
+/// Store some register value at adress of some other register value
 pub struct StrOp {
     pub sr: EmulatorCell,                // Source Register index
     pub base_r: EmulatorCell,            // Base Register index
@@ -71,10 +70,6 @@ impl Op for StrOp {
             // Signal the main loop to perform the memory write (Mem[MAR] <- MDR).
             machine_state.write_bit = true;
         }
-        if machine_state.mar.get() == PSR_ADDR as u16 {
-            let new_psr = machine_state.mdr;
-            machine_state.memory[PSR_ADDR].set(new_psr.get());
-        }
     }
 }
 use std::fmt;
@@ -98,6 +93,18 @@ impl fmt::Display for StrOp {
             self.base_r.get(),
             offset_val_sext, // Display sign-extended decimal
             offset_val_6bit  // Display raw 6-bit hex
-        )
+        )?;
+
+        if self.is_valid_store {
+            write!(f, " [Storing")?;
+            if self.value_to_store.get() != 0 {
+                write!(f, " the value x{:04X}", self.effective_address.get())?;
+            }
+            if self.effective_address.get() != 0 {
+                write!(f, " into x{:04X}", self.effective_address.get())?;
+            }
+            write!(f, "]")?;
+        }
+        Ok(())
     }
 }

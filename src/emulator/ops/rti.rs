@@ -5,6 +5,7 @@ use crate::emulator::{
 use super::Op;
 
 #[derive(Debug, Clone)]
+/// This is executed by the os on service routines to return control to the callee
 pub struct RtiOp {
     // No specific data needed during decode for RTI itself.
     // State needed for execution will be read directly from Emulator state.
