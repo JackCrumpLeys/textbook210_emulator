@@ -45,6 +45,19 @@ pub enum CpuState {
     StoreResult(OpCode),      // Write the result back to register or memory (if needed)
 }
 
+impl Display for CpuState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CpuState::Fetch => write!(f, "Fetch"),
+            CpuState::Decode => write!(f, "Decode"),
+            CpuState::EvaluateAddress(op) => write!(f, "Evaluate Address {}", op),
+            CpuState::FetchOperands(op) => write!(f, "Fetch Operands {}", op),
+            CpuState::ExecuteOperation(op) => write!(f, "Execute Operation {}", op),
+            CpuState::StoreResult(op) => write!(f, "Store Result {}", op),
+        }
+    }
+}
+
 /// Represents the decoded operation type.
 #[derive(Debug, Clone)]
 pub enum OpCode {

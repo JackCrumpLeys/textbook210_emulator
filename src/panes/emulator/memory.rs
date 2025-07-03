@@ -1,6 +1,7 @@
 use crate::app::{base_to_base, EMULATOR};
 use crate::emulator::EmulatorCell;
 use crate::panes::{Pane, PaneDisplay, PaneTree, RealPane};
+use crate::theme::CURRENT_THEME_SETTINGS;
 use egui::{Align, RichText};
 use egui_extras::{Column, TableBuilder};
 use lazy_static::lazy_static;
@@ -45,6 +46,7 @@ impl PaneDisplay for MemoryPane {
         let mut emulator = EMULATOR.lock().unwrap();
         let artifacts = COMPILATION_ARTIFACTS.lock().unwrap();
         let mut breakpoints = BREAKPOINTS.lock().unwrap();
+        let theme = CURRENT_THEME_SETTINGS.lock().unwrap();
 
         if !self.was_running && emulator.running {
             self.follow_pc = true; // start following the PC when the start button is pressed
@@ -146,9 +148,9 @@ impl PaneDisplay for MemoryPane {
                 let is_pc_line = pc_addr == row_index;
 
                 let bg = if is_pc_line {
-                    Some(egui::Color32::from_rgb(50, 80, 50)) // Dark green background for PC
+                    Some(theme.accent_color_positive)
                 } else if breakpoints.contains(&row_index) {
-                    Some(egui::Color32::from_rgb(255, 0, 0)) // Red background for breakpoints
+                    Some(theme.accent_color_negative)
                 } else if let Some(hl) = self.highlighted.get_mut(&row_index) {
                     *hl -= 0.01; // Botch
                     Some(egui::Color32::from_rgba_unmultiplied(

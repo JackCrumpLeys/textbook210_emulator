@@ -163,16 +163,13 @@ impl Default for EmulatorApp {
         let editor_pane = Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Editor(
             crate::panes::emulator::editor::EditorPane::default(),
         ))));
-        let registers_pane = Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Registers(
-            crate::panes::emulator::registers::RegistersPane::default(),
-        ))));
         let controls_pane = Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Controls(
             crate::panes::emulator::controls::ControlsPane::default(),
         ))));
         let terminal_pane = Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Output(
             crate::panes::emulator::io::IoPane::default(),
         ))));
-        let _cpu_pane = Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Cpu(
+        let cpu_pane = Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Cpu(
             crate::panes::emulator::cpu_state::CpuStatePane::default(),
         ))));
         let _help_pane = Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Help(
@@ -190,10 +187,9 @@ impl Default for EmulatorApp {
             .main_surface_mut()
             .split_right(ed_id[1], 0.333, vec![memory_pane]);
 
-        let _eg_id =
-            dock_state
-                .main_surface_mut()
-                .split_right(mem_id[1], 0.5, vec![registers_pane]);
+        let _eg_id = dock_state
+            .main_surface_mut()
+            .split_right(mem_id[1], 0.5, vec![cpu_pane]);
 
         dock_state
             .main_surface_mut()
@@ -299,10 +295,6 @@ impl eframe::App for EmulatorApp {
                             Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Editor(
                                 crate::panes::emulator::editor::EditorPane::default(),
                             ))));
-                        let registers_pane =
-                            Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Registers(
-                                crate::panes::emulator::registers::RegistersPane::default(),
-                            ))));
                         let controls_pane =
                             Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Controls(
                                 crate::panes::emulator::controls::ControlsPane::default(),
@@ -310,7 +302,7 @@ impl eframe::App for EmulatorApp {
                         let terminal_pane = Pane::new(RealPane::EmulatorPanes(Box::new(
                             EmulatorPane::Output(crate::panes::emulator::io::IoPane::default()),
                         )));
-                        let _cpu_pane =
+                        let cpu_pane =
                             Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Cpu(
                                 crate::panes::emulator::cpu_state::CpuStatePane::default(),
                             ))));
@@ -336,7 +328,7 @@ impl eframe::App for EmulatorApp {
                         let _reg_id = dock_state.main_surface_mut().split_right(
                             mem_id[1],
                             0.5,
-                            vec![registers_pane],
+                            vec![cpu_pane],
                         );
 
                         dock_state.main_surface_mut().split_right(

@@ -25,7 +25,6 @@ impl PaneDisplay for ControlsPane {
         let artifacts = COMPILATION_ARTIFACTS.lock().unwrap();
 
         egui::ScrollArea::vertical().show(ui, |ui| {
-            // --- Configuration Group ---
 
             // Single Execution Speed Slider
             ui.label("Execution Speed:");
@@ -50,7 +49,6 @@ impl PaneDisplay for ControlsPane {
 
             ui.separator();
 
-            // --- Execution Controls Group ---
             ui.horizontal_wrapped(|ui| {
                 ui.spacing_mut().item_spacing.x = theme.item_spacing.x;
 
@@ -73,11 +71,11 @@ impl PaneDisplay for ControlsPane {
                 let micro_step_button = egui::Button::new("⤵ Micro Step")
                     .fill(theme.accent_color_tertiary);
                 if ui.add(micro_step_button).clicked() {
-                    let mut os_steps = 0; // Counter for OS steps skipped in this action
+                    let old_running = emulator.running;
+                    emulator.running = true; // Temporarily set to running
                     emulator.micro_step();
                     if emulator.skip_os_emulation {
-                        let old_running = emulator.running;
-                        emulator.running = true; // Temporarily set to running for auto-stepping
+                        let mut os_steps = 0; // Counter for OS steps skipped in this action
 
                         while emulator.pc.get() < 0x3000
                             && os_steps < MAX_OS_STEPS
@@ -87,37 +85,40 @@ impl PaneDisplay for ControlsPane {
                             os_steps += 1;
                         }
 
-                        // Restore running state unless a HALT occurred during OS skip
-                        if !old_running  && emulator.running { // Was paused, auto-stepped, didn't HALT
-                            emulator.running = false;
-                        }
-                        // If it was running and HALTed, it will remain not running.
-                        // If it was running and didn't HALT, it will remain running.
                     }
+                    // Restore running state unless a HALT occurred during OS skip
+                    if !old_running  && emulator.running { // Was paused, auto-stepped, didn't HALT
+                        emulator.running = false;
+                    }
+                    // If it was running and HALTed, it will remain not running.
+                    // If it was running and didn't HALT, it will remain running.
                 }
 
                 // Step Button
                 let step_button =
                     egui::Button::new("➡ Step").fill(theme.accent_color_tertiary);
                 if ui.add(step_button).clicked() {
-                    let mut os_steps = 0; // Counter for OS steps skipped in this action
+                    let old_running = emulator.running;
+                    emulator.running = true; // Temporarily set to running
                     emulator.step();
                     if emulator.skip_os_emulation {
-                        let old_running = emulator.running;
-                        emulator.running = true; // Temporarily set to running for auto-stepping
+                        let mut os_steps = 0; // Counter for OS steps skipped in this action
 
                         while emulator.pc.get() < 0x3000
                             && os_steps < MAX_OS_STEPS
                             && emulator.running // Check if HALT occurred
                         {
-                            emulator.step();
+                            emulator.step(); // Use full step for skipping OS routines
                             os_steps += 1;
                         }
-                        // Restore running state (similar logic to micro_step)
-                        if !old_running && emulator.running {
-                            emulator.running = false;
-                        }
+
                     }
+                    // Restore running state unless a HALT occurred during OS skip
+                    if !old_running  && emulator.running { // Was paused, auto-stepped, didn't HALT
+                        emulator.running = false;
+                    }
+                    // If it was running and HALTed, it will remain not running.
+                    // If it was running and didn't HALT, it will remain running.
                 }
             });
 

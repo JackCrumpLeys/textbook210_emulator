@@ -3,7 +3,7 @@ use crate::emulator::ops::jsr::JsrMode;
 use crate::emulator::ops::{
     AddOp, AndOp, BrOp, JmpOp, LdOp, LdiOp, LdrOp, LeaOp, NotOp, OpCode, StOp, StiOp, StrOp, TrapOp,
 };
-use crate::emulator::{BitAddressable, CpuState, Emulator, PSR_ADDR};
+use crate::emulator::{BitAddressable, CpuState, Emulator, EmulatorCell, PSR_ADDR};
 use crate::panes::{Pane, PaneDisplay, PaneTree, RealPane};
 use crate::theme::{ThemeSettings, CURRENT_THEME_SETTINGS};
 use egui::RichText;
@@ -12,7 +12,9 @@ use serde::{Deserialize, Serialize};
 use super::{editor::COMPILATION_ARTIFACTS, EmulatorPane};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
-pub struct CpuStatePane {}
+pub struct CpuStatePane {
+    use_negitive: bool,
+}
 
 impl PaneDisplay for CpuStatePane {
     fn render(&mut self, ui: &mut egui::Ui) {
@@ -66,6 +68,9 @@ impl PaneDisplay for CpuStatePane {
             ui.collapsing("Processor Cycle", |ui| {
                 self.render_cycle_view(ui, &mut emulator, &theme);
             });
+            ui.collapsing("Registers", |ui| {
+                self.render_register_view(ui, &mut emulator);
+            });
         });
     }
 
@@ -106,7 +111,65 @@ fn desc_color(text: impl Into<String>, theme: &ThemeSettings) -> RichText {
     RichText::new(text).color(theme.cpu_state_description_color)
 }
 
+fn register_view(ui: &mut egui::Ui, value_cell: &mut EmulatorCell, use_negative: bool) {
+    if use_negative {
+        let mut value: i16 = value_cell.get() as i16;
+        let response = ui.add(
+            egui::DragValue::new(&mut value)
+                .range(i16::MIN..=i16::MAX)
+                .hexadecimal(4, false, true)
+        )
+        .on_hover_text("Drag to change value (hold Shift for slower). Click to edit value directly. Displayed as unsigned (-32768-32767)");
+
+        if response.changed() {
+            value_cell.set(value as u16);
+        }
+    } else {
+        let mut value: u16 = value_cell.get();
+        let response = ui.add(
+            egui::DragValue::new(&mut value)
+                .range(u16::MIN..=u16::MAX)
+                .hexadecimal(4, false, true)
+        )
+        .on_hover_text("Drag to change value (hold Shift for slower). Click to edit value directly. Displayed as unsigned (0-65535)");
+
+        if response.changed() {
+            value_cell.set(value);
+        }
+    }
+}
 impl CpuStatePane {
+    fn render_register_view(&mut self, ui: &mut egui::Ui, emulator: &mut Emulator) {
+        ui.checkbox(&mut self.use_negitive, "Show <0 as negative")
+            .on_hover_text("Wether to display the 2s complement registers as being negative if bit 15 is set. EG FFFF vs -0001.");
+
+        egui::Grid::new("my_grid")
+            .striped(true)
+            .min_col_width(2.)
+            .show(ui, |ui| {
+                for row in 0..2 {
+                    for col in 0..4 {
+                        let register = row * 4 + col;
+                        ui.label(format!("R{register}:"));
+                        register_view(ui, &mut emulator.r[register], self.use_negitive);
+                    }
+                    ui.end_row();
+                }
+                ui.label("PC:");
+                register_view(ui, &mut emulator.pc, self.use_negitive);
+
+                ui.label("MDR:");
+                register_view(ui, &mut emulator.mdr, self.use_negitive);
+
+                ui.label("MAR:");
+                register_view(ui, &mut emulator.mar, self.use_negitive);
+
+                ui.label("IR:");
+                register_view(ui, &mut emulator.ir, self.use_negitive);
+                ui.end_row();
+            });
+    }
+
     fn render_cycle_view(
         &mut self,
         ui: &mut egui::Ui,
@@ -176,7 +239,12 @@ impl CpuStatePane {
                 if matches!(emulator.cpu_state, CpuState::Fetch) {
                     format!("instruction at PC={:#06x}", emulator.pc.get())
                 } else {
-                    source_line_text.clone()
+                    source_line_text
+                        .clone()
+                        .split(";")
+                        .next()
+                        .unwrap_or_default()
+                        .to_owned()
                 },
                 if matches!(emulator.cpu_state, CpuState::Fetch) {
                     0u16 // IR is not yet loaded for the current PC
@@ -229,6 +297,9 @@ impl CpuStatePane {
                     ui.label(desc_color(format!("Decode instruction in IR ({:#06x}).", ir_val.get()), theme));
                     ui.label(mono(format!("Opcode: {:#X} ({})", opcode_num.get(), mnemonic), theme.primary_text_color));
 
+
+                    ui.label(mono(format!("{}", emulator.cpu_state), theme.secondary_text_color));
+
                     if let Some(decoded_op_for_display) = OpCode::from_instruction(ir_val) {
                         match decoded_op_for_display {
                             OpCode::Add(add_op_variant) => match add_op_variant {
@@ -266,6 +337,7 @@ impl CpuStatePane {
                 CpuState::EvaluateAddress(op) => {
                     ui.label(desc_color("Calculate effective memory address or target address.", theme));
                     let pc_curr = emulator.pc.get().wrapping_sub(1); // PC of current instruction
+                    ui.label(mono(format!("{}", emulator.cpu_state), theme.secondary_text_color));
                     match op {
                         OpCode::Ld(LdOp { pc_offset, .. }) | OpCode::St(StOp { pc_offset, .. }) | OpCode::Lea(LeaOp { pc_offset, .. }) | OpCode::Ldi(LdiOp { pc_offset, .. }) | OpCode::Sti(StiOp { pc_offset, .. }) => {
                             let offset = pc_offset.sext(8).get() as i16;
@@ -324,7 +396,8 @@ impl CpuStatePane {
                 }
                 CpuState::FetchOperands(op) => {
                     ui.label(desc_color("Fetch operands from registers or memory.", theme));
-                     match op {
+                    ui.label(mono(format!("{}", emulator.cpu_state), theme.secondary_text_color));
+                    match op {
                         OpCode::Add(add_op) => match add_op {
                             AddOp::Immidiate { sr1, imm5, .. } => {
                                 ui.label(mono(format!("  Read SR1 (R{}): {:#06x}", sr1.get(), emulator.r[sr1.get() as usize].get()), theme.secondary_text_color));
@@ -345,13 +418,13 @@ impl CpuStatePane {
                                 ui.label(mono(format!("  Read SR1 (R{}): {:#06x}", sr1.get(), emulator.r[sr1.get() as usize].get()), theme.secondary_text_color));
                                 ui.label(mono(format!("  Read SR2 (R{}): {:#06x}", sr2.get(), emulator.r[sr2.get() as usize].get()), theme.secondary_text_color));
                             }
-                             _ => {ui.label(desc_color("AND not in expected state for fetch display.", theme));}
+                                _ => {ui.label(desc_color("AND not in expected state for fetch display.", theme));}
                         },
                         OpCode::Not(not_op) => match not_op {
-                             NotOp::Decoded { sr, .. } => {
+                                NotOp::Decoded { sr, .. } => {
                                 ui.label(mono(format!("  Read SR (R{}): {:#06x}", sr.get(), emulator.r[sr.get() as usize].get()), theme.secondary_text_color));
-                             }
-                             _ => {ui.label(desc_color("NOT not in Decoded state for fetch display.", theme));}
+                                }
+                                _ => {ui.label(desc_color("NOT not in Decoded state for fetch display.", theme));}
                         },
                         OpCode::Ld(_) | OpCode::Ldi(_) | OpCode::Ldr(_) => {
                             ui.horizontal_wrapped(|ui| {
@@ -374,6 +447,7 @@ impl CpuStatePane {
                 }
                 CpuState::ExecuteOperation(op) => {
                     ui.label(desc_color("Perform the operation using ALU, update PC for jumps/branches, set condition codes.", theme));
+                    ui.label(mono(format!("{}", emulator.cpu_state), theme.secondary_text_color));
                     let (n,z,p) = emulator.get_nzp(); // Get flags *before* potential modification by current op
                     match op {
                         OpCode::Add(add_op) => match add_op {
@@ -442,7 +516,8 @@ impl CpuStatePane {
                 }
                 CpuState::StoreResult(op) => {
                     ui.label(desc_color("Write result to register or memory, update condition codes.", theme));
-                     match op {
+                    ui.label(mono(format!("{}", emulator.cpu_state), theme.secondary_text_color));
+                    match op {
                         OpCode::Add(add_op) => match add_op {
                             AddOp::Ready{ dr, ..} | AddOp::Immidiate { dr, .. } | AddOp::Register { dr, .. } => { // Show DR for all variants if applicable
                                 ui.label(mono(format!("  ALU_OUT -> R{}", dr.get()), theme.secondary_text_color));
