@@ -10,8 +10,8 @@
     accent_color_primary: ((0, 76, 129, 129)),
     accent_color_secondary: ((0, 200, 200, 255)),
     accent_color_tertiary: ((91, 91, 91, 155)),
-    accent_color_positive: ((50, 200, 50, 255)),
-    accent_color_negative: ((225, 71, 71, 225)),
+    accent_color_positive: ((30, 119, 30, 152)),
+    accent_color_negative: ((204, 64, 64, 204)),
     widget_text_color: ((229, 229, 229, 255)),
     widget_fill_interactive: ((55, 55, 55, 255)),
     widget_fill_hovered: ((70, 70, 70, 255)),
@@ -43,7 +43,7 @@
     ),
     fg_widget_stroke_active: (
         width: 2.0,
-        color: ((0, 150, 255, 255)),
+        color: ((174, 203, 255, 255)),
     ),
     fg_widget_stroke_disabled: (
         width: 1.0,
@@ -76,7 +76,6 @@
     memory_stack_bg: ((50, 45, 30, 200)),
     memory_heap_bg: ((30, 50, 45, 200)),
     memory_device_registers_bg: ((55, 30, 30, 200)),
-    memory_video_ram_bg: ((25, 25, 25, 200)),
     memory_unused_bg: ((22, 22, 22, 200)),
     memory_zone_label_color: ((160, 160, 160, 255)),
     register_name_color: ((140, 170, 210, 255)),
