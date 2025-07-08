@@ -150,7 +150,7 @@ impl<'a> Lexer<'a> {
     pub fn new(input: &'a str) -> Self {
         Lexer {
             position: 0,
-            line: 0,
+            line: 1,
             column: 0,
             tokens: Vec::new(),
             chars: input.chars().peekable(),

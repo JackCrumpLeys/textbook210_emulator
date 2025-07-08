@@ -1,4 +1,4 @@
-use crate::app::{base_to_base, EMULATOR};
+use crate::app::EMULATOR;
 use crate::emulator::EmulatorCell;
 use crate::panes::{Pane, PaneDisplay, PaneTree, RealPane};
 use crate::theme::CURRENT_THEME_SETTINGS;
@@ -241,12 +241,14 @@ impl PaneDisplay for MemoryPane {
 
                         let mut value_i16 = memory_cell.get() as i16;
                         let format_fn = |n: f64, _range: RangeInclusive<usize>| -> String {
-                            base_to_base(
-                                10,
-                                self.display_base,
-                                &(n as u32).to_string(),
-                                "0123456789ABCDEF",
-                            )
+                            debug_assert!(n.is_finite());
+                            debug_assert!(n <= u16::MAX as f64);
+                            match self.display_base {
+                                16 => format!("{:04X}", n as u16),
+                                10 => format!("{}", n as i16),
+                                2 => format!("{:016b}", n as u16),
+                                _ => String::new(), // Add other bases if needed
+                            }
                         };
                         let parse_fn = |s: &str| -> Option<f64> {
                             match self.display_base {

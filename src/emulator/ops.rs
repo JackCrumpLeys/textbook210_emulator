@@ -50,10 +50,10 @@ impl Display for CpuState {
         match self {
             CpuState::Fetch => write!(f, "Fetch"),
             CpuState::Decode => write!(f, "Decode"),
-            CpuState::EvaluateAddress(op) => write!(f, "Evaluate Address {}", op),
-            CpuState::FetchOperands(op) => write!(f, "Fetch Operands {}", op),
-            CpuState::ExecuteOperation(op) => write!(f, "Execute Operation {}", op),
-            CpuState::StoreResult(op) => write!(f, "Store Result {}", op),
+            CpuState::EvaluateAddress(op) => write!(f, "Evaluate Address {op}"),
+            CpuState::FetchOperands(op) => write!(f, "Fetch Operands {op}"),
+            CpuState::ExecuteOperation(op) => write!(f, "Execute Operation {op}"),
+            CpuState::StoreResult(op) => write!(f, "Store Result {op}"),
         }
     }
 }
