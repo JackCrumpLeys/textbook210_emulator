@@ -170,8 +170,6 @@ impl PaneDisplay for MemoryPane {
 
                     let bg = if is_pc_line {
                         Some(theme.accent_color_positive)
-                    } else if breakpoints.contains(&row_index) {
-                        Some(theme.accent_color_negative)
                     } else if let Some(hl) = self.highlighted.get_mut(&row_index) {
                         *hl -= 0.01; // Botch
                         Some(egui::Color32::from_rgba_unmultiplied(
@@ -193,12 +191,21 @@ impl PaneDisplay for MemoryPane {
 
                     // Breakpoint toggle
                     row.col(|ui| {
-                        paint_bg(ui);
-
                         let has_breakpoint = breakpoints.contains(&row_index);
-                        let bp_text = if has_breakpoint { "🛑" } else { "⚪" };
 
-                        if ui.button(bp_text).clicked() {
+                        let butt = if has_breakpoint {
+                            let gapless_rect = ui.max_rect().expand2(0.5 * item_spacing);
+                            ui.painter().rect_filled(
+                                gapless_rect,
+                                0.0,
+                                theme.accent_color_negative.gamma_multiply(0.5),
+                            );
+                            egui::Button::new("🛑").fill(theme.accent_color_negative)
+                        } else {
+                            egui::Button::new("⚪")
+                        };
+
+                        if ui.add(butt).clicked() {
                             if has_breakpoint {
                                 breakpoints.remove(&row_index);
                             } else {
