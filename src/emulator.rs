@@ -31,6 +31,201 @@ pub const PSR_ADDR: usize = 0xFFFC;
 /// Machine control register, when MCR[15] = 1 the program is running. To halt it is cleared.
 pub const MCR_ADDR: usize = 0xFFFE;
 
+#[derive(Debug, Clone)]
+pub struct Emulator {
+    // --- not involved in the state machine ---
+    /// How many cycles to run per update call
+    pub speed: u32,
+    /// How many update calls to wait before doing cycles equal to speed
+    pub ticks_between_updates: u32,
+    /// What is the current tick, only really used for modulo so we could wrap it around
+    pub tick: u64,
+    /// Do we jump over os instructions accouding to the [`MAX_OS_STEPS`] var
+    pub skip_os_emulation: bool,
+
+    // The summation of all MEM[DDR] sets aka the 'output' of the emulator
+    pub output: String,
+    // -----------------------------------------
+
+    // Why in a Box? Becuase array sits on stack and takes alot of memory.
+    // wasm was unhappy so I put it on the heap using Box
+    // TODO: How much faster is it on the stack? mabye it should be a compile time distinction
+    /// Holds all the instructions and data that the state machine munches on
+    pub memory: Box<[EmulatorCell; 65536]>,
+    /// The alu component (this manages ADD, NOT and AND operations)
+    pub alu: Alu,
+
+    /// Registers  R0-R7
+    pub r: [EmulatorCell; 8],
+
+    /// Program Counter. This stores the Adress that we will use to populate the IR on the next fetch cycle.
+    /// IR <- MEM[PC]
+    pub pc: EmulatorCell,
+
+    /// The adress of the memory location to read from the memory on next reading phase
+    pub mar: EmulatorCell,
+    /// Stores the input or output of the memory, we set it then do a write phase to set MEM[mar] <- mdr.
+    /// It also gets set on a read phase MEM[mar] -> mdr
+    pub mdr: EmulatorCell,
+
+    /// Stores the instruction we are in the process of ececuting the first 4 bits are the op etc.
+    /// Set in the fetch phase (IR <- MEM[pc])
+    pub ir: EmulatorCell,
+
+    /// CPU state. fetch -> decode -> evaluate address etc
+    /// Each instruction relys on its own struct of the instruction after the decode stage
+    pub cpu_state: CpuState,
+
+    // Saved stack pointers. These are used when going between os service routines and user code.
+    // For example when trap is executed from user code saved_usp <- R6 && R6 <- saved_ssp
+    // and when RTI is executed saved_ssp <- R6 && R6 <- saved_usp
+    /// The last known R6 used in an OS service
+    pub saved_ssp: EmulatorCell,
+    /// The last known R6 used in user code
+    pub saved_usp: EmulatorCell,
+
+    /// write bit (if this is set after the store stage mem[mar] <- mdr)
+    pub write_bit: bool,
+
+    /// If our stste machine has reached an exeption state than this stores the particulars
+    pub exception: Option<Exception>,
+}
+
+impl Emulator {
+    pub fn new() -> Emulator {
+        let mut emulator = Self {
+            speed: 1,
+            ticks_between_updates: 2,
+            tick: 0,
+            skip_os_emulation: true,
+            memory: Box::new([EmulatorCell::new(0); 65536]),
+            r: [EmulatorCell::new(0); 8],
+            pc: EmulatorCell::new(0x200), // start of os
+            mar: EmulatorCell::new(0),
+            mdr: EmulatorCell::new(0),
+            ir: EmulatorCell::new(0),
+            output: String::new(),
+            cpu_state: CpuState::Fetch,
+            alu: Alu::default(),
+            write_bit: false,
+            exception: None,
+            saved_ssp: EmulatorCell::new(0),
+            saved_usp: EmulatorCell::new(0),
+        };
+
+        let parse_output = Emulator::parse_program(include_str!("../oses/simpleos.asm"));
+
+        tracing::debug!("OS parse_output: {:?}", parse_output);
+
+        if let Ok(ParseOutput {
+            machine_code,
+            orig_address,
+            ..
+        }) = parse_output
+        {
+            emulator.flash_memory(machine_code, orig_address);
+        } else {
+            debug_assert!(false, "INVALID DEFAULT OS!!!");
+        }
+
+        emulator.memory[DSR_ADDR].set(0x8000); // ready for a char
+        emulator.memory[PSR_ADDR].set(0x0002); // Z=1, N=0, P=0 Supervisor
+        emulator.memory[MCR_ADDR].set(0x0000); // machine is "stopped"
+
+        emulator
+    }
+
+    /// Are we running in superviser or user mode?
+    pub fn priv_level(&self) -> PrivilegeLevel {
+        match self.memory[PSR_ADDR].index(15).get() {
+            0 => PrivilegeLevel::Supervisor,
+            1 => PrivilegeLevel::User,
+            _ => unreachable!(),
+        }
+    }
+
+    /// Change the privlage mode.
+    pub fn set_priv_level(&mut self, level: PrivilegeLevel) {
+        let psr_val = self.memory[PSR_ADDR].get();
+        match level {
+            PrivilegeLevel::User => self.memory[PSR_ADDR].set(psr_val | 0x8000),
+            PrivilegeLevel::Supervisor => self.memory[PSR_ADDR].set(psr_val & !0x8000),
+        }
+    }
+
+    pub fn running(&self) -> bool {
+        self.memory[MCR_ADDR].get() == 0x8000
+    }
+
+    /// Change the running state of the emulator to true.
+    pub fn start_running(&mut self) {
+        self.memory[MCR_ADDR].set(0x8000);
+    }
+
+    /// Change the running state of the emulator to false
+    pub fn stop_running(&mut self) {
+        self.memory[MCR_ADDR].set(0);
+    }
+
+    /// Set the negitive condition bit (reseting the others)
+    pub fn set_n(&mut self) {
+        let psr = self.memory[PSR_ADDR].get();
+        let new_psr = (psr & 0xFFF8) | 0x0004;
+        self.memory[PSR_ADDR].set(new_psr);
+    }
+
+    /// Set the zero condition bit (reseting the others)
+    pub fn set_z(&mut self) {
+        let psr = self.memory[PSR_ADDR].get();
+        let new_psr = (psr & 0xFFF8) | 0x0002;
+        self.memory[PSR_ADDR].set(new_psr);
+    }
+
+    /// Set the positive condition bit (reseting the others)
+    pub fn set_p(&mut self) {
+        let psr = self.memory[PSR_ADDR].get();
+        let new_psr = (psr & 0xFFF8) | 0x0001;
+        self.memory[PSR_ADDR].set(new_psr);
+    }
+
+    /// Get (n,z,p) as bools. Only one must be true at all times
+    pub fn get_nzp(&self) -> (bool, bool, bool) {
+        let psr = self.memory[PSR_ADDR].get();
+        let n = (psr & 0x0004) != 0;
+        let z = (psr & 0x0002) != 0;
+        let p = (psr & 0x0001) != 0;
+        debug_assert!(
+            (n as u8 + z as u8 + p as u8) == 1,
+            "Exactly one of N, Z, P must be true"
+        );
+        (n, z, p)
+    }
+
+    /// Input one char so that the os can read it.
+    // TODO: change this if/when we do interuption based input
+    pub fn set_in_char(&mut self, c: char) {
+        self.memory[KBDR_ADDR].set(c as u16);
+        self.memory[KBSR_ADDR].set(0x8000); // indicates new char avalible
+    }
+
+    /// Given a register we update flages based on value
+    pub fn update_flags(&mut self, reg_index: usize) {
+        let value = self.r[reg_index].get();
+
+        // Check if the value is negative (bit 15 is 1)
+        let is_negative = (value >> 15) & 1 == 1;
+
+        // Set negative flag
+        if is_negative {
+            self.set_n();
+        } else if value == 0 {
+            self.set_z();
+        } else {
+            self.set_p();
+        }
+    }
+}
+
 #[derive(Debug, Default, Clone, Copy)]
 /// The core data structure for the emulator. Every value is stored via this using .get() and .set(). Stores a LC3 word (16 bits) and wether that word has changed
 pub struct EmulatorCell(u16, bool);
@@ -90,191 +285,6 @@ impl EmulatorCell {
             Self(value | mask, true)
         } else {
             *self
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Emulator {
-    // --- not involved in the state machine ---
-    /// How many cycles to run per update call
-    pub speed: u32,
-    /// How many update calls to wait before doing cycles equal to speed
-    pub ticks_between_updates: u32,
-    /// What is the current tick, only really used for modulo so we could wrap it around
-    pub tick: u64,
-    /// Do we jump over os instructions accouding to the [`MAX_OS_STEPS`] var
-    pub skip_os_emulation: bool,
-
-    // The summation of all MEM[DDR] sets aka the 'output' of the emulator
-    pub output: String,
-    // -----------------------------------------
-
-    // Why in a Box? Becuase array sits on stack and takes alot of memory.
-    // wasm was unhappy so I put it on the heap using Box
-    // TODO: How much faster is it on the stack? mabye it should be a compile time distinction
-    /// Holds all the instructions and data that the state machine munches on
-    pub memory: Box<[EmulatorCell; 65536]>,
-    /// The alu component (this manages ADD, NOT and AND operations)
-    pub alu: Alu,
-
-    /// Registers  R0-R7
-    pub r: [EmulatorCell; 8],
-
-    /// Program Counter. This stores the Adress that we will use to populate the IR on the next fetch cycle.
-    /// IR <- MEM[PC]
-    pub pc: EmulatorCell,
-
-    /// The adress of the memory location to read from the memory on next reading phase
-    pub mar: EmulatorCell,
-    /// Stores the input or output of the memory, we set it then do a write phase to set MEM[mar] <- mdr.
-    /// It also gets set on a read phase MEM[mar] -> mdr
-    pub mdr: EmulatorCell,
-
-    /// Stores the instruction we are in the process of ececuting the first 4 bits are the op etc.
-    /// Set in the fetch phase (IR <- MEM[pc])
-    pub ir: EmulatorCell,
-
-    /// CPU state. fetch -> decode -> evaluate address etc
-    /// Each instruction relys on its own struct of the instruction after the decode stage
-    pub cpu_state: CpuState,
-
-    // Saved stack pointers. These are used when going between os service routines and user code.
-    // For example when trap is executed from user code saved_usp <- R6 && R6 <- saved_ssp
-    // and when RTI is executed saved_ssp <- R6 && R6 <- saved_usp
-    /// The last known R6 used in an OS service
-    pub saved_ssp: EmulatorCell,
-    /// The last known R6 used in user code
-    pub saved_usp: EmulatorCell,
-
-    /// Is the clock enabled. Should we remove this and just use mcr?
-    pub running: bool,
-
-    /// write bit (if this is set after the store stage mem[mar] <- mdr)
-    pub write_bit: bool,
-
-    /// If our stste machine has reached an exeption state than this stores the particulars
-    pub exception: Option<Exception>,
-}
-
-impl Emulator {
-    pub fn new() -> Emulator {
-        let mut emulator = Self {
-            speed: 1,
-            ticks_between_updates: 2,
-            tick: 0,
-            skip_os_emulation: true,
-            memory: Box::new([EmulatorCell::new(0); 65536]),
-            r: [EmulatorCell::new(0); 8],
-            pc: EmulatorCell::new(0x200), // start of os
-            mar: EmulatorCell::new(0),
-            mdr: EmulatorCell::new(0),
-            ir: EmulatorCell::new(0),
-            output: String::new(),
-            cpu_state: CpuState::Fetch,
-            running: false,
-            alu: Alu::default(),
-            write_bit: false,
-            exception: None,
-            saved_ssp: EmulatorCell::new(0),
-            saved_usp: EmulatorCell::new(0),
-        };
-
-        let parse_output = Emulator::parse_program(include_str!("../oses/simpleos.asm"));
-
-        tracing::debug!("OS parse_output: {:?}", parse_output);
-
-        if let Ok(ParseOutput {
-            machine_code,
-            orig_address,
-            ..
-        }) = parse_output
-        {
-            emulator.flash_memory(machine_code, orig_address);
-        } else {
-            debug_assert!(false, "INVALID DEFAULT OS!!!");
-        }
-
-        emulator.memory[DSR_ADDR].set(0x8000); // ready for a char
-        emulator.memory[PSR_ADDR].set(0x0002); // Z=1, N=0, P=0 Supervisor
-        emulator.memory[MCR_ADDR].set(0x8000); // machine is "running" from the perspective of the contained code
-
-        emulator
-    }
-
-    /// Are we running in superviser or user mode?
-    pub fn priv_level(&self) -> PrivilegeLevel {
-        match self.memory[PSR_ADDR].index(15).get() {
-            0 => PrivilegeLevel::Supervisor,
-            1 => PrivilegeLevel::User,
-            _ => unreachable!(),
-        }
-    }
-
-    /// Change the privlage mode.
-    pub fn set_priv_level(&mut self, level: PrivilegeLevel) {
-        let psr_val = self.memory[PSR_ADDR].get();
-        match level {
-            PrivilegeLevel::User => self.memory[PSR_ADDR].set(psr_val | 0x8000),
-            PrivilegeLevel::Supervisor => self.memory[PSR_ADDR].set(psr_val & !0x8000),
-        }
-    }
-
-    /// Set the negitive condition bit (reseting the others)
-    pub fn set_n(&mut self) {
-        let psr = self.memory[PSR_ADDR].get();
-        let new_psr = (psr & 0xFFF8) | 0x0004;
-        self.memory[PSR_ADDR].set(new_psr);
-    }
-
-    /// Set the zero condition bit (reseting the others)
-    pub fn set_z(&mut self) {
-        let psr = self.memory[PSR_ADDR].get();
-        let new_psr = (psr & 0xFFF8) | 0x0002;
-        self.memory[PSR_ADDR].set(new_psr);
-    }
-
-    /// Set the positive condition bit (reseting the others)
-    pub fn set_p(&mut self) {
-        let psr = self.memory[PSR_ADDR].get();
-        let new_psr = (psr & 0xFFF8) | 0x0001;
-        self.memory[PSR_ADDR].set(new_psr);
-    }
-
-    /// Get (n,z,p) as bools. Only one must be true at all times
-    pub fn get_nzp(&self) -> (bool, bool, bool) {
-        let psr = self.memory[PSR_ADDR].get();
-        let n = (psr & 0x0004) != 0;
-        let z = (psr & 0x0002) != 0;
-        let p = (psr & 0x0001) != 0;
-        debug_assert!(
-            (n as u8 + z as u8 + p as u8) == 1,
-            "Exactly one of N, Z, P must be true"
-        );
-        (n, z, p)
-    }
-
-    /// Input one char so that the os can read it.
-    // TODO: change this if/when we do interuption based input
-    pub fn set_in_char(&mut self, c: char) {
-        self.memory[KBDR_ADDR].set(c as u16);
-        self.memory[KBSR_ADDR].set(0x8000); // indicates new char avalible
-    }
-
-    /// Given a register we update flages based on value
-    pub fn update_flags(&mut self, reg_index: usize) {
-        let value = self.r[reg_index].get();
-
-        // Check if the value is negative (bit 15 is 1)
-        let is_negative = (value >> 15) & 1 == 1;
-
-        // Set negative flag
-        if is_negative {
-            self.set_n();
-        } else if value == 0 {
-            self.set_z();
-        } else {
-            self.set_p();
         }
     }
 }
@@ -411,11 +421,11 @@ impl Emulator {
 
         self.tick = self.tick.wrapping_add(1);
 
-        if self.running {
+        if self.running() {
             // Automatic stepping logic when running
             if self.tick % self.ticks_between_updates as u64 == 0 {
                 let mut i = 0;
-                while self.running && i < self.speed {
+                while self.running() && i < self.speed {
                     // Check for breakpoints
                     let current_pc = self.pc.get() as usize;
 
@@ -423,7 +433,7 @@ impl Emulator {
                         && matches!(self.cpu_state, CpuState::Fetch)
                     // Break *before* fetching the instruction at the breakpoint
                     {
-                        self.running = false;
+                        self.stop_running();
                         log::info!("Breakpoint hit at address 0x{current_pc:04X}");
                         break;
                     }
@@ -441,7 +451,7 @@ impl Emulator {
             // Skip OS code if enabled during running mode
             // Limit OS skipping to avoid freezing
             if self.skip_os_emulation {
-                while self.pc.get() < 0x3000 && os_steps < MAX_OS_STEPS && self.running {
+                while self.pc.get() < 0x3000 && os_steps < MAX_OS_STEPS && self.running() {
                     changed = true;
                     self.step();
                     os_steps += 1;
@@ -622,7 +632,7 @@ impl Emulator {
                 "CRITICAL: Stack pointer R6=0x{:04X} out of bounds during exception handling.",
                 ssp
             );
-            self.running = false; // Halt on severe stack error
+            self.stop_running(); // Halt on severe stack error
             return;
         }
 
@@ -645,7 +655,7 @@ impl Emulator {
             "Memory size is not initialized with full addressable range"
         );
 
-        debug_assert!(self.running, "attermpting run but not running");
+        debug_assert!(self.running(), "attermpting run but not running");
         // --- Check for and Handle Exceptions First ---
         if let Some(exc) = self.exception.clone() {
             tracing::info!(
@@ -851,36 +861,38 @@ impl Emulator {
 
     /// **Step:** Execute one full instruction cycle (multiple micro-steps).
     pub fn step(&mut self) {
-        let input_running = self.running;
+        let input_running = self.running();
 
-        self.running = true;
+        self.start_running();
 
         // Execute micro-steps until we return to the Fetch state, completing one instruction.
         if matches!(self.cpu_state, CpuState::Fetch) {
             self.micro_step(); // Step over  Fetch
         }
-        while !matches!(self.cpu_state, CpuState::Fetch) && self.running {
+        while !matches!(self.cpu_state, CpuState::Fetch) && self.running() {
             // Continue micro-stepping until Fetch is reached or an exception occurs
             self.micro_step();
         }
 
         // Check if somehow not running anymore (e.g. HALT)
-        if !self.running {
-            self.running = false;
+        if !self.running() {
             return;
         }
 
         debug_assert!(matches!(self.cpu_state, CpuState::Fetch), "invalid step");
-        self.running = input_running;
+
+        if !input_running {
+            self.stop_running();
+        }
     }
 
     /// **Run:** Execute instructions until HALT, error, input wait, or max_steps.
     pub fn run(&mut self, max_steps: Option<usize>) -> Result<(), String> {
-        self.running = true;
+        self.start_running();
         let mut steps = 0;
 
         loop {
-            if !self.running {
+            if !self.running() {
                 tracing::info!("Execution halted.");
                 return Ok(());
             }
@@ -888,7 +900,7 @@ impl Emulator {
             if let Some(max) = max_steps {
                 if steps >= max {
                     tracing::info!("Reached maximum steps ({}), stopping execution.", max);
-                    self.running = false; // Stop running
+                    self.stop_running();
                     return Ok(());
                 }
             }
@@ -898,7 +910,7 @@ impl Emulator {
 
             // Step completed successfully (or halted, or paused for input, or exception pending)
             // Check running state again in case step caused HALT
-            if !self.running {
+            if !self.running() {
                 tracing::info!("Execution halted by instruction.");
                 return Ok(());
             }
@@ -940,7 +952,7 @@ impl Emulator {
         let mcr_value = self.memory[MCR_ADDR].get();
         // If bit 15 (clock enable) is cleared, stop execution
         if (mcr_value & 0x8000) == 0 {
-            self.running = false;
+            self.stop_running();
         }
     }
 }

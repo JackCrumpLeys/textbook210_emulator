@@ -3,17 +3,17 @@ use crate::emulator::ops::jsr::JsrMode;
 use crate::emulator::ops::{
     AddOp, AndOp, BrOp, JmpOp, LdOp, LdiOp, LdrOp, LeaOp, NotOp, OpCode, StOp, StiOp, StrOp, TrapOp,
 };
-use crate::emulator::{BitAddressable, CpuState, Emulator, EmulatorCell, PSR_ADDR};
+use crate::emulator::{BitAddressable, CpuState, Emulator, EmulatorCell, MCR_ADDR, PSR_ADDR};
 use crate::panes::{Pane, PaneDisplay, PaneTree, RealPane};
 use crate::theme::{ThemeSettings, CURRENT_THEME_SETTINGS};
-use egui::RichText;
+use egui::{Response, RichText};
 use serde::{Deserialize, Serialize};
 
 use super::{editor::COMPILATION_ARTIFACTS, EmulatorPane};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct CpuStatePane {
-    use_negitive: bool,
+    use_negative: bool,
 }
 
 impl PaneDisplay for CpuStatePane {
@@ -22,54 +22,11 @@ impl PaneDisplay for CpuStatePane {
         egui::ScrollArea::vertical().show(ui, |ui| {
             let mut emulator = EMULATOR.lock().unwrap();
 
-            ui.collapsing("Flags (PSR)", |ui| {
-                let (n, z, p) = emulator.get_nzp();
-                let privilege_mode = emulator.priv_level();
-                ui.horizontal(|ui| {
-                    if ui
-                        .selectable_label(n, RichText::new("N").monospace())
-                        .on_hover_text("Negative Flag")
-                        .clicked()
-                    {
-                        emulator.set_n();
-                    }
-
-                    if ui
-                        .selectable_label(z, RichText::new("Z").monospace())
-                        .on_hover_text("Zero Flag")
-                        .clicked()
-                    {
-                        emulator.set_z();
-                    }
-
-                    if ui
-                        .selectable_label(p, RichText::new("P").monospace())
-                        .on_hover_text("Positive Flag")
-                        .clicked()
-                    {
-                        emulator.set_p();
-                    }
-                    ui.separator();
-                    ui.label(
-                        RichText::new(match privilege_mode {
-                            crate::emulator::PrivilegeLevel::Supervisor => "Supervisor Mode",
-                            crate::emulator::PrivilegeLevel::User => "User Mode",
-                        })
-                        .monospace(),
-                    );
-                });
-                ui.label(
-                    RichText::new(format!("PSR: {:#06x}", emulator.memory[PSR_ADDR].get()))
-                        .monospace()
-                        .color(theme.register_value_color),
-                );
+            ui.collapsing("Registers & devices", |ui| {
+                self.render_register_view(ui, &mut emulator);
             });
-
             ui.collapsing("Processor Cycle", |ui| {
                 self.render_cycle_view(ui, &mut emulator, &theme);
-            });
-            ui.collapsing("Registers", |ui| {
-                self.render_register_view(ui, &mut emulator);
             });
         });
     }
@@ -111,7 +68,7 @@ fn desc_color(text: impl Into<String>, theme: &ThemeSettings) -> RichText {
     RichText::new(text).color(theme.cpu_state_description_color)
 }
 
-fn register_view(ui: &mut egui::Ui, value_cell: &mut EmulatorCell, use_negative: bool) {
+fn register_view(ui: &mut egui::Ui, value_cell: &mut EmulatorCell, use_negative: bool) -> Response {
     if use_negative {
         let mut value: i16 = value_cell.get() as i16;
         let response = ui.add(
@@ -124,6 +81,7 @@ fn register_view(ui: &mut egui::Ui, value_cell: &mut EmulatorCell, use_negative:
         if response.changed() {
             value_cell.set(value as u16);
         }
+        response
     } else {
         let mut value: u16 = value_cell.get();
         let response = ui.add(
@@ -136,11 +94,12 @@ fn register_view(ui: &mut egui::Ui, value_cell: &mut EmulatorCell, use_negative:
         if response.changed() {
             value_cell.set(value);
         }
+        response
     }
 }
 impl CpuStatePane {
     fn render_register_view(&mut self, ui: &mut egui::Ui, emulator: &mut Emulator) {
-        ui.checkbox(&mut self.use_negitive, "Show <0 as negative")
+        ui.checkbox(&mut self.use_negative, "Show <0 as negative")
             .on_hover_text("Wether to display the 2s complement registers as being negative if bit 15 is set. EG FFFF vs -0001.");
 
         egui::Grid::new("my_grid")
@@ -151,22 +110,74 @@ impl CpuStatePane {
                     for col in 0..4 {
                         let register = row * 4 + col;
                         ui.label(format!("R{register}:"));
-                        register_view(ui, &mut emulator.r[register], self.use_negitive);
+                        register_view(ui, &mut emulator.r[register], self.use_negative);
                     }
                     ui.end_row();
                 }
-                ui.label("PC:");
-                register_view(ui, &mut emulator.pc, self.use_negitive);
+                ui.label("PC:").on_hover_text("This register holds the next instruction that will be fetched in the fetch phase of the CPU. MEM[PC] -> IR");
+                register_view(ui, &mut emulator.pc, self.use_negative).on_hover_text("This register holds the next instruction that will be fetched in the fetch phase of the CPU. MEM[PC] -> IR");
 
-                ui.label("MDR:");
-                register_view(ui, &mut emulator.mdr, self.use_negitive);
+                ui.label("MDR:").on_hover_text("This register holds the data that has been read from memory or will be written to memory.");
+                register_view(ui, &mut emulator.mdr, self.use_negative).on_hover_text("This register holds the data that has been read from memory or will be written to memory.");
 
-                ui.label("MAR:");
-                register_view(ui, &mut emulator.mar, self.use_negitive);
+                ui.label("MAR:").on_hover_text("This register holds the address of the memory location that will be read from or written to.");
+                register_view(ui, &mut emulator.mar, self.use_negative).on_hover_text("This register holds the address of the memory location that will be read from or written to.");
 
-                ui.label("IR:");
-                register_view(ui, &mut emulator.ir, self.use_negitive);
+                ui.label("IR:").on_hover_text("This register holds the instruction that has been fetched from memory. This instruction is decoded and executed by the CPU.");
+                register_view(ui, &mut emulator.ir, self.use_negative).on_hover_text("This register holds the instruction that has been fetched from memory. This instruction is decoded and executed by the CPU.");
                 ui.end_row();
+
+                let (n, z, p) = emulator.get_nzp();
+                let privilege_mode = emulator.priv_level();
+                if ui
+                    .selectable_label(n, RichText::new("N").monospace())
+                    .on_hover_text("Negative Flag. This is set when the result of an arithmetic or load operation is negative.")
+                    .clicked()
+                {
+                    emulator.set_n();
+                }
+
+                if ui
+                    .selectable_label(z, RichText::new("Z").monospace())
+                    .on_hover_text("Zero Flag. This is set when the result of an arithmetic or load operation is zero.")
+                    .clicked()
+                {
+                    emulator.set_z();
+                }
+
+                if ui
+                    .selectable_label(p, RichText::new("P").monospace())
+                    .on_hover_text("Positive Flag. This is set when the result of an arithmetic or load operation is positive.")
+                    .clicked()
+                {
+                    emulator.set_p();
+                }
+                ui.label(
+                    RichText::new(match privilege_mode {
+                        crate::emulator::PrivilegeLevel::Supervisor => "PRIV=0",
+                        crate::emulator::PrivilegeLevel::User => "PRIV=1",
+                    })
+                    .monospace(),
+                ).on_hover_text("Privilege Mode. This indicates the current privilege level of the CPU. PRIV=0 indicates supervisor mode, PRIV=1 indicates user mode.");
+
+                ui.label("PSR:").on_hover_text(RichText::new("mem[0xFFFC]").code()).on_hover_text("Processor Status Register. Layout: PSR[15] = 0 when in supervisor mode and 1 when user mode, PSR[2] = N, PSR[1] = Z, PSR[0] = P");
+                register_view(ui, &mut emulator.memory[PSR_ADDR], self.use_negative).on_hover_text(RichText::new("mem[0xFFFC]").code()).on_hover_text("Processor Status Register. Layout: PSR[15] = 0 when in supervisor mode and 1 when user mode, PSR[2] = N, PSR[1] = Z, PSR[0] = P");
+
+                ui.label("MCR:").on_hover_text(RichText::new("mem[0xFFFE]").code()).on_hover_text("Machine Control Register, when MCR[15] is set the machine is running, otherwise it is halted");
+                register_view(ui, &mut emulator.memory[MCR_ADDR], self.use_negative).on_hover_text(RichText::new("mem[0xFFFE]").code()).on_hover_text("Machine Control Register, when MCR[15] is set the machine is running, otherwise it is halted");
+                ui.end_row();
+
+               ui.label("KBDR:").on_hover_text(RichText::new("mem[0xFE02]").code()).on_hover_text("Keyboard Data Register, contains the last typed ASCII character in bits [7:0].");
+               register_view(ui, &mut emulator.memory[0xFE02], self.use_negative).on_hover_text(RichText::new("mem[0xFE02]").code()).on_hover_text("Keyboard Data Register, contains the last typed ASCII character in bits [7:0].");
+
+               ui.label("KBSR:").on_hover_text(RichText::new("mem[0xFE00]").code()).on_hover_text("Keyboard Status Register, KBSR[15] = 1 when there is input to be read.");
+               register_view(ui, &mut emulator.memory[0xFE00], self.use_negative).on_hover_text(RichText::new("mem[0xFE00]").code()).on_hover_text("Keyboard Status Register, KBSR[15] = 1 when there is input to be read.");
+
+               ui.label("DSR:").on_hover_text(RichText::new("mem[0xFE04]").code()).on_hover_text("Display Status Register, DSR[15] = 1 when display service is ready to display a new character (always 1 in this emulator).");
+               register_view(ui, &mut emulator.memory[0xFE04], self.use_negative).on_hover_text(RichText::new("mem[0xFE04]").code()).on_hover_text("Display Status Register, DSR[15] = 1 when display service is ready to display a new character (always 1 in this emulator).");
+
+               ui.label("DDR:").on_hover_text(RichText::new("mem[0xFE06]").code()).on_hover_text("Display Data Register, when DDR[7:0] is set we write the ASCII character contained to the output.");
+               register_view(ui, &mut emulator.memory[0xFE06], self.use_negative).on_hover_text(RichText::new("mem[0xFE06]").code()).on_hover_text("Display Data Register, when DDR[7:0] is set we write the ASCII character contained to the output.");
             });
     }
 

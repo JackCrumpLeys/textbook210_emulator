@@ -143,7 +143,7 @@ fn test_full_program_execution() {
         // Execute the program with a maximum number of steps
         tracing::debug!("Beginning program execution");
         let max_steps = 500; // Prevent infinite loops
-        machine_state.running = true;
+        machine_state.start_running();
         let result = machine_state.run(Some(max_steps));
 
         tracing::debug!("Program execution completed");
@@ -153,7 +153,7 @@ fn test_full_program_execution() {
         assert!(result.is_ok(), "Program execution should succeed");
 
         // Verify the machine halted
-        assert!(!machine_state.running, "Machine should have halted");
+        assert!(!machine_state.running(), "Machine should have halted");
 
         // Verify the results in memory
         let direct_result_address = *labels.get("RESULT").unwrap();
@@ -345,7 +345,7 @@ fn test_c_println_assembly() {
         // Execute the program with a maximum number of steps
         tracing::debug!("Beginning C-generated assembly program execution");
         let max_steps = 10000; // Prevent infinite loops
-        machine_state.running = true;
+        machine_state.start_running();
         let result = machine_state.run(Some(max_steps));
 
         tracing::debug!("Program execution completed");
@@ -355,7 +355,7 @@ fn test_c_println_assembly() {
         assert!(result.is_ok(), "Assembly execution should succeed");
 
         // Verify the machine halted
-        assert!(!machine_state.running, "Machine should have halted");
+        assert!(!machine_state.running(), "Machine should have halted");
 
         // Log the output
         tracing::debug!(output = machine_state.output, "Assembly program output");

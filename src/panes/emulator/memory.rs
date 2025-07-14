@@ -48,11 +48,11 @@ impl PaneDisplay for MemoryPane {
         let mut breakpoints = BREAKPOINTS.lock().unwrap();
         let theme = CURRENT_THEME_SETTINGS.lock().unwrap();
 
-        if !self.was_running && emulator.running {
+        if !self.was_running && emulator.running() {
             self.follow_pc = true; // start following the PC when the start button is pressed
         }
 
-        self.was_running = emulator.running;
+        self.was_running = emulator.running();
 
         ui.horizontal(|ui| {
             // --- Controls ---
