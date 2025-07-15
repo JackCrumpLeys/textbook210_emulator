@@ -69,7 +69,7 @@ fn criterion_benchmark(c: &mut Criterion) {
             || {
                 let mut emulator = Emulator::new();
                 emulator.flash_memory(black_box(machine_code.clone()), black_box(orig_address));
-                emulator.running = true;
+                emulator.start_running();
                 emulator
             },
             |mut emulator| {
