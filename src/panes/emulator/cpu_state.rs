@@ -22,9 +22,11 @@ impl PaneDisplay for CpuStatePane {
         egui::ScrollArea::vertical().show(ui, |ui| {
             let mut emulator = EMULATOR.lock().unwrap();
 
-            ui.collapsing("Registers & devices", |ui| {
-                self.render_register_view(ui, &mut emulator);
-            });
+            egui::CollapsingHeader::new("Registers & devices")
+                .default_open(true)
+                .show(ui, |ui| {
+                    self.render_register_view(ui, &mut emulator);
+                });
             ui.collapsing("Processor Cycle", |ui| {
                 self.render_cycle_view(ui, &mut emulator, &theme);
             });
