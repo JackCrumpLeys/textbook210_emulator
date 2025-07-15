@@ -6,7 +6,7 @@ use crate::{
     theme::{self, BaseThemeChoice},
 };
 use egui::Theme;
-use egui_dock::{DockArea, DockState, NodeIndex, Style, SurfaceIndex, TabViewer};
+use egui_dock::{AllowedSplits, DockArea, DockState, NodeIndex, Style, SurfaceIndex, TabViewer};
 use lazy_static::lazy_static;
 
 lazy_static! {
@@ -82,17 +82,15 @@ impl TabViewer for PaneManager {
         tab.render(ui);
     }
 
-    // TODO: DEMO: This needs to be uncommented after the ui demo, only commented so we can rearange
-    // the ui as we please
-    // /// If the pane is not one of multiple tabs we can close it
-    // fn closeable(&mut self, tab: &mut Self::Tab) -> bool {
-    //     !tab.alone
-    // }
+    /// If the pane is not one of multiple tabs we can close it
+    fn closeable(&mut self, tab: &mut Self::Tab) -> bool {
+        !tab.alone
+    }
 
-    // /// We can only drag a pane out to make a window if it is alone
-    // fn allowed_in_windows(&self, tab: &mut Self::Tab) -> bool {
-    //     !tab.alone
-    // }
+    /// We can only drag a pane out to make a window if it is alone
+    fn allowed_in_windows(&self, tab: &mut Self::Tab) -> bool {
+        !tab.alone
+    }
 
     /// This opens a popup menu. We use a tree-like structure where the main pane enum has catagoys
     /// then those could have catagorys and the leaf is a pane to be added along with the name of the
@@ -156,7 +154,6 @@ impl Default for EmulatorApp {
         let span = tracing::info_span!("EmulatorApp::default");
         let _guard = span.enter();
 
-        // Create all panes we want to include
         let memory_pane = Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Memory(
             crate::panes::emulator::memory::MemoryPane::default(),
         ))));
@@ -176,18 +173,18 @@ impl Default for EmulatorApp {
             crate::panes::emulator::help::HelpPane::default(),
         ))));
 
-        let mut dock_state = DockState::new(vec![terminal_pane]);
+        let mut dock_state = DockState::new(vec![editor_pane]);
         let root_id = NodeIndex::root();
 
         let ed_id = dock_state
             .main_surface_mut()
-            .split_above(root_id, 0.333, vec![editor_pane]);
+            .split_below(root_id, 0.666, vec![terminal_pane]);
 
         let mem_id = dock_state
             .main_surface_mut()
             .split_right(ed_id[1], 0.333, vec![memory_pane]);
 
-        let _eg_id = dock_state
+        let _reg_id = dock_state
             .main_surface_mut()
             .split_right(mem_id[1], 0.5, vec![cpu_pane]);
 
@@ -285,60 +282,6 @@ impl eframe::App for EmulatorApp {
                         tracing::info!("Resetting layout to default");
                         *self = Self::default(); // Reset the entire app state TODO: Keep some state? Mabye we find the last used for each pane then preserve it when recreating the layout
                     }
-                    // TODO: DEMO: This is only needed for demo, to be removed
-                    if ui.button("Layout DEMO 2").clicked() {
-                        let memory_pane =
-                            Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Memory(
-                                crate::panes::emulator::memory::MemoryPane::default(),
-                            ))));
-                        let editor_pane =
-                            Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Editor(
-                                crate::panes::emulator::editor::EditorPane::default(),
-                            ))));
-                        let controls_pane =
-                            Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Controls(
-                                crate::panes::emulator::controls::ControlsPane::default(),
-                            ))));
-                        let terminal_pane = Pane::new(RealPane::EmulatorPanes(Box::new(
-                            EmulatorPane::Output(crate::panes::emulator::io::IoPane::default()),
-                        )));
-                        let cpu_pane =
-                            Pane::new(RealPane::EmulatorPanes(Box::new(EmulatorPane::Cpu(
-                                crate::panes::emulator::cpu_state::CpuStatePane::default(),
-                            ))));
-                        let _help_pane = Pane::new(RealPane::EmulatorPanes(Box::new(
-                            EmulatorPane::Help(crate::panes::emulator::help::HelpPane::default()),
-                        )));
-
-                        let mut dock_state = DockState::new(vec![editor_pane]);
-                        let root_id = NodeIndex::root();
-
-                        let ed_id = dock_state.main_surface_mut().split_below(
-                            root_id,
-                            0.666,
-                            vec![terminal_pane],
-                        );
-
-                        let mem_id = dock_state.main_surface_mut().split_right(
-                            ed_id[1],
-                            0.333,
-                            vec![memory_pane],
-                        );
-
-                        let _reg_id = dock_state.main_surface_mut().split_right(
-                            mem_id[1],
-                            0.5,
-                            vec![cpu_pane],
-                        );
-
-                        dock_state.main_surface_mut().split_right(
-                            ed_id[0],
-                            0.666,
-                            vec![controls_pane],
-                        );
-
-                        self.dock_state = dock_state;
-                    }
                 });
 
                 ui.menu_button("UI", |ui| {
@@ -377,14 +320,13 @@ impl eframe::App for EmulatorApp {
             });
         });
 
-        // TODO: DEMO: make tabs and splits gone after demo
         DockArea::new(&mut self.dock_state)
             .show_add_buttons(true)
             .show_add_popup(true)
             .show_leaf_close_all_buttons(false)
-            // .draggable_tabs(false)
+            .draggable_tabs(false)
             .style(Style::from_egui(ctx.style().as_ref()))
-            // .allowed_splits(AllowedSplits::None)
+            .allowed_splits(AllowedSplits::None)
             .show(ctx, &mut self.tree_behavior);
 
         if let Some((nodei, sur)) = self.tree_behavior.last_added {

@@ -39,39 +39,6 @@ impl PaneDisplay for IoPane {
                     }
                 });
 
-            // Device registers information box
-            ui.group(|ui| {
-                ui.label(RichText::new("Device Registers").strong().heading());
-
-                // KBSR - Keyboard Status Register
-                ui.horizontal(|ui| {
-                    ui.label("KBSR (xFE00):");
-                    let kbsr_ready = emulator.memory[0xFE00].get() & 0x8000 != 0;
-                    ui.checkbox(&mut kbsr_ready.clone(), "Ready Bit");
-                    ui.label(
-                        RichText::new("Indicates if keyboard has a character ready")
-                            .small()
-                            .italics(),
-                    );
-                });
-
-                // KBDR - Keyboard Data Register
-                ui.horizontal(|ui| {
-                    ui.label("KBDR (xFE02):");
-                    let kbdr_value = emulator.memory[0xFE02].get() & 0xFF;
-                    ui.label(format!(
-                        "Value: {:#04x} ('{}')",
-                        kbdr_value,
-                        char::from_u32(kbdr_value as u32).unwrap_or('?')
-                    ));
-                    ui.label(
-                        RichText::new("Contains the last character typed")
-                            .small()
-                            .italics(),
-                    );
-                });
-            });
-
             // Regular input field (kept for compatibility)
             ui.horizontal(|ui| {
                 ui.label(">");
