@@ -12,6 +12,7 @@ use super::EmulatorPane;
 pub struct EditorPane {
     program: String,
     fade: f32,
+    last_compilation_was_successful: bool,
 }
 
 impl Default for EditorPane {
@@ -27,13 +28,13 @@ MESSAGE: .STRINGZ "Hello, World!"
 .END"#
                 .to_string(),
             fade: 0.0,
+            last_compilation_was_successful: false,
         }
     }
 }
 
 impl PaneDisplay for EditorPane {
     fn render(&mut self, ui: &mut egui::Ui) {
-        let mut compile_success = false;
         let theme = CURRENT_THEME_SETTINGS.lock().unwrap();
 
         egui::ScrollArea::vertical().show(ui, |ui| {
@@ -81,7 +82,9 @@ impl PaneDisplay for EditorPane {
                             );
                         }
                     }
-                } else if !artifacts.last_compiled_source.is_empty() {
+                } else if !artifacts.last_compiled_source.is_empty()
+                    && self.last_compilation_was_successful
+                {
                     // Only show success if there is a compiled source and no error
                     ui.colored_label(
                         theme.success_fg_color,
@@ -93,8 +96,11 @@ impl PaneDisplay for EditorPane {
             ui.add_space(8.0);
 
             // Blend between green and gray based on self.fade
-            let just_compiled = theme.accent_color_positive;
-            let base = theme.accent_color_primary; // neutral gray
+            let just_compiled = match self.last_compilation_was_successful {
+                true => theme.success_fg_color,
+                false => theme.error_fg_color,
+            };
+            let base = theme.accent_color_primary;
             let fade = self.fade.clamp(0.0, 1.0);
 
             let blend = |a: egui::Color32, b: egui::Color32, t: f32| -> egui::Color32 {
@@ -109,11 +115,10 @@ impl PaneDisplay for EditorPane {
             let button_color = blend(just_compiled, base, fade);
 
             ui.horizontal(|ui| {
-                let button = egui::Button::new("Reset & Compile").fill(button_color);
+                let button = egui::Button::new("Compile").fill(button_color);
                 if ui.add(button).clicked() {
                     let data_to_load = Emulator::parse_program(&self.program);
                     let mut emulator = EMULATOR.lock().unwrap();
-                    *emulator = Emulator::new(); // Reset emulator state
 
                     if let Ok(ParseOutput {
                         machine_code,
@@ -124,10 +129,11 @@ impl PaneDisplay for EditorPane {
                         // Flash memory
                         emulator.flash_memory(machine_code, orig_address);
 
-                        compile_success = true;
                         self.fade = 1.0;
+                        self.last_compilation_was_successful = true;
                     } else {
-                        compile_success = false;
+                        self.fade = 1.0;
+                        self.last_compilation_was_successful = false;
                     }
                 }
             });

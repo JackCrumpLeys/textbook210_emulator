@@ -12,7 +12,8 @@ fn main() -> eframe::Result {
 
     use eframe::UserEvent;
     use tools_for_210::app::LAST_PAINT_ID;
-    use tracing_subscriber::EnvFilter;
+    use tracing::Level;
+    use tracing_subscriber::{filter::Directive, EnvFilter};
     use winit::{
         event_loop::{ControlFlow, EventLoop},
         platform::pump_events::{EventLoopExtPumpEvents, PumpStatus},
@@ -21,7 +22,12 @@ fn main() -> eframe::Result {
     let fmt_layer = tracing_subscriber::fmt::layer().with_writer(std::io::stdout); // write events to the terminal
 
     tracing_subscriber::registry()
-        .with(EnvFilter::new("info"))
+        .with(
+            EnvFilter::builder()
+                .with_default_directive(Directive::from(Level::INFO))
+                .from_env()
+                .unwrap(),
+        )
         .with(fmt_layer)
         .init();
     let native_options = eframe::NativeOptions {

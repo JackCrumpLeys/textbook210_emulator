@@ -958,6 +958,7 @@ pub trait BitAddressable {
 
 impl BitAddressable for EmulatorCell {
     fn index(&self, addr: u8) -> Self {
+        assert!(addr < 16, "Address out of range");
         Self((self.0 >> addr) & 1, true)
     }
 
@@ -968,13 +969,6 @@ impl BitAddressable for EmulatorCell {
         let end = slice.end;
         let width = (start + 1) - end;
         let mask = ((1 << width) - 1) << end;
-        tracing::trace!(
-            value = format!("0x{:04X}", self.0),
-            mask = format!("0b{:016b}", mask),
-            range = format!("{}..{}", start, end),
-            width = width,
-            "Extracting bits using mask"
-        );
         Self((self.0 & mask) >> end, true)
     }
 }

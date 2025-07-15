@@ -1544,8 +1544,12 @@ impl Emulator {
             artifacts.orig_address = *orig_address;
             artifacts.error = None;
             artifacts.last_compiled_source = program.to_string();
+
+            tracing::debug!("compilation artifacts updated");
+            tracing::trace!("compilation artifacts: \n{:#?}", artifacts);
         } else {
             artifacts.error = Some(out.as_ref().unwrap_err().clone());
+            tracing::warn!("compilation error: {:?}", artifacts.error);
         }
 
         out
