@@ -947,13 +947,6 @@ impl Emulator {
                 self.memory[DDR_ADDR].set(0);
             }
         }
-
-        // Check Machine Control Register (MCR)
-        let mcr_value = self.memory[MCR_ADDR].get();
-        // If bit 15 (clock enable) is cleared, stop execution
-        if (mcr_value & 0x8000) == 0 {
-            self.stop_running();
-        }
     }
 }
 
