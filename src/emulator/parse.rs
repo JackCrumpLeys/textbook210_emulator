@@ -1,8 +1,32 @@
-use std::{collections::HashMap, str::FromStr};
+use lazy_static::lazy_static;
+use std::{collections::HashMap, str::FromStr, sync::Mutex};
 
 use serde::{Deserialize, Serialize};
 
 use super::Emulator;
+
+lazy_static! {
+    /// Compilation artifacts for the emulator. This struct holds information about the last compiled source code, line-to-address mappings, labels, and more.
+    pub static ref COMPILATION_ARTIFACTS: Mutex<CompilationArtifacts> =
+        Mutex::new(CompilationArtifacts::default());
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+/// Compilation artifacts for the emulator. This struct holds information about the last compiled source code, line-to-address mappings, labels, and more.
+pub struct CompilationArtifacts {
+    /// the most recently compiled source code
+    pub last_compiled_source: String,
+    /// the most recent line to address mappings
+    pub line_to_address: HashMap<usize, usize>,
+    /// all labels and their corresponding addresses (NOTE labels can be overwritten)
+    pub labels: HashMap<String, u16>,
+    /// all addresses and their corresponding labels (NOTE labels can be overwritten)
+    pub addr_to_label: HashMap<u16, String>,
+    /// last compiled orig address of the source code
+    pub orig_address: u16,
+    /// latest compilation error
+    pub error: Option<ParseError>,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Copy)]
 /// Encodes all of the ops a user can use
@@ -1501,6 +1525,28 @@ impl Emulator {
             .map_err(|(str, tok)| ParseError::GenerationError(str, tok));
 
         tracing::trace!("parsed output: {:?}", out);
+
+        let mut artifacts = COMPILATION_ARTIFACTS.lock().unwrap();
+
+        if let Ok(ParseOutput {
+            line_to_address,
+            labels,
+            orig_address,
+            ..
+        }) = &out
+        {
+            // Update compilation artifacts
+            artifacts.line_to_address = line_to_address.clone();
+            artifacts.labels.extend(labels.clone());
+            artifacts
+                .addr_to_label
+                .extend(labels.iter().map(|(v, k)| (*k, v.clone())));
+            artifacts.orig_address = *orig_address;
+            artifacts.error = None;
+            artifacts.last_compiled_source = program.to_string();
+        } else {
+            artifacts.error = Some(out.as_ref().unwrap_err().clone());
+        }
 
         out
     }

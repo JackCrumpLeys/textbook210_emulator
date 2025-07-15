@@ -311,7 +311,7 @@ pub fn area_from_address(addr: &EmulatorCell) -> MemoryArea {
 }
 
 pub enum MemoryArea {
-    TrapVectorTable,     // x0000 - x00FF (No permissions for userspace)
+    TrapVectorTable,     // x0000 - x00FF (Read only for userspace)
     IntrruptVectorTable, // x0100 - x01FF (No permissions for userspace)
     OperatingSystem,     // x0200 - x2FFF (No permissions for userspace)
     UserSpace,           // x3000 - xFDFF (rwx for userspace)
@@ -322,7 +322,7 @@ impl MemoryArea {
     pub fn can_read(&self, level: &PrivilegeLevel) -> bool {
         match level {
             PrivilegeLevel::User => match self {
-                MemoryArea::TrapVectorTable => false,
+                MemoryArea::TrapVectorTable => true,
                 MemoryArea::IntrruptVectorTable => false,
                 MemoryArea::OperatingSystem => false,
                 MemoryArea::UserSpace => true,

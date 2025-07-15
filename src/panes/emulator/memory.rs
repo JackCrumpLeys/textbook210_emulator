@@ -1,4 +1,5 @@
 use crate::app::EMULATOR;
+use crate::emulator::parse::COMPILATION_ARTIFACTS;
 use crate::emulator::EmulatorCell;
 use crate::panes::{Pane, PaneDisplay, PaneTree, RealPane};
 use crate::theme::CURRENT_THEME_SETTINGS;
@@ -10,7 +11,6 @@ use std::collections::{HashMap, HashSet};
 use std::ops::RangeInclusive;
 use std::sync::Mutex;
 
-use super::editor::COMPILATION_ARTIFACTS;
 use super::EmulatorPane;
 
 lazy_static! {
@@ -246,13 +246,14 @@ impl PaneDisplay for MemoryPane {
                     row.col(|ui| {
                         paint_bg(ui);
 
-                        let mut value_i16 = memory_cell.get() as i16;
+                        let mut value = memory_cell.get();
                         let format_fn = |n: f64, _range: RangeInclusive<usize>| -> String {
                             debug_assert!(n.is_finite());
                             debug_assert!(n <= u16::MAX as f64);
+                            debug_assert!(n >= u16::MIN as f64);
                             match self.display_base {
                                 16 => format!("{:04X}", n as u16),
-                                10 => format!("{}", n as i16),
+                                10 => format!("{}", n as u16),
                                 2 => format!("{:016b}", n as u16),
                                 _ => String::new(), // Add other bases if needed
                             }
@@ -270,13 +271,13 @@ impl PaneDisplay for MemoryPane {
 
                         if ui
                             .add(
-                                egui::DragValue::new(&mut value_i16)
+                                egui::DragValue::new(&mut value)
                                     .custom_formatter(format_fn)
                                     .custom_parser(parse_fn),
                             )
                             .changed()
                         {
-                            memory_cell.set(value_i16 as u16);
+                            memory_cell.set(value);
                         }
                     });
 

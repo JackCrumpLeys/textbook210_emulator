@@ -3,6 +3,7 @@
 #![allow(clippy::reversed_empty_ranges)] // We use ranges when adressing bits like how the textbook does it (like 7..0 to get last 8 bits)
 
 use tools_for_210::app::EMULATOR;
+use tracing_subscriber::prelude::*;
 
 // When compiling natively:
 #[cfg(not(target_arch = "wasm32"))]
@@ -10,14 +11,19 @@ fn main() -> eframe::Result {
     use std::time::{Duration, Instant};
 
     use eframe::UserEvent;
-    use tools_for_210::app::LAST_PAINT_ID;
+    use tools_for_210::{app::LAST_PAINT_ID, panes::emulator::io};
+    use tracing_subscriber::EnvFilter;
     use winit::{
         event_loop::{ControlFlow, EventLoop},
         platform::pump_events::{EventLoopExtPumpEvents, PumpStatus},
     };
 
-    env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
+    let fmt_layer = tracing_subscriber::fmt::layer().with_writer(std::io::stdout); // write events to the terminal
 
+    tracing_subscriber::registry()
+        .with(EnvFilter::new("info"))
+        .with(fmt_layer)
+        .init();
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([400.0, 300.0])
@@ -67,7 +73,6 @@ fn main() {
     use std::cell::RefCell;
     use std::rc::Rc;
     use tracing_subscriber::fmt::format::Pretty;
-    use tracing_subscriber::prelude::*;
     use tracing_subscriber::EnvFilter;
     use tracing_web::{performance_layer, MakeWebConsoleWriter};
     use wasm_bindgen::{prelude::Closure, JsCast};

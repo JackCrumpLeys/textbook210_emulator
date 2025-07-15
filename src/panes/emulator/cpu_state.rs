@@ -4,12 +4,13 @@ use crate::emulator::ops::{
     AddOp, AndOp, BrOp, JmpOp, LdOp, LdiOp, LdrOp, LeaOp, NotOp, OpCode, StOp, StiOp, StrOp, TrapOp,
 };
 use crate::emulator::{BitAddressable, CpuState, Emulator, EmulatorCell, MCR_ADDR, PSR_ADDR};
+use crate::panes::emulator::cpu_state;
 use crate::panes::{Pane, PaneDisplay, PaneTree, RealPane};
 use crate::theme::{ThemeSettings, CURRENT_THEME_SETTINGS};
 use egui::{Response, RichText};
 use serde::{Deserialize, Serialize};
 
-use super::{editor::COMPILATION_ARTIFACTS, EmulatorPane};
+use super::EmulatorPane;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct CpuStatePane {
@@ -203,28 +204,6 @@ impl CpuStatePane {
             CpuState::ExecuteOperation(_) => 4,
             CpuState::StoreResult(_) => 5,
         };
-
-        let artifacts = COMPILATION_ARTIFACTS.lock().unwrap();
-
-        let pc_for_source_lookup = if matches!(emulator.cpu_state, CpuState::Fetch) {
-            emulator.pc.get()
-        } else {
-            emulator.pc.get().wrapping_sub(1)
-        };
-
-        let source_line_text = artifacts
-            .line_to_address
-            .iter()
-            .find_map(|(line_num, &addr)| {
-                if addr == pc_for_source_lookup as usize {
-                    artifacts.last_compiled_source.lines().nth(*line_num)
-                } else {
-                    None
-                }
-            })
-            .map(|s| s.trim().to_string())
-            .unwrap_or_else(|| format!("Instruction at {pc_for_source_lookup:#06x}"));
-
         // Display cycle list
         ui.label(RichText::new("CPU Pipeline Stages:").strong());
         for (i, cycle_name_str) in cycle_names.iter().enumerate() {
@@ -250,12 +229,7 @@ impl CpuStatePane {
                 if matches!(emulator.cpu_state, CpuState::Fetch) {
                     format!("instruction at PC={:#06x}", emulator.pc.get())
                 } else {
-                    source_line_text
-                        .clone()
-                        .split(";")
-                        .next()
-                        .unwrap_or_default()
-                        .to_owned()
+                    format!("{:?}", emulator.cpu_state)
                 },
                 if matches!(emulator.cpu_state, CpuState::Fetch) {
                     0u16 // IR is not yet loaded for the current PC
@@ -549,7 +523,6 @@ impl CpuStatePane {
                         },
                         OpCode::Lea(LeaOp{dr, ..}) => {
                             ui.label(mono(format!("  EffectiveAddress -> R{}", dr.get()), theme.secondary_text_color));
-                             ui.label(mono("  Update PSR with new N,Z,P flags.", theme.secondary_text_color));
                         }
                         OpCode::Ld(LdOp{dr, ..}) | OpCode::Ldi(LdiOp{dr, ..}) | OpCode::Ldr(LdrOp{dr, ..}) => {
                             ui.horizontal_wrapped(|ui| {
@@ -572,6 +545,14 @@ impl CpuStatePane {
                     }
                 }
             }
+        });
+        ui.collapsing("Spooky dev full cpu state.", |ui| {
+            egui_extras::syntax_highlighting::code_view_ui(
+                ui,
+                &egui_extras::syntax_highlighting::CodeTheme::from_memory(ui.ctx(), ui.style()),
+                format!("{:#?}", emulator.cpu_state).as_str(),
+                "rs",
+            );
         });
     }
 }

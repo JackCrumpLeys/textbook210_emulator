@@ -1,5 +1,5 @@
 use crate::app::EMULATOR;
-use crate::emulator::parse::{ParseError, ParseOutput};
+use crate::emulator::parse::{ParseError, ParseOutput, COMPILATION_ARTIFACTS};
 use crate::emulator::Emulator;
 use crate::panes::{Pane, PaneDisplay, PaneTree, RealPane};
 use crate::theme::CURRENT_THEME_SETTINGS;
@@ -10,21 +10,6 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use super::EmulatorPane;
-
-lazy_static! {
-    pub static ref COMPILATION_ARTIFACTS: Mutex<CompilationArtifacts> =
-        Mutex::new(CompilationArtifacts::default());
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct CompilationArtifacts {
-    pub last_compiled_source: String,
-    pub line_to_address: HashMap<usize, usize>,
-    pub labels: HashMap<String, u16>,
-    pub addr_to_label: HashMap<u16, String>, // to optimise when fetching lable from addr
-    pub orig_address: u16,
-    pub error: Option<ParseError>,
-}
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct EditorPane {
@@ -81,30 +66,31 @@ impl PaneDisplay for EditorPane {
                     .show(ui, &mut self.program);
             });
 
-            let mut artifacts = COMPILATION_ARTIFACTS.lock().unwrap();
-
-            // Show error or success feedback
-            if let Some(error) = &artifacts.error {
-                match error {
-                    ParseError::TokenizeError(s, l) => {
-                        ui.colored_label(
-                            ui.visuals().error_fg_color,
-                            format!("Syntax error on line {l}: {s}"),
-                        );
+            {
+                // Show error or success feedback
+                let mut artifacts = COMPILATION_ARTIFACTS.lock().unwrap();
+                if let Some(error) = &artifacts.error {
+                    match error {
+                        ParseError::TokenizeError(s, l) => {
+                            ui.colored_label(
+                                ui.visuals().error_fg_color,
+                                format!("Syntax error on line {l}: {s}"),
+                            );
+                        }
+                        ParseError::GenerationError(s, token_span) => {
+                            ui.colored_label(
+                                ui.visuals().error_fg_color,
+                                format!("Code generation error at {token_span:?}: {s}"),
+                            );
+                        }
                     }
-                    ParseError::GenerationError(s, token_span) => {
-                        ui.colored_label(
-                            ui.visuals().error_fg_color,
-                            format!("Code generation error at {token_span:?}: {s}"),
-                        );
-                    }
+                } else if !artifacts.last_compiled_source.is_empty() {
+                    // Only show success if there is a compiled source and no error
+                    ui.colored_label(
+                        theme.success_fg_color,
+                        egui::RichText::new("Compiled successfully!").strong(),
+                    );
                 }
-            } else if !artifacts.last_compiled_source.is_empty() {
-                // Only show success if there is a compiled source and no error
-                ui.colored_label(
-                    theme.success_fg_color,
-                    egui::RichText::new("Compiled successfully!").strong(),
-                );
             }
 
             ui.add_space(8.0);
@@ -134,29 +120,16 @@ impl PaneDisplay for EditorPane {
 
                     if let Ok(ParseOutput {
                         machine_code,
-                        line_to_address,
-                        labels,
                         orig_address,
+                        ..
                     }) = data_to_load
                     {
-                        artifacts.line_to_address = line_to_address;
-                        artifacts.labels = labels.clone();
-                        artifacts.addr_to_label = labels.into_iter().map(|(x, y)| (y, x)).collect();
-                        artifacts.orig_address = orig_address;
-                        artifacts.error = None;
-                        artifacts.last_compiled_source = self.program.clone();
-
                         // Flash memory
                         emulator.flash_memory(machine_code, orig_address);
 
                         compile_success = true;
                         self.fade = 1.0;
                     } else {
-                        artifacts.error = Some(data_to_load.unwrap_err());
-                        artifacts.line_to_address.clear();
-                        artifacts.labels.clear();
-                        artifacts.addr_to_label.clear();
-                        artifacts.last_compiled_source.clear();
                         compile_success = false;
                     }
                 }

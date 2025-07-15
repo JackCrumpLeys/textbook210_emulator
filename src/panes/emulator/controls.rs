@@ -1,7 +1,6 @@
 use crate::app::EMULATOR;
-use crate::emulator::parse::ParseOutput;
+use crate::emulator::parse::{ParseOutput, COMPILATION_ARTIFACTS};
 use crate::emulator::{Emulator, MAX_OS_STEPS};
-use crate::panes::emulator::editor::COMPILATION_ARTIFACTS;
 use crate::panes::{Pane, PaneDisplay, PaneTree, RealPane};
 use crate::theme::CURRENT_THEME_SETTINGS;
 use serde::{Deserialize, Serialize};
