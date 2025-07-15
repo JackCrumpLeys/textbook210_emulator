@@ -11,7 +11,7 @@ fn main() -> eframe::Result {
     use std::time::{Duration, Instant};
 
     use eframe::UserEvent;
-    use tools_for_210::{app::LAST_PAINT_ID, panes::emulator::io};
+    use tools_for_210::app::LAST_PAINT_ID;
     use tracing_subscriber::EnvFilter;
     use winit::{
         event_loop::{ControlFlow, EventLoop},

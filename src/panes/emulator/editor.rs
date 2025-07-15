@@ -3,11 +3,8 @@ use crate::emulator::parse::{ParseError, ParseOutput, COMPILATION_ARTIFACTS};
 use crate::emulator::Emulator;
 use crate::panes::{Pane, PaneDisplay, PaneTree, RealPane};
 use crate::theme::CURRENT_THEME_SETTINGS;
-use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
-use std::collections::HashMap;
-use std::sync::Mutex;
 
 use super::EmulatorPane;
 
@@ -68,7 +65,7 @@ impl PaneDisplay for EditorPane {
 
             {
                 // Show error or success feedback
-                let mut artifacts = COMPILATION_ARTIFACTS.lock().unwrap();
+                let artifacts = COMPILATION_ARTIFACTS.lock().unwrap();
                 if let Some(error) = &artifacts.error {
                     match error {
                         ParseError::TokenizeError(s, l) => {

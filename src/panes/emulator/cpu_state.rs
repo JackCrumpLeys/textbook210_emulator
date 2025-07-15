@@ -4,7 +4,6 @@ use crate::emulator::ops::{
     AddOp, AndOp, BrOp, JmpOp, LdOp, LdiOp, LdrOp, LeaOp, NotOp, OpCode, StOp, StiOp, StrOp, TrapOp,
 };
 use crate::emulator::{BitAddressable, CpuState, Emulator, EmulatorCell, MCR_ADDR, PSR_ADDR};
-use crate::panes::emulator::cpu_state;
 use crate::panes::{Pane, PaneDisplay, PaneTree, RealPane};
 use crate::theme::{ThemeSettings, CURRENT_THEME_SETTINGS};
 use egui::{Response, RichText};
