@@ -97,8 +97,8 @@ impl PaneDisplay for EditorPane {
 
             // Blend between green and gray based on self.fade
             let just_compiled = match self.last_compilation_was_successful {
-                true => theme.success_fg_color,
-                false => theme.error_fg_color,
+                true => theme.accent_color_positive,
+                false => theme.accent_color_negative,
             };
             let base = theme.accent_color_primary;
             let fade = self.fade.clamp(0.0, 1.0);
