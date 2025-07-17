@@ -20,8 +20,6 @@ impl PaneDisplay for ControlsPane {
     fn render(&mut self, ui: &mut egui::Ui) {
         let theme = CURRENT_THEME_SETTINGS.lock().unwrap();
         let mut emulator = EMULATOR.lock().unwrap();
-        // COMPILATION_ARTIFACTS is needed for the reset logic
-        let artifacts = COMPILATION_ARTIFACTS.lock().unwrap();
 
         egui::ScrollArea::vertical().show(ui, |ui| {
 
@@ -141,10 +139,13 @@ impl PaneDisplay for ControlsPane {
 
 
                 // Reload last compiled program if available
+                let artifacts = COMPILATION_ARTIFACTS.lock().unwrap();
                 if !artifacts.last_compiled_source.is_empty()
                     && artifacts.error.is_none()
                 {
-                    match Emulator::parse_program(&artifacts.last_compiled_source) {
+                    let last_compiled_source = artifacts.last_compiled_source.clone();
+                    drop(artifacts); // Release the lock before parsing because parser will need it
+                    match Emulator::parse_program(&last_compiled_source) {
                         Ok(ParseOutput {
                             machine_code,
                             orig_address,
