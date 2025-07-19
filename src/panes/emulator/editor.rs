@@ -1,8 +1,7 @@
-use crate::app::EMULATOR;
-use crate::emulator::parse::{ParseError, ParseOutput, COMPILATION_ARTIFACTS};
+use crate::emulator::parse::{ParseError, ParseOutput};
 use crate::emulator::Emulator;
 use crate::panes::{Pane, PaneDisplay, PaneTree, RealPane};
-use crate::theme::CURRENT_THEME_SETTINGS;
+use crate::theme::ThemeSettings;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
@@ -34,9 +33,7 @@ MESSAGE: .STRINGZ "Hello, World!"
 }
 
 impl PaneDisplay for EditorPane {
-    fn render(&mut self, ui: &mut egui::Ui) {
-        let theme = CURRENT_THEME_SETTINGS.lock().unwrap();
-
+    fn render(&mut self, ui: &mut egui::Ui, emulator: &mut Emulator, theme: &mut ThemeSettings) {
         egui::ScrollArea::vertical().show(ui, |ui| {
             // Make the code editor borderless and fill the available width
             let editor_frame = egui::Frame::new()
@@ -64,9 +61,9 @@ impl PaneDisplay for EditorPane {
                     .show(ui, &mut self.program);
             });
 
+            // Show error or success feedback
             {
-                // Show error or success feedback
-                let artifacts = COMPILATION_ARTIFACTS.lock().unwrap();
+                let artifacts = &mut emulator.metadata;
                 if let Some(error) = &artifacts.error {
                     match error {
                         ParseError::TokenizeError(s, l) => {
@@ -92,7 +89,6 @@ impl PaneDisplay for EditorPane {
                     );
                 }
             }
-
             ui.add_space(8.0);
 
             // Blend between green and gray based on self.fade
@@ -117,9 +113,8 @@ impl PaneDisplay for EditorPane {
             ui.horizontal(|ui| {
                 let button = egui::Button::new("Compile").fill(button_color);
                 if ui.add(button).clicked() {
-                    let data_to_load = Emulator::parse_program(&self.program);
-                    let mut emulator = EMULATOR.lock().unwrap();
-
+                    let data_to_load =
+                        Emulator::parse_program(&self.program, Some(&mut emulator.metadata));
                     if let Ok(ParseOutput {
                         machine_code,
                         orig_address,

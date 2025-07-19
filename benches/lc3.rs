@@ -56,7 +56,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("LC3_Instructions");
 
     // Parse the program
-    let parse_result = Emulator::parse_program(test_program).unwrap();
+    let parse_result = Emulator::parse_program(test_program, None).unwrap();
     let ParseOutput {
         machine_code,
         orig_address,
@@ -196,7 +196,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         b.iter_batched(
             || test_program,
             |program| {
-                black_box(Emulator::parse_program(black_box(program)).unwrap());
+                black_box(Emulator::parse_program(black_box(program), None).unwrap());
             },
             criterion::BatchSize::SmallInput,
         );

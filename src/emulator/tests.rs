@@ -118,7 +118,7 @@ fn test_full_program_execution() {
 
         // Parse the program
         tracing::debug!("Parsing program");
-        let parse_result = Emulator::parse_program(program);
+        let parse_result = Emulator::parse_program(program, None);
 
         // Check if parsing was successful
         assert!(parse_result.is_ok(), "Program parsing should succeed");
@@ -318,7 +318,7 @@ fn test_c_println_assembly() {
 
         // Parse the program
         tracing::debug!("Parsing C-generated assembly program");
-        let parse_result = Emulator::parse_program(assembly_content);
+        let parse_result = Emulator::parse_program(assembly_content, None);
 
         // Check if parsing was successful
         assert!(parse_result.is_ok(), "Assembly parsing should succeed");

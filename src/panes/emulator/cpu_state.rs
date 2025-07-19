@@ -1,11 +1,10 @@
-use crate::app::EMULATOR;
 use crate::emulator::ops::jsr::JsrMode;
 use crate::emulator::ops::{
     AddOp, AndOp, BrOp, JmpOp, LdOp, LdiOp, LdrOp, LeaOp, NotOp, OpCode, StOp, StiOp, StrOp, TrapOp,
 };
 use crate::emulator::{BitAddressable, CpuState, Emulator, EmulatorCell, MCR_ADDR, PSR_ADDR};
 use crate::panes::{Pane, PaneDisplay, PaneTree, RealPane};
-use crate::theme::{ThemeSettings, CURRENT_THEME_SETTINGS};
+use crate::theme::ThemeSettings;
 use egui::{Response, RichText};
 use serde::{Deserialize, Serialize};
 
@@ -17,18 +16,15 @@ pub struct CpuStatePane {
 }
 
 impl PaneDisplay for CpuStatePane {
-    fn render(&mut self, ui: &mut egui::Ui) {
-        let theme = CURRENT_THEME_SETTINGS.lock().unwrap();
+    fn render(&mut self, ui: &mut egui::Ui, emulator: &mut Emulator, theme: &mut ThemeSettings) {
         egui::ScrollArea::vertical().show(ui, |ui| {
-            let mut emulator = EMULATOR.lock().unwrap();
-
             egui::CollapsingHeader::new("Registers & devices")
                 .default_open(true)
                 .show(ui, |ui| {
-                    self.render_register_view(ui, &mut emulator);
+                    self.render_register_view(ui, emulator);
                 });
             ui.collapsing("Processor Cycle", |ui| {
-                self.render_cycle_view(ui, &mut emulator, &theme);
+                self.render_cycle_view(ui, emulator, theme);
             });
         });
     }

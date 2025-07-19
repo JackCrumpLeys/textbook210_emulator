@@ -1,8 +1,7 @@
-use crate::app::EMULATOR;
-use crate::emulator::parse::{ParseOutput, COMPILATION_ARTIFACTS};
+use crate::emulator::parse::ParseOutput;
 use crate::emulator::{Emulator, MAX_OS_STEPS};
 use crate::panes::{Pane, PaneDisplay, PaneTree, RealPane};
-use crate::theme::CURRENT_THEME_SETTINGS;
+use crate::theme::ThemeSettings;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
@@ -17,10 +16,7 @@ impl Default for ControlsPane {
 }
 
 impl PaneDisplay for ControlsPane {
-    fn render(&mut self, ui: &mut egui::Ui) {
-        let theme = CURRENT_THEME_SETTINGS.lock().unwrap();
-        let mut emulator = EMULATOR.lock().unwrap();
-
+    fn render(&mut self, ui: &mut egui::Ui, emulator: &mut Emulator, theme: &mut ThemeSettings) {
         egui::ScrollArea::vertical().show(ui, |ui| {
 
             // Single Execution Speed Slider
@@ -139,13 +135,12 @@ impl PaneDisplay for ControlsPane {
 
 
                 // Reload last compiled program if available
-                let artifacts = COMPILATION_ARTIFACTS.lock().unwrap();
+                let artifacts = &mut emulator.metadata;
                 if !artifacts.last_compiled_source.is_empty()
                     && artifacts.error.is_none()
                 {
                     let last_compiled_source = artifacts.last_compiled_source.clone();
-                    drop(artifacts); // Release the lock before parsing because parser will need it
-                    match Emulator::parse_program(&last_compiled_source) {
+                    match Emulator::parse_program(&last_compiled_source, Some(artifacts)) {
                         Ok(ParseOutput {
                             machine_code,
                             orig_address,

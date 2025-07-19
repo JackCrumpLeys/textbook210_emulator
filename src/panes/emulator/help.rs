@@ -1,5 +1,8 @@
-use crate::panes::{Pane, PaneDisplay, PaneTree, RealPane};
-use crate::theme::CURRENT_THEME_SETTINGS;
+use crate::{
+    emulator::Emulator,
+    panes::{Pane, PaneDisplay, PaneTree, RealPane},
+    theme::ThemeSettings,
+};
 use egui::{Color32, RichText, TextWrapMode, Ui};
 use serde::{Deserialize, Serialize};
 
@@ -56,7 +59,7 @@ impl Default for HelpPane {
 // --- PaneDisplay Implementation ---
 
 impl PaneDisplay for HelpPane {
-    fn render(&mut self, ui: &mut Ui) {
+    fn render(&mut self, ui: &mut egui::Ui, _emulator: &mut Emulator, theme: &mut ThemeSettings) {
         egui::ScrollArea::vertical().show(ui, |ui| {
             render_collapsible_section_with_id(
                 ui,
@@ -68,7 +71,7 @@ impl PaneDisplay for HelpPane {
                 ui,
                 "LC-3 Instruction Reference",
                 "help_instruction_reference",
-                |ui| self.render_instruction_reference_ui(ui),
+                |ui| self.render_instruction_reference_ui(ui, theme),
             );
             render_collapsible_section_with_id(
                 ui,
@@ -589,44 +592,43 @@ fn render_instruction_card_content(
 }
 
 impl HelpPane {
-    fn render_instruction_reference_ui(&mut self, ui: &mut Ui) {
+    fn render_instruction_reference_ui(&mut self, ui: &mut Ui, theme_settings: &ThemeSettings) {
         ui_main_title(ui, "LC-3 Assembly Instructions");
         ui_simple_label(ui, "Select an instruction category to explore. Adjust instruction fields to see how they affect binary representation.");
         ui.add_space(4.0);
 
         render_collapsible_section_with_id(ui, "Arithmetic & Logic", "arithmetic_logic", |ui| {
-            self.render_add_instruction(ui);
-            self.render_and_instruction(ui);
-            self.render_not_instruction(ui);
+            self.render_add_instruction(ui, theme_settings);
+            self.render_and_instruction(ui, theme_settings);
+            self.render_not_instruction(ui, theme_settings);
         });
 
         render_collapsible_section_with_id(ui, "Data Movement", "data_movement", |ui| {
-            self.render_ld_instruction(ui);
-            self.render_ldi_instruction(ui);
-            self.render_ldr_instruction(ui);
-            self.render_lea_instruction(ui);
-            self.render_st_instruction(ui);
-            self.render_sti_instruction(ui);
-            self.render_str_instruction(ui);
+            self.render_ld_instruction(ui, theme_settings);
+            self.render_ldi_instruction(ui, theme_settings);
+            self.render_ldr_instruction(ui, theme_settings);
+            self.render_lea_instruction(ui, theme_settings);
+            self.render_st_instruction(ui, theme_settings);
+            self.render_sti_instruction(ui, theme_settings);
+            self.render_str_instruction(ui, theme_settings);
         });
 
         render_collapsible_section_with_id(ui, "Control Flow", "control_flow", |ui| {
-            self.render_br_instruction(ui);
-            self.render_jmp_ret_instruction(ui);
-            self.render_jsr_jsrr_instruction(ui);
+            self.render_br_instruction(ui, theme_settings);
+            self.render_jmp_ret_instruction(ui, theme_settings);
+            self.render_jsr_jsrr_instruction(ui, theme_settings);
         });
 
         render_collapsible_section_with_id(ui, "System Operations", "system_ops", |ui| {
-            self.render_trap_instruction(ui);
-            self.render_rti_instruction(ui);
+            self.render_trap_instruction(ui, theme_settings);
+            self.render_rti_instruction(ui, theme_settings);
         });
     }
 
     // --- Individual Instruction Rendering Functions ---
 
-    fn render_add_instruction(&mut self, ui: &mut Ui) {
+    fn render_add_instruction(&mut self, ui: &mut Ui, theme_settings: &ThemeSettings) {
         let fields = &mut self.instruction_fields;
-        let theme_settings = CURRENT_THEME_SETTINGS.lock().unwrap();
 
         render_instruction_card_content(
             ui,
@@ -764,9 +766,8 @@ impl HelpPane {
         );
     }
 
-    fn render_and_instruction(&mut self, ui: &mut Ui) {
+    fn render_and_instruction(&mut self, ui: &mut Ui, theme_settings: &ThemeSettings) {
         let fields = &mut self.instruction_fields;
-        let theme_settings = CURRENT_THEME_SETTINGS.lock().unwrap();
 
         render_instruction_card_content(
             ui,
@@ -904,9 +905,8 @@ impl HelpPane {
         );
     }
 
-    fn render_not_instruction(&mut self, ui: &mut Ui) {
+    fn render_not_instruction(&mut self, ui: &mut Ui, theme_settings: &ThemeSettings) {
         let fields = &mut self.instruction_fields;
-        let theme_settings = CURRENT_THEME_SETTINGS.lock().unwrap();
 
         render_instruction_card_content(
             ui,
@@ -958,9 +958,8 @@ impl HelpPane {
             Some("Sets condition codes: N, Z, P"),
         );
     }
-    fn render_ld_instruction(&mut self, ui: &mut Ui) {
+    fn render_ld_instruction(&mut self, ui: &mut Ui, theme_settings: &ThemeSettings) {
         let fields = &mut self.instruction_fields;
-        let theme_settings = CURRENT_THEME_SETTINGS.lock().unwrap();
 
         render_instruction_card_content(
             ui,
@@ -1011,9 +1010,8 @@ impl HelpPane {
             Some("Sets condition codes: N, Z, P"),
         );
     }
-    fn render_ldi_instruction(&mut self, ui: &mut Ui) {
+    fn render_ldi_instruction(&mut self, ui: &mut Ui, theme_settings: &ThemeSettings) {
         let fields = &mut self.instruction_fields;
-        let theme_settings = CURRENT_THEME_SETTINGS.lock().unwrap();
 
         render_instruction_card_content(
             ui,
@@ -1066,9 +1064,8 @@ impl HelpPane {
         );
     }
 
-    fn render_ldr_instruction(&mut self, ui: &mut Ui) {
+    fn render_ldr_instruction(&mut self, ui: &mut Ui, theme_settings: &ThemeSettings) {
         let fields = &mut self.instruction_fields;
-        let theme_settings = CURRENT_THEME_SETTINGS.lock().unwrap();
 
         render_instruction_card_content(
             ui,
@@ -1131,9 +1128,8 @@ impl HelpPane {
         );
     }
 
-    fn render_lea_instruction(&mut self, ui: &mut Ui) {
+    fn render_lea_instruction(&mut self, ui: &mut Ui, theme_settings: &ThemeSettings) {
         let fields = &mut self.instruction_fields;
-        let theme_settings = CURRENT_THEME_SETTINGS.lock().unwrap();
 
         render_instruction_card_content(
             ui,
@@ -1182,9 +1178,8 @@ impl HelpPane {
         );
     }
 
-    fn render_st_instruction(&mut self, ui: &mut Ui) {
+    fn render_st_instruction(&mut self, ui: &mut Ui, theme_settings: &ThemeSettings) {
         let fields = &mut self.instruction_fields;
-        let theme_settings = CURRENT_THEME_SETTINGS.lock().unwrap();
 
         render_instruction_card_content(
             ui,
@@ -1232,9 +1227,8 @@ impl HelpPane {
             None,
         );
     }
-    fn render_sti_instruction(&mut self, ui: &mut Ui) {
+    fn render_sti_instruction(&mut self, ui: &mut Ui, theme_settings: &ThemeSettings) {
         let fields = &mut self.instruction_fields;
-        let theme_settings = CURRENT_THEME_SETTINGS.lock().unwrap();
 
         render_instruction_card_content(
             ui,
@@ -1283,9 +1277,8 @@ impl HelpPane {
             None,
         );
     }
-    fn render_str_instruction(&mut self, ui: &mut Ui) {
+    fn render_str_instruction(&mut self, ui: &mut Ui, theme_settings: &ThemeSettings) {
         let fields = &mut self.instruction_fields;
-        let theme_settings = CURRENT_THEME_SETTINGS.lock().unwrap();
 
         render_instruction_card_content(
             ui,
@@ -1347,9 +1340,8 @@ impl HelpPane {
             None,
         );
     }
-    fn render_br_instruction(&mut self, ui: &mut Ui) {
+    fn render_br_instruction(&mut self, ui: &mut Ui, theme_settings: &ThemeSettings) {
         let fields = &mut self.instruction_fields;
-        let theme_settings = CURRENT_THEME_SETTINGS.lock().unwrap();
 
         render_instruction_card_content(
             ui,
@@ -1434,9 +1426,8 @@ impl HelpPane {
             None,
         );
     }
-    fn render_jmp_ret_instruction(&mut self, ui: &mut Ui) {
+    fn render_jmp_ret_instruction(&mut self, ui: &mut Ui, theme_settings: &ThemeSettings) {
         let fields = &mut self.instruction_fields;
-        let theme_settings = CURRENT_THEME_SETTINGS.lock().unwrap();
 
         render_instruction_card_content(
             ui,
@@ -1509,9 +1500,8 @@ impl HelpPane {
             None,
         );
     }
-    fn render_jsr_jsrr_instruction(&mut self, ui: &mut Ui) {
+    fn render_jsr_jsrr_instruction(&mut self, ui: &mut Ui, theme_settings: &ThemeSettings) {
         let fields = &mut self.instruction_fields;
-        let theme_settings = CURRENT_THEME_SETTINGS.lock().unwrap();
 
         render_instruction_card_content(
             ui,
@@ -1608,9 +1598,8 @@ impl HelpPane {
             None,
         );
     }
-    fn render_trap_instruction(&mut self, ui: &mut Ui) {
+    fn render_trap_instruction(&mut self, ui: &mut Ui, theme_settings: &ThemeSettings) {
         let fields = &mut self.instruction_fields;
-        let theme_settings = CURRENT_THEME_SETTINGS.lock().unwrap();
 
         render_instruction_card_content(
             ui,
@@ -1706,9 +1695,8 @@ impl HelpPane {
             None,
         );
     }
-    fn render_rti_instruction(&mut self, ui: &mut Ui) {
+    fn render_rti_instruction(&mut self, ui: &mut Ui, theme_settings: &ThemeSettings) {
         let fields = &mut self.instruction_fields;
-        let theme_settings = CURRENT_THEME_SETTINGS.lock().unwrap();
 
         render_instruction_card_content(
             ui,

@@ -1,21 +1,17 @@
-use crate::app::EMULATOR;
-use crate::emulator::parse::COMPILATION_ARTIFACTS;
-use crate::emulator::EmulatorCell;
+use crate::emulator::{Emulator, EmulatorCell};
 use crate::panes::{Pane, PaneDisplay, PaneTree, RealPane};
-use crate::theme::CURRENT_THEME_SETTINGS;
+use crate::theme::ThemeSettings;
 use egui::{Align, RichText};
 use egui_extras::{Column, TableBuilder};
-use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::ops::RangeInclusive;
-use std::sync::Mutex;
 
 use super::EmulatorPane;
 
-lazy_static! {
-    pub static ref BREAKPOINTS: Mutex<HashSet<usize>> = Mutex::new(HashSet::new());
-}
+// lazy_static! {
+//     pub static ref BREAKPOINTS: Mutex<HashSet<usize>> = Mutex::new(HashSet::new());
+// }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MemoryPane {
@@ -42,11 +38,8 @@ impl Default for MemoryPane {
 }
 
 impl PaneDisplay for MemoryPane {
-    fn render(&mut self, ui: &mut egui::Ui) {
-        let mut emulator = EMULATOR.lock().unwrap();
-        let artifacts = COMPILATION_ARTIFACTS.lock().unwrap();
-        let mut breakpoints = BREAKPOINTS.lock().unwrap();
-        let theme = CURRENT_THEME_SETTINGS.lock().unwrap();
+    fn render(&mut self, ui: &mut egui::Ui, emulator: &mut Emulator, theme: &mut ThemeSettings) {
+        let artifacts = &emulator.metadata;
 
         if !self.was_running && emulator.running() {
             self.follow_pc = true; // start following the PC when the start button is pressed
@@ -191,7 +184,7 @@ impl PaneDisplay for MemoryPane {
 
                     // Breakpoint toggle
                     row.col(|ui| {
-                        let has_breakpoint = breakpoints.contains(&row_index);
+                        let has_breakpoint = emulator.breakpoints.contains(&row_index);
 
                         let butt = if has_breakpoint {
                             let gapless_rect = ui.max_rect().expand2(0.5 * item_spacing);
@@ -207,9 +200,9 @@ impl PaneDisplay for MemoryPane {
 
                         if ui.add(butt).clicked() {
                             if has_breakpoint {
-                                breakpoints.remove(&row_index);
+                                emulator.breakpoints.remove(&row_index);
                             } else {
-                                breakpoints.insert(row_index);
+                                emulator.breakpoints.insert(row_index);
                             }
                         }
                     });

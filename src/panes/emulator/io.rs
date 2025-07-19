@@ -1,5 +1,6 @@
-use crate::app::EMULATOR;
+use crate::emulator::Emulator;
 use crate::panes::{Pane, PaneDisplay, PaneTree, RealPane};
+use crate::theme::ThemeSettings;
 use egui::{Key, OutputCommand, RichText};
 use serde::{Deserialize, Serialize};
 
@@ -12,10 +13,8 @@ pub struct IoPane {
 }
 
 impl PaneDisplay for IoPane {
-    fn render(&mut self, ui: &mut egui::Ui) {
+    fn render(&mut self, ui: &mut egui::Ui, emulator: &mut Emulator, _theme: &mut ThemeSettings) {
         egui::ScrollArea::vertical().show(ui, |ui| {
-            let mut emulator = EMULATOR.lock().unwrap();
-
             // Display terminal output
             ui.label(RichText::new("Terminal:").strong());
 

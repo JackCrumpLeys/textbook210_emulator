@@ -8,6 +8,8 @@ pub use tools::ToolPanes;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 
+use crate::{emulator::Emulator, theme::ThemeSettings};
+
 lazy_static! {
     pub static ref NEXT_ID: Mutex<u64> = Mutex::new(0);
 }
@@ -19,7 +21,7 @@ pub enum PaneTree {
 }
 
 pub trait PaneDisplay {
-    fn render(&mut self, ui: &mut egui::Ui);
+    fn render(&mut self, ui: &mut egui::Ui, emulator: &mut Emulator, theme: &mut ThemeSettings);
     fn title(&self) -> impl Into<egui::WidgetText>;
     fn children() -> PaneTree;
 }
@@ -57,10 +59,10 @@ impl PaneDisplay for Pane {
         }
     }
 
-    fn render(&mut self, ui: &mut egui::Ui) {
+    fn render(&mut self, ui: &mut egui::Ui, emulator: &mut Emulator, theme: &mut ThemeSettings) {
         match &mut self.inner {
-            RealPane::ToolPanes(pane) => pane.render(ui),
-            RealPane::EmulatorPanes(pane) => pane.render(ui),
+            RealPane::ToolPanes(pane) => pane.render(ui, emulator, theme),
+            RealPane::EmulatorPanes(pane) => pane.render(ui, emulator, theme),
         }
     }
 

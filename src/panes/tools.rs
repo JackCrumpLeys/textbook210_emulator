@@ -2,6 +2,8 @@ use base_converter::BaseConverter;
 use serde::{Deserialize, Serialize};
 use theme_editor::ThemeEditorPane;
 
+use crate::{emulator::Emulator, theme::ThemeSettings};
+
 use super::{PaneDisplay, PaneTree};
 
 mod base_converter;
@@ -21,10 +23,10 @@ impl PaneDisplay for ToolPanes {
         }
     }
 
-    fn render(&mut self, ui: &mut egui::Ui) {
+    fn render(&mut self, ui: &mut egui::Ui, emulator: &mut Emulator, theme: &mut ThemeSettings) {
         match self {
-            ToolPanes::BaseConverter(converter) => converter.render(ui),
-            ToolPanes::ThemeEditor(editor) => editor.render(ui),
+            ToolPanes::BaseConverter(converter) => converter.render(ui, emulator, theme),
+            ToolPanes::ThemeEditor(editor) => editor.render(ui, emulator, theme),
         }
     }
 

@@ -1,15 +1,14 @@
-use lazy_static::lazy_static;
-use std::{collections::HashMap, str::FromStr, sync::Mutex};
+use std::{collections::HashMap, str::FromStr};
 
 use serde::{Deserialize, Serialize};
 
 use super::Emulator;
 
-lazy_static! {
-    /// Compilation artifacts for the emulator. This struct holds information about the last compiled source code, line-to-address mappings, labels, and more.
-    pub static ref COMPILATION_ARTIFACTS: Mutex<CompilationArtifacts> =
-        Mutex::new(CompilationArtifacts::default());
-}
+// lazy_static! {
+//     /// Compilation artifacts for the emulator. This struct holds information about the last compiled source code, line-to-address mappings, labels, and more.
+//     pub static ref COMPILATION_ARTIFACTS: Mutex<CompilationArtifacts> =
+//         Mutex::new(CompilationArtifacts::default());
+// }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 /// Compilation artifacts for the emulator. This struct holds information about the last compiled source code, line-to-address mappings, labels, and more.
@@ -1503,7 +1502,10 @@ impl Emulator {
         }
     }
 
-    pub fn parse_program(program: &str) -> Result<ParseOutput, ParseError> {
+    pub fn parse_program(
+        program: &str,
+        artifacts: Option<&mut CompilationArtifacts>,
+    ) -> Result<ParseOutput, ParseError> {
         let span = tracing::info_span!("parse_program", program_length = program.len());
         let _guard = span.enter();
 
@@ -1525,9 +1527,6 @@ impl Emulator {
             .map_err(|(str, tok)| ParseError::GenerationError(str, tok));
 
         tracing::trace!("parsed output: {:?}", out);
-
-        let mut artifacts = COMPILATION_ARTIFACTS.lock().unwrap();
-
         if let Ok(ParseOutput {
             line_to_address,
             labels,
@@ -1535,21 +1534,24 @@ impl Emulator {
             ..
         }) = &out
         {
-            // Update compilation artifacts
-            artifacts.line_to_address = line_to_address.clone();
-            artifacts.labels.extend(labels.clone());
-            artifacts
-                .addr_to_label
-                .extend(labels.iter().map(|(v, k)| (*k, v.clone())));
-            artifacts.orig_address = *orig_address;
-            artifacts.error = None;
-            artifacts.last_compiled_source = program.to_string();
-
-            tracing::debug!("compilation artifacts updated");
-            tracing::trace!("compilation artifacts: \n{:#?}", artifacts);
+            if let Some(artifacts) = artifacts {
+                // Update compilation artifacts
+                artifacts.line_to_address = line_to_address.clone();
+                artifacts.labels.extend(labels.clone());
+                artifacts
+                    .addr_to_label
+                    .extend(labels.iter().map(|(v, k)| (*k, v.clone())));
+                artifacts.orig_address = *orig_address;
+                artifacts.error = None;
+                artifacts.last_compiled_source = program.to_string();
+                tracing::debug!("compilation artifacts updated");
+                tracing::trace!("compilation artifacts: \n{:#?}", artifacts);
+            }
         } else {
-            artifacts.error = Some(out.as_ref().unwrap_err().clone());
-            tracing::warn!("compilation error: {:?}", artifacts.error);
+            if let Some(artifacts) = artifacts {
+                artifacts.error = Some(out.as_ref().unwrap_err().clone());
+            }
+            tracing::warn!("compilation error: \n{:#?}", out.as_ref().unwrap_err());
         }
 
         out

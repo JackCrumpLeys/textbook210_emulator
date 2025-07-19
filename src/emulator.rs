@@ -6,12 +6,12 @@ pub mod parse;
 #[cfg(test)]
 mod tests;
 
-use std::ops::Range;
+use std::{collections::HashSet, ops::Range};
 
 pub use ops::{CpuState, OpCode};
 use parse::ParseOutput;
 
-use crate::panes::emulator::memory::BREAKPOINTS;
+use crate::emulator::parse::CompilationArtifacts;
 
 /// The amount of steps to skip when os skips are enabled and we are in OS memory space
 pub const MAX_OS_STEPS: usize = 1000;
@@ -42,9 +42,11 @@ pub struct Emulator {
     pub tick: u64,
     /// Do we jump over os instructions accouding to the [`MAX_OS_STEPS`] var
     pub skip_os_emulation: bool,
-
-    // The summation of all MEM[DDR] sets aka the 'output' of the emulator
+    /// The summation of all MEM[DDR] sets aka the 'output' of the emulator
     pub output: String,
+    /// Some associated data for the most recent set of compiled programs
+    pub metadata: CompilationArtifacts,
+    pub breakpoints: HashSet<usize>,
     // -----------------------------------------
 
     // Why in a Box? Becuase array sits on stack and takes alot of memory.
@@ -98,6 +100,8 @@ impl Emulator {
             ticks_between_updates: 2,
             tick: 0,
             skip_os_emulation: true,
+            metadata: CompilationArtifacts::default(),
+            breakpoints: HashSet::new(),
             memory: Box::new([EmulatorCell::new(0); 65536]),
             r: [EmulatorCell::new(0); 8],
             pc: EmulatorCell::new(0x200), // start of os
@@ -113,7 +117,10 @@ impl Emulator {
             saved_usp: EmulatorCell::new(0),
         };
 
-        let parse_output = Emulator::parse_program(include_str!("../oses/simpleos.asm"));
+        let parse_output = Emulator::parse_program(
+            include_str!("../oses/simpleos.asm"),
+            Some(&mut emulator.metadata),
+        );
 
         tracing::debug!("OS parse_output: {:?}", parse_output);
 
@@ -414,8 +421,6 @@ impl Default for Emulator {
 impl Emulator {
     /// this will be called every clock cycle of the state machine (bool if emulator state changed)
     pub fn update(&mut self) -> bool {
-        let breakpoints = BREAKPOINTS.lock().unwrap();
-
         let mut os_steps = 0;
         let mut changed = false;
 
@@ -429,7 +434,7 @@ impl Emulator {
                     // Check for breakpoints
                     let current_pc = self.pc.get() as usize;
 
-                    if breakpoints.contains(&current_pc)
+                    if self.breakpoints.contains(&current_pc)
                         && matches!(self.cpu_state, CpuState::Fetch)
                     // Break *before* fetching the instruction at the breakpoint
                     {

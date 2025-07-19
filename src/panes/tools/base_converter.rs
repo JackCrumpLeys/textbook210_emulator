@@ -3,7 +3,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     app::base_to_base,
+    emulator::Emulator,
     panes::{Pane, PaneDisplay, PaneTree, RealPane},
+    theme::ThemeSettings,
 };
 
 use super::ToolPanes;
@@ -34,7 +36,7 @@ impl Default for BaseConverter {
 }
 
 impl PaneDisplay for BaseConverter {
-    fn render(&mut self, ui: &mut egui::Ui) {
+    fn render(&mut self, ui: &mut egui::Ui, _emulator: &mut Emulator, _theme: &mut ThemeSettings) {
         ui.label("This is a base converter. Enter a number, select the input and output bases, adjust the alphabet, and click 'Convert' to see the result. You can also toggle case sensitivity and choose between uppercase and lowercase conversion.");
 
         if self.case_sensitive {

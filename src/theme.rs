@@ -1,11 +1,9 @@
 use egui::{Color32, CornerRadius, Stroke, Style, Vec2, Visuals};
-use lazy_static::lazy_static;
 use ron;
 use serde::{Deserialize, Serialize};
 
 #[cfg(all(not(target_arch = "wasm32"), debug_assertions))]
 use std::fs;
-use std::sync::Mutex;
 use tracing::warn;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -614,6 +612,20 @@ impl ThemeSettings {
         }
         // Implicitly does nothing if not (non-wasm and debug build)
     }
+
+    pub fn set_global_theme(&mut self, choice: BaseThemeChoice, ctx: Option<&egui::Context>) {
+        *self = match choice {
+            BaseThemeChoice::Light => ThemeSettings::light_default(),
+            BaseThemeChoice::Dark => ThemeSettings::dark_default(),
+        };
+
+        if let Some(ctx) = ctx {
+            let mut style = (*ctx.style()).clone();
+            self.apply_to_style(&mut style);
+            ctx.set_style(style);
+            ctx.request_repaint(); // Ensure UI updates immediately
+        }
+    }
 }
 
 impl Default for ThemeSettings {
@@ -622,22 +634,7 @@ impl Default for ThemeSettings {
     }
 }
 
-lazy_static! {
-    pub static ref CURRENT_THEME_SETTINGS: Mutex<ThemeSettings> =
-        Mutex::new(ThemeSettings::default());
-}
-
-pub fn set_global_theme(choice: BaseThemeChoice, ctx: Option<&egui::Context>) {
-    let mut settings = CURRENT_THEME_SETTINGS.lock().unwrap();
-    *settings = match choice {
-        BaseThemeChoice::Light => ThemeSettings::light_default(),
-        BaseThemeChoice::Dark => ThemeSettings::dark_default(),
-    };
-
-    if let Some(ctx) = ctx {
-        let mut style = (*ctx.style()).clone();
-        settings.apply_to_style(&mut style);
-        ctx.set_style(style);
-        ctx.request_repaint(); // Ensure UI updates immediately
-    }
-}
+// lazy_static! {
+//     pub static ref CURRENT_THEME_SETTINGS: Mutex<ThemeSettings> =
+//         Mutex::new(ThemeSettings::default());
+// }

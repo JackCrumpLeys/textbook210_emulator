@@ -2,8 +2,9 @@ use egui::{Color32, CornerRadius, RichText, ScrollArea, Stroke, Theme, Ui, Vec2}
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    emulator::Emulator,
     panes::{Pane, PaneDisplay, PaneTree, RealPane},
-    theme::{BaseThemeChoice, ThemeSettings, CURRENT_THEME_SETTINGS},
+    theme::{BaseThemeChoice, ThemeSettings},
 };
 
 use super::ToolPanes;
@@ -18,17 +19,19 @@ pub struct ThemeEditorPane {
 
 impl Default for ThemeEditorPane {
     fn default() -> Self {
-        let theme_settings = CURRENT_THEME_SETTINGS.lock().unwrap();
         Self {
-            live_settings: theme_settings.clone(),
-            selected_base_for_file_op: theme_settings.base_theme,
+            live_settings: ThemeSettings::dark_default(),
+            selected_base_for_file_op: BaseThemeChoice::Dark,
         }
     }
 }
 
 impl ThemeEditorPane {
-    fn apply_live_settings_to_global(&self, ctx: &egui::Context) {
-        let mut global_settings = CURRENT_THEME_SETTINGS.lock().unwrap();
+    fn apply_live_settings_to_global(
+        &self,
+        ctx: &egui::Context,
+        global_settings: &mut ThemeSettings,
+    ) {
         *global_settings = self.live_settings.clone();
 
         ctx.set_theme(match global_settings.base_theme {
@@ -44,13 +47,13 @@ impl ThemeEditorPane {
 }
 
 impl PaneDisplay for ThemeEditorPane {
-    fn render(&mut self, ui: &mut egui::Ui) {
+    fn render(&mut self, ui: &mut egui::Ui, _emulator: &mut Emulator, theme: &mut ThemeSettings) {
         // Refresh live_settings from global if they differ (e.g., theme changed elsewhere)
         // This is a simple way to keep them in sync. More complex logic might be needed
         // if we want to detect "unsaved changes" explicitly.
-        let global_base_theme = CURRENT_THEME_SETTINGS.lock().unwrap().base_theme;
+        let global_base_theme = theme.base_theme;
         if self.live_settings.base_theme != global_base_theme {
-            self.live_settings = CURRENT_THEME_SETTINGS.lock().unwrap().clone();
+            self.live_settings = theme.clone();
             self.selected_base_for_file_op = global_base_theme;
         }
 
@@ -58,12 +61,12 @@ impl PaneDisplay for ThemeEditorPane {
             if ui.button("Reset to Dark").clicked() {
                 self.live_settings = ThemeSettings::dark_default();
                 self.selected_base_for_file_op = BaseThemeChoice::Dark;
-                self.apply_live_settings_to_global(ui.ctx());
+                self.apply_live_settings_to_global(ui.ctx(), theme);
             }
             if ui.button("Reset to Light").clicked() {
                 self.live_settings = ThemeSettings::light_default();
                 self.selected_base_for_file_op = BaseThemeChoice::Light;
-                self.apply_live_settings_to_global(ui.ctx());
+                self.apply_live_settings_to_global(ui.ctx(), theme);
             }
 
             // Conditional save button
@@ -116,7 +119,7 @@ impl PaneDisplay for ThemeEditorPane {
 
         if settings_changed {
             // If any setting was changed, apply it to the global theme
-            self.apply_live_settings_to_global(ui.ctx());
+            self.apply_live_settings_to_global(ui.ctx(), theme);
         }
     }
 

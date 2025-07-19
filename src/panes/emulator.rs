@@ -5,6 +5,9 @@ pub mod help;
 pub mod io;
 pub mod memory;
 
+use crate::emulator::Emulator;
+use crate::theme::ThemeSettings;
+
 use super::PaneDisplay;
 use super::PaneTree;
 use memory::MemoryPane;
@@ -38,14 +41,14 @@ impl PaneDisplay for EmulatorPane {
         }
     }
 
-    fn render(&mut self, ui: &mut egui::Ui) {
+    fn render(&mut self, ui: &mut egui::Ui, emulator: &mut Emulator, theme: &mut ThemeSettings) {
         match self {
-            EmulatorPane::Editor(pane) => pane.render(ui),
-            EmulatorPane::Output(pane) => pane.render(ui),
-            EmulatorPane::Help(pane) => pane.render(ui),
-            EmulatorPane::Controls(pane) => pane.render(ui),
-            EmulatorPane::Cpu(pane) => pane.render(ui),
-            EmulatorPane::Memory(pane) => pane.render(ui),
+            EmulatorPane::Editor(pane) => pane.render(ui, emulator, theme),
+            EmulatorPane::Output(pane) => pane.render(ui, emulator, theme),
+            EmulatorPane::Help(pane) => pane.render(ui, emulator, theme),
+            EmulatorPane::Cpu(pane) => pane.render(ui, emulator, theme),
+            EmulatorPane::Memory(pane) => pane.render(ui, emulator, theme),
+            EmulatorPane::Controls(pane) => pane.render(ui, emulator, theme),
         }
     }
 

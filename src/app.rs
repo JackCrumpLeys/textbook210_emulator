@@ -1,9 +1,9 @@
-use std::sync::Mutex;
+use std::{ops::DerefMut, sync::Mutex};
 
 use crate::{
     emulator::Emulator,
     panes::{EmulatorPane, Pane, PaneDisplay, PaneTree, RealPane},
-    theme::{self, BaseThemeChoice},
+    theme::{BaseThemeChoice, ThemeSettings},
 };
 use egui::Theme;
 use egui_dock::{AllowedSplits, DockArea, DockState, NodeIndex, Style, SurfaceIndex, TabViewer};
@@ -62,6 +62,7 @@ pub fn base_to_base(
 struct PaneManager {
     added_nodes: Vec<Pane>,
     last_added: Option<(NodeIndex, SurfaceIndex)>,
+    theme: ThemeSettings,
 }
 
 impl TabViewer for PaneManager {
@@ -79,7 +80,8 @@ impl TabViewer for PaneManager {
 
     /// The Pane enum defers rendering to the exact pane. (we could do overlays based on catagory)
     fn ui(&mut self, ui: &mut egui::Ui, tab: &mut Self::Tab) {
-        tab.render(ui);
+        let mut emulator = EMULATOR.lock().unwrap();
+        tab.render(ui, emulator.deref_mut(), &mut self.theme);
     }
 
     /// If the pane is not one of multiple tabs we can close it
@@ -146,6 +148,7 @@ pub struct EmulatorApp {
     #[cfg(target_arch = "wasm32")]
     /// Is the bad fps prompt open?
     curr_bad_fps_prompt_open: bool,
+    theme: ThemeSettings,
 }
 
 impl Default for EmulatorApp {
@@ -193,6 +196,7 @@ impl Default for EmulatorApp {
             .split_right(ed_id[0], 0.666, vec![controls_pane]);
 
         tracing::info!("App initialization complete");
+        let theme = ThemeSettings::dark_default();
         Self {
             dock_state,
             tree_behavior: PaneManager::default(),
@@ -202,6 +206,7 @@ impl Default for EmulatorApp {
             bad_fps_score: 0,
             #[cfg(target_arch = "wasm32")]
             curr_bad_fps_prompt_open: false,
+            theme,
         }
     }
 }
@@ -212,9 +217,12 @@ impl EmulatorApp {
         let span = tracing::info_span!("EmulatorApp::new");
         let _guard = span.enter();
 
-        theme::set_global_theme(BaseThemeChoice::Dark, Some(&cc.egui_ctx));
+        let mut app = Self::default();
 
-        Default::default()
+        app.theme
+            .set_global_theme(BaseThemeChoice::Dark, Some(&cc.egui_ctx));
+        app.tree_behavior.theme = app.theme.clone();
+        app
     }
 }
 
@@ -302,8 +310,9 @@ impl eframe::App for EmulatorApp {
             Theme::Light => BaseThemeChoice::Light,
             Theme::Dark => BaseThemeChoice::Dark,
         };
-        if theme::CURRENT_THEME_SETTINGS.lock().unwrap().base_theme != curr_theme {
-            theme::set_global_theme(curr_theme, Some(ctx));
+        if self.theme.base_theme != curr_theme {
+            self.theme.set_global_theme(curr_theme, Some(ctx));
+            self.tree_behavior.theme = self.theme.clone();
         }
         self.dock_state.iter_surfaces_mut().for_each(|sur| {
             sur.iter_nodes_mut().for_each(|n| {
