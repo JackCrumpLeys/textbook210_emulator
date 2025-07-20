@@ -1,6 +1,9 @@
 use crate::emulator::{BitAddressable, Emulator};
 
+use crate::emulator::micro_op::{CycleState, MicroOp, MicroOpGenerator};
 use crate::emulator::{AluOp, EmulatorCell};
+use crate::micro_op;
+use std::collections::HashMap;
 
 use super::Op;
 
@@ -25,6 +28,65 @@ pub enum AndOp {
         op1: EmulatorCell,
         op2: EmulatorCell,
     },
+}
+
+impl MicroOpGenerator for AndOp {
+    fn generate_plan(&self) -> HashMap<CycleState, Vec<MicroOp>> {
+        let mut plan = HashMap::new();
+
+        match self {
+            AndOp::Immediate { dr, sr1, imm5 } => {
+                // Execute phase
+                plan.insert(
+                    CycleState::Execute,
+                    vec![micro_op!(ALU_OUT <- R(sr1.get()) & IMM(imm5.sext(4).get() as i16))],
+                );
+
+                // Store Result phase
+                plan.insert(
+                    CycleState::StoreResult,
+                    vec![
+                        micro_op!(R(dr.get()) <- AluOut),
+                        micro_op!(SET_CC(dr.get())),
+                    ],
+                );
+            }
+            AndOp::Register { dr, sr1, sr2 } => {
+                // Execute phase
+                plan.insert(
+                    CycleState::Execute,
+                    vec![micro_op!(ALU_OUT <- R(sr1.get()) & R(sr2.get()))],
+                );
+
+                // Store Result phase
+                plan.insert(
+                    CycleState::StoreResult,
+                    vec![
+                        micro_op!(R(dr.get()) <- AluOut),
+                        micro_op!(SET_CC(dr.get())),
+                    ],
+                );
+            }
+            AndOp::Ready { dr, .. } => {
+                // This shouldn't be used for micro-op generation as it represents
+                // runtime state, but provide a fallback
+                plan.insert(
+                    CycleState::Execute,
+                    vec![micro_op!(ALU_OUT <- R(0) & R(0))], // Placeholder
+                );
+
+                plan.insert(
+                    CycleState::StoreResult,
+                    vec![
+                        micro_op!(R(dr.get()) <- AluOut),
+                        micro_op!(SET_CC(dr.get())),
+                    ],
+                );
+            }
+        }
+
+        plan
+    }
 }
 
 impl Op for AndOp {

@@ -1,6 +1,9 @@
+use crate::emulator::micro_op::{CycleState, MicroOp, MicroOpGenerator};
 use crate::emulator::{
     area_from_address, BitAddressable, Emulator, EmulatorCell, Exception, PrivilegeLevel, PSR_ADDR,
 };
+use crate::micro_op;
+use std::collections::HashMap;
 
 use super::Op;
 
@@ -18,6 +21,65 @@ pub struct TrapOp {
     pub target_handler_addr: EmulatorCell, // Actual address of the handler routine (read from TVT)
     pub is_valid_read_vector: bool,        // Can we read the entry from the TVT?
     pub is_valid_jump_target: bool,        // Can we jump to the handler address?
+}
+
+impl MicroOpGenerator for TrapOp {
+    fn generate_plan(&self) -> HashMap<CycleState, Vec<MicroOp>> {
+        let mut plan = HashMap::new();
+
+        // Evaluate Address phase - calculate trap vector table address
+        plan.insert(
+            CycleState::EvaluateAddress,
+            vec![micro_op!(Temp <- C(self.trap_vector.get()))],
+        );
+
+        // Fetch Operands phase - read handler address from trap vector table
+        plan.insert(CycleState::FetchOperands, vec![micro_op!(MAR <- Temp)]);
+        // Memory read happens implicitly: MDR <- MEM[MAR] (gets handler address)
+
+        // Execute phase - save state and jump to handler
+        plan.insert(
+            CycleState::Execute,
+            vec![
+                micro_op!(Temp <- PSR),
+                micro_op!(MSG format!("TRAP x{:02X} - saving user stack pointer", self.trap_vector.get())),
+                MicroOp::new_custom(|emu| {
+                    if emu.priv_level() == PrivilegeLevel::User {
+                        emu.saved_usp = emu.r[6];
+                        emu.r[6] = emu.saved_ssp;
+                    }
+                    Ok(())
+                }),
+                micro_op!(MSG format!("TRAP x{:02X} - switching to supervisor mode", self.trap_vector.get())),
+                MicroOp::new_custom(|emu| {
+                    emu.set_priv_level(PrivilegeLevel::Supervisor);
+                    Ok(())
+                }),
+                micro_op!(ALU_OUT <- R(6) + IMM(-1)), // Decrement stack pointer (R6--)
+                micro_op!(R(6) <- AluOut),
+
+                micro_op!(MAR <- R(6)),
+                micro_op!(MDR <- Temp),
+                micro_op!(SET_FLAG(WriteMemory)), // Push PSR onto stack
+
+                // push happens implicitly
+                micro_op!(-> Execute),
+                micro_op!(ALU_OUT <- R(6) + IMM(-1)), // Decrement stack pointer again
+                micro_op!(R(6) <- AluOut),
+                micro_op!(MAR <- R(6)),
+                micro_op!(MDR <- PC),
+                micro_op!(SET_FLAG(WriteMemory)), // Push PC onto stack
+
+                micro_op!(-> Execute), // execute write
+                micro_op!(MAR <- C(self.trap_vector.get())),
+
+                micro_op!(-> Execute), // execute read
+                micro_op!(PC <- MDR), // Jump to handler (TEMP contains handler address from fetch)
+                ],
+        );
+
+        plan
+    }
 }
 
 impl Op for TrapOp {
@@ -79,6 +141,7 @@ impl Op for TrapOp {
         let target_area = area_from_address(&self.target_handler_addr);
         if target_area.can_read(&PrivilegeLevel::Supervisor) {
             self.is_valid_jump_target = true;
+            let temp = machine_state.memory[PSR_ADDR].get();
 
             // --- Perform Mode and Stack Switch ---
             // Only switch if not already in Supervisor mode (though TRAP usually comes from User)
@@ -95,7 +158,7 @@ impl Op for TrapOp {
 
             // --- Push PSR onto the stack ---
             // This device stores the current PSR value
-            let psr_value = machine_state.memory[PSR_ADDR].get();
+            let psr_value = temp;
             // Push PSR onto stack
             let sp_val = machine_state.r[6].get().wrapping_sub(1);
             machine_state.r[6].set(sp_val);
@@ -147,6 +210,21 @@ impl fmt::Display for TrapOp {
             0x24 => write!(f, "PUTSP"),
             0x25 => write!(f, "HALT"),
             _ => write!(f, "TRAP x{vector_val:02X}"), // Fallback for unknown vectors
+        }?;
+
+        // Add execution state information if available
+        if self.is_valid_read_vector {
+            if self.target_handler_addr.get() != 0 {
+                write!(f, " [handler at x{:04X}]", self.target_handler_addr.get())?;
+            } else if self.vector_table_entry_addr.get() != 0 {
+                write!(
+                    f,
+                    " [reading from TVT x{:04X}]",
+                    self.vector_table_entry_addr.get()
+                )?;
+            }
         }
+
+        Ok(())
     }
 }

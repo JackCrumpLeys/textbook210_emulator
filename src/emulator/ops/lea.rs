@@ -1,4 +1,7 @@
+use crate::emulator::micro_op::{CycleState, MicroOp, MicroOpGenerator};
 use crate::emulator::{BitAddressable, Emulator, EmulatorCell};
+use crate::micro_op;
+use std::collections::HashMap;
 
 use super::Op;
 
@@ -8,6 +11,26 @@ pub struct LeaOp {
     pub dr: EmulatorCell,                // Destination Register index
     pub pc_offset: EmulatorCell,         // PCoffset9 (sign-extended)
     pub effective_address: EmulatorCell, // Calculated address
+}
+
+impl MicroOpGenerator for LeaOp {
+    fn generate_plan(&self) -> HashMap<CycleState, Vec<MicroOp>> {
+        let mut plan = HashMap::new();
+
+        // Evaluate Address phase - calculate effective address
+        plan.insert(
+            CycleState::EvaluateAddress,
+            vec![micro_op!(ALU_OUT <- PC + PCOFFSET(self.pc_offset.get() as i16))],
+        );
+
+        // Store Result phase - store effective address in destination register
+        plan.insert(
+            CycleState::StoreResult,
+            vec![micro_op!(R(self.dr.get()) <- AluOut)],
+        );
+
+        plan
+    }
 }
 
 impl Op for LeaOp {

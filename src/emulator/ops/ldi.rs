@@ -1,4 +1,7 @@
+use crate::emulator::micro_op::{CycleState, MicroOp, MicroOpGenerator};
 use crate::emulator::{area_from_address, BitAddressable, Emulator, EmulatorCell, Exception};
+use crate::micro_op;
+use std::collections::HashMap;
 
 use super::Op;
 
@@ -11,6 +14,41 @@ pub struct LdiOp {
     pub indirect_address: EmulatorCell, // The final address loaded from pointer_address
     pub is_valid_load_step1: bool,      // Flag if pointer_address is valid to read from
     pub is_valid_load_step2: bool,      // Flag if indirect_address is valid to read from
+}
+
+impl MicroOpGenerator for LdiOp {
+    fn generate_plan(&self) -> HashMap<CycleState, Vec<MicroOp>> {
+        let mut plan = HashMap::new();
+
+        // Evaluate Address phase - calculate pointer address
+        plan.insert(
+            CycleState::EvaluateAddress,
+            vec![micro_op!(ALU_OUT <- PC + PCOFFSET(self.pc_offset.get() as i16))],
+        );
+
+        // Fetch Operands phase - first memory read for pointer
+        plan.insert(
+            CycleState::FetchOperands,
+            vec![
+                micro_op!(MAR <- AluOut),
+                // First memory read happens implicitly: MDR <- MEM[MAR]
+                micro_op!(-> Execute),
+                micro_op!(MAR <- MDR),
+            ],
+        );
+        // Then second fetch happens with MDR as new address
+
+        // Store Result phase - move final loaded value to destination register
+        plan.insert(
+            CycleState::StoreResult,
+            vec![
+                micro_op!(R(self.dr.get()) <- MDR),
+                micro_op!(SET_CC(self.dr.get())),
+            ],
+        );
+
+        plan
+    }
 }
 
 impl Op for LdiOp {

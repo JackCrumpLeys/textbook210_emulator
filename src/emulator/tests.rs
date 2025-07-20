@@ -1,6 +1,6 @@
-use super::*;
-use parse::ParseOutput;
 use tracing_test::traced_test;
+
+use crate::emulator::{parse::ParseOutput, BitAddressable, Emulator, EmulatorCell};
 
 #[traced_test]
 #[test]
@@ -371,7 +371,7 @@ fn test_c_println_assembly() {
 }
 
 // Individual Opcode Tests
-
+#[cfg(test)]
 fn run_instruction_test(
     initial_pc: u16,
     instruction: u16,
@@ -396,6 +396,7 @@ fn run_instruction_test(
     // Assert final state
     assert_fn(&machine);
 }
+
 #[traced_test]
 #[test]
 fn test_add_register() {

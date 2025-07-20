@@ -1,4 +1,7 @@
+use crate::emulator::micro_op::{CycleState, MicroOp, MicroOpGenerator};
 use crate::emulator::{area_from_address, BitAddressable, Emulator, EmulatorCell, Exception};
+use crate::micro_op;
+use std::collections::HashMap;
 
 use super::Op;
 
@@ -17,6 +20,50 @@ pub struct BrOp {
     pub branch_taken: bool, // Set during evaluate_address
     /// Where we boutta go
     pub target_address: EmulatorCell, // Set during evaluate_address if branch_taken is true
+}
+
+impl MicroOpGenerator for BrOp {
+    fn generate_plan(&self) -> HashMap<CycleState, Vec<MicroOp>> {
+        let mut plan = HashMap::new();
+        // The branch condition depends on the processor status register (PSR), which is only known at execution time.
+        // Therefore, we calculate the potential address first, then use a custom micro-op to conditionally jump.
+
+        // Evaluate Address Phase: Calculate the potential target address.
+        plan.insert(
+            CycleState::EvaluateAddress,
+            vec![micro_op!(ALU_OUT <- PC + PCOFFSET(self.pc_offset.get() as i16))],
+        );
+
+        // Execute Phase: Use a custom micro-op to check conditions and update PC if necessary.
+        let n_cond = self.n_bit.get() == 1;
+        let z_cond = self.z_bit.get() == 1;
+        let p_cond = self.p_bit.get() == 1;
+
+        plan.insert(
+            CycleState::Execute,
+            vec![MicroOp::new_custom(move |emu: &mut Emulator| {
+                let (psr_n, psr_z, psr_p) = emu.get_nzp();
+                let branch_taken = (n_cond && psr_n) || (z_cond && psr_z) || (p_cond && psr_p);
+
+                if branch_taken {
+                    // Branch is taken. The target address is in ALU_OUT.
+                    let target_address = emu.alu.alu_out;
+
+                    // Before jumping, check for memory access violations.
+                    let target_area = area_from_address(&target_address);
+                    if target_area.can_read(&emu.priv_level()) {
+                        emu.pc.set(target_address.get());
+                    } else {
+                        return Err(Exception::new_access_control_violation());
+                    }
+                }
+                // If branch is not taken, do nothing.
+                Ok(())
+            })],
+        );
+
+        plan
+    }
 }
 
 impl Op for BrOp {

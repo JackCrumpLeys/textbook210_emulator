@@ -1,4 +1,7 @@
+use crate::emulator::micro_op::{CycleState, MicroOp, MicroOpGenerator};
 use crate::emulator::{area_from_address, BitAddressable, Emulator, EmulatorCell, Exception};
+use crate::micro_op;
+use std::collections::HashMap;
 
 use super::Op;
 
@@ -8,6 +11,30 @@ pub struct StOp {
     pub pc_offset: EmulatorCell,         // PCoffset9 (sign-extended)
     pub effective_address: EmulatorCell, // Calculated address
     pub is_valid_store: bool,            // Flag if the address is valid to write to
+}
+
+impl MicroOpGenerator for StOp {
+    fn generate_plan(&self) -> HashMap<CycleState, Vec<MicroOp>> {
+        let mut plan = HashMap::new();
+
+        // Evaluate Address phase - calculate effective address
+        plan.insert(
+            CycleState::EvaluateAddress,
+            vec![micro_op!(ALU_OUT <- PC + PCOFFSET(self.pc_offset.get() as i16))],
+        );
+
+        // Store Result phase - trigger memory write
+        plan.insert(
+            CycleState::StoreResult,
+            vec![
+                micro_op!(MAR <- AluOut),
+                micro_op!(MDR <- R(self.sr.get())),
+                micro_op!(SET_FLAG(WriteMemory)),
+            ],
+        );
+
+        plan
+    }
 }
 
 impl Op for StOp {

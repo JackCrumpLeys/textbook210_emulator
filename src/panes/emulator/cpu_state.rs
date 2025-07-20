@@ -1,6 +1,6 @@
 use crate::emulator::ops::jsr::JsrMode;
 use crate::emulator::ops::{
-    AddOp, AndOp, BrOp, JmpOp, LdOp, LdiOp, LdrOp, LeaOp, NotOp, OpCode, StOp, StiOp, StrOp, TrapOp,
+    AndOp, BrOp, JmpOp, LdOp, LdiOp, LdrOp, LeaOp, NotOp, OpCode, StOp, StiOp, StrOp, TrapOp,
 };
 use crate::emulator::{BitAddressable, CpuState, Emulator, EmulatorCell, MCR_ADDR, PSR_ADDR};
 use crate::panes::{Pane, PaneDisplay, PaneTree, RealPane};
@@ -284,16 +284,9 @@ impl CpuStatePane {
 
                     if let Some(decoded_op_for_display) = OpCode::from_instruction(ir_val) {
                         match decoded_op_for_display {
-                            OpCode::Add(add_op_variant) => match add_op_variant {
-                                AddOp::Immidiate { dr, sr1, imm5 } => {
-                                    ui.label(mono(format!("  DR: R{}, SR1: R{}", dr.get(), sr1.get()), theme.secondary_text_color));
-                                    ui.label(mono(format!("  imm5: {:#x} ({})", imm5.get(), imm5.sext(4).get() as i16), theme.secondary_text_color));
-                                }
-                                AddOp::Register { dr, sr1, sr2 } => {
-                                    ui.label(mono(format!("  DR: R{}, SR1: R{}", dr.get(), sr1.get()), theme.secondary_text_color));
-                                    ui.label(mono(format!("  SR2: R{}", sr2.get()), theme.secondary_text_color));
-                                }
-                                _ => {}
+                            OpCode::Add(_add_op_variant) => {
+                                // TODO: Implement micro-op based display
+                                ui.label(mono("ADD instruction (micro-op display TODO)", theme.secondary_text_color));
                             },
                             OpCode::And(and_op_variant) => match and_op_variant {
                                 AndOp::Immediate { dr, sr1, imm5 } => {
@@ -380,16 +373,9 @@ impl CpuStatePane {
                     ui.label(desc_color("Fetch operands from registers or memory.", theme));
                     ui.label(mono(format!("{}", emulator.cpu_state), theme.secondary_text_color));
                     match op {
-                        OpCode::Add(add_op) => match add_op {
-                            AddOp::Immidiate { sr1, imm5, .. } => {
-                                ui.label(mono(format!("  Read SR1 (R{}): {:#06x}", sr1.get(), emulator.r[sr1.get() as usize].get()), theme.secondary_text_color));
-                                ui.label(mono(format!("  Use imm5: {:#x} ({})", imm5.get(), imm5.sext(4).get() as i16), theme.secondary_text_color));
-                            }
-                            AddOp::Register { sr1, sr2, .. } => {
-                                ui.label(mono(format!("  Read SR1 (R{}): {:#06x}", sr1.get(), emulator.r[sr1.get() as usize].get()), theme.secondary_text_color));
-                                ui.label(mono(format!("  Read SR2 (R{}): {:#06x}", sr2.get(), emulator.r[sr2.get() as usize].get()), theme.secondary_text_color));
-                            }
-                            _ => {ui.label(desc_color("ADD not in expected state for fetch display.", theme));}
+                        OpCode::Add(_add_op) => {
+                            // TODO: Implement micro-op based display
+                            ui.label(mono("ADD fetch operands (micro-op display TODO)", theme.secondary_text_color));
                         },
                         OpCode::And(and_op) => match and_op {
                             AndOp::Immediate { sr1, imm5, .. } => {
@@ -432,15 +418,9 @@ impl CpuStatePane {
                     ui.label(mono(format!("{}", emulator.cpu_state), theme.secondary_text_color));
                     let (n,z,p) = emulator.get_nzp(); // Get flags *before* potential modification by current op
                     match op {
-                        OpCode::Add(add_op) => match add_op {
-                            AddOp::Ready { op1, op2, dr, .. } => {
-                                let val1 = op1.get();
-                                let val2 = op2.get();
-                                let result = val1.wrapping_add(val2);
-                                ui.label(mono(format!("  Operand1[{:#06x}] + Operand2[{:#06x}] = ALU_OUT[{:#06x}] (to R{})", val1, val2, result, dr.get()), theme.secondary_text_color));
-                                ui.label(mono(format!("  Flags (N,Z,P will be set based on {result:#06x})"), theme.secondary_text_color));
-                            }
-                            _ => {  ui.label(desc_color("ADD not in Ready state for execute display.".to_string(), theme)); }
+                        OpCode::Add(_add_op) => {
+                            // TODO: Implement micro-op based display
+                            ui.label(mono("ADD execute operation (micro-op display TODO)", theme.secondary_text_color));
                         },
                         OpCode::And(and_op) => match and_op {
                             AndOp::Ready { op1, op2, dr, .. } => {
@@ -500,11 +480,9 @@ impl CpuStatePane {
                     ui.label(desc_color("Write result to register or memory, update condition codes.", theme));
                     ui.label(mono(format!("{}", emulator.cpu_state), theme.secondary_text_color));
                     match op {
-                        OpCode::Add(add_op) => match add_op {
-                            AddOp::Ready{ dr, ..} | AddOp::Immidiate { dr, .. } | AddOp::Register { dr, .. } => { // Show DR for all variants if applicable
-                                ui.label(mono(format!("  ALU_OUT -> R{}", dr.get()), theme.secondary_text_color));
-                                ui.label(mono("  Update PSR with new N,Z,P flags.", theme.secondary_text_color));
-                            }
+                        OpCode::Add(_add_op) => {
+                            // TODO: Implement micro-op based display
+                            ui.label(mono("ADD store result (micro-op display TODO)", theme.secondary_text_color));
                         },
                         OpCode::And(and_op) => match and_op {
                             AndOp::Ready{ dr, ..} | AndOp::Immediate { dr, .. } | AndOp::Register { dr, .. } => {

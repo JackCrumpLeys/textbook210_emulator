@@ -1,6 +1,8 @@
 #![allow(clippy::unusual_byte_groupings)] // so we can group bits by instruction parts
 #![allow(clippy::reversed_empty_ranges)] // We want to use ranges for bis like we have in class (big:small)
 
+pub mod executor;
+pub mod micro_op;
 pub mod ops;
 pub mod parse;
 #[cfg(test)]
@@ -296,7 +298,7 @@ impl EmulatorCell {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 /// User: Can run code as long as it is not:
 ///  - RTI
 ///  - reading or writing outside of 0x3000..=0xFDFF
@@ -402,7 +404,7 @@ pub enum AluOp {
 }
 
 impl AluOp {
-    fn execute(&self) -> EmulatorCell {
+    pub fn execute(&self) -> EmulatorCell {
         EmulatorCell::new(match self {
             AluOp::Add(a, b) => a.get().wrapping_add(b.get()),
             AluOp::And(a, b) => a.get() & b.get(),

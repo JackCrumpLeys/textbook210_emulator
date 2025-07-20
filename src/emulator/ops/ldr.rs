@@ -1,4 +1,7 @@
+use crate::emulator::micro_op::{CycleState, MicroOp, MicroOpGenerator};
 use crate::emulator::{area_from_address, BitAddressable, Emulator, EmulatorCell, Exception};
+use crate::micro_op;
+use std::collections::HashMap;
 
 use super::Op;
 
@@ -10,6 +13,33 @@ pub struct LdrOp {
     pub offset6: EmulatorCell,           // offset6 (sign-extended)
     pub effective_address: EmulatorCell, // Calculated address
     pub is_valid_load: bool,             // Flag if the address is valid to read from
+}
+
+impl MicroOpGenerator for LdrOp {
+    fn generate_plan(&self) -> HashMap<CycleState, Vec<MicroOp>> {
+        let mut plan = HashMap::new();
+
+        // Evaluate Address phase - calculate effective address from base + offset
+        plan.insert(
+            CycleState::EvaluateAddress,
+            vec![micro_op!(ALU_OUT <- R(self.base_r.get()) + IMM(self.offset6.get() as i16))],
+        );
+
+        // Fetch Operands phase - set MAR for memory read
+        plan.insert(CycleState::FetchOperands, vec![micro_op!(MAR <- AluOut)]);
+        // Memory read MDR <- MEM[MAR] happens implicitly between phases
+
+        // Store Result phase - move loaded value to destination register
+        plan.insert(
+            CycleState::StoreResult,
+            vec![
+                micro_op!(R(self.dr.get()) <- MDR),
+                micro_op!(SET_CC(self.dr.get())),
+            ],
+        );
+
+        plan
+    }
 }
 
 impl Op for LdrOp {

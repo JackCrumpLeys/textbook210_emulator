@@ -1,4 +1,7 @@
+use crate::emulator::micro_op::{CycleState, MicroOp, MicroOpGenerator};
 use crate::emulator::{area_from_address, BitAddressable, Emulator, EmulatorCell, Exception};
+use crate::micro_op;
+use std::collections::HashMap;
 
 use super::Op;
 #[derive(Debug, Clone)]
@@ -9,6 +12,29 @@ pub struct JmpOp {
     pub target_address: EmulatorCell, // Calculated during evaluate_address
     /// Can we go there?
     pub is_valid_jump: bool, // Set during evaluate_address
+}
+
+impl MicroOpGenerator for JmpOp {
+    fn generate_plan(&self) -> HashMap<CycleState, Vec<MicroOp>> {
+        let mut plan = HashMap::new();
+
+        // Evaluate Address phase - get target address from register
+        plan.insert(
+            CycleState::EvaluateAddress,
+            vec![micro_op!(Temp <- R(self.base_r.get()))],
+        );
+
+        // Execute phase - update PC to target address
+        plan.insert(
+            CycleState::Execute,
+            vec![
+                micro_op!(MSG format!("Jump to address in R{}", self.base_r.get())),
+                micro_op!(PC <- Temp),
+            ],
+        );
+
+        plan
+    }
 }
 
 impl Op for JmpOp {

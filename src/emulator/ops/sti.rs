@@ -1,4 +1,7 @@
+use crate::emulator::micro_op::{CycleState, MicroOp, MicroOpGenerator};
 use crate::emulator::{area_from_address, BitAddressable, Emulator, EmulatorCell, Exception};
+use crate::micro_op;
+use std::collections::HashMap;
 
 use super::Op;
 
@@ -12,6 +15,34 @@ pub struct StiOp {
     pub value_to_store: EmulatorCell,   // Value from SR to be stored (set in execute)
     pub is_valid_read_step1: bool,      // Flag if pointer_address is valid to read from
     pub is_valid_write_step2: bool, // Flag if indirect_address is valid to write to (set in execute)
+}
+
+impl MicroOpGenerator for StiOp {
+    fn generate_plan(&self) -> HashMap<CycleState, Vec<MicroOp>> {
+        let mut plan = HashMap::new();
+
+        // Evaluate Address phase - calculate pointer address
+        plan.insert(
+            CycleState::EvaluateAddress,
+            vec![micro_op!(ALU_OUT <- PC + PCOFFSET(self.pc_offset.get() as i16))],
+        );
+
+        // Fetch Operands phase - read pointer to get final address
+        plan.insert(CycleState::FetchOperands, vec![micro_op!(MAR <- AluOut)]);
+        // Memory read happens implicitly: MDR <- MEM[MAR] (gets indirect address)
+
+        // Store Result phase - trigger memory write
+        plan.insert(
+            CycleState::StoreResult,
+            vec![
+                micro_op!(MAR <- MDR),              // Set MAR to indirect address
+                micro_op!(MDR <- R(self.sr.get())), // Load value to store
+                micro_op!(SET_FLAG(WriteMemory)),
+            ],
+        );
+
+        plan
+    }
 }
 
 impl Op for StiOp {
