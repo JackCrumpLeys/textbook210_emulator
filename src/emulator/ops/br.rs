@@ -39,27 +39,55 @@ impl MicroOpGenerator for BrOp {
         let z_cond = self.z_bit.get() == 1;
         let p_cond = self.p_bit.get() == 1;
 
+        let mut if_cond = vec![];
+
+        if n_cond {
+            if_cond.push("N == 1");
+        }
+        if z_cond {
+            if_cond.push("Z == 1");
+        }
+        if p_cond {
+            if_cond.push("P == 1");
+        }
+        let empty = if_cond.is_empty();
+        let if_cond = if_cond.join(" OR ");
+
+        let psudo_str = if empty {
+            "; for BR (No conditions) jump never triggers and always just go forward one step"
+                .to_string()
+        } else {
+            format!(
+                "IF {if_cond}
+                        ALU_OUT <- PC + SEXT(PCoffset9)
+                        PC <- ALU_OUT"
+            )
+        };
+
         plan.insert(
             CycleState::Execute,
-            vec![MicroOp::new_custom(move |emu: &mut Emulator| {
-                let (psr_n, psr_z, psr_p) = emu.get_nzp();
-                let branch_taken = (n_cond && psr_n) || (z_cond && psr_z) || (p_cond && psr_p);
+            vec![MicroOp::new_custom(
+                move |emu: &mut Emulator| {
+                    let (psr_n, psr_z, psr_p) = emu.get_nzp();
+                    let branch_taken = (n_cond && psr_n) || (z_cond && psr_z) || (p_cond && psr_p);
 
-                if branch_taken {
-                    // Branch is taken. The target address is in ALU_OUT.
-                    let target_address = emu.alu.alu_out;
+                    if branch_taken {
+                        // Branch is taken. The target address is in ALU_OUT.
+                        let target_address = emu.alu.alu_out;
 
-                    // Before jumping, check for memory access violations.
-                    let target_area = area_from_address(&target_address);
-                    if target_area.can_read(&emu.priv_level()) {
-                        emu.pc.set(target_address.get());
-                    } else {
-                        return Err(Exception::new_access_control_violation());
+                        // Before jumping, check for memory access violations.
+                        let target_area = area_from_address(&target_address);
+                        if target_area.can_read(&emu.priv_level()) {
+                            emu.pc.set(target_address.get());
+                        } else {
+                            return Err(Exception::new_access_control_violation());
+                        }
                     }
-                }
-                // If branch is not taken, do nothing.
-                Ok(())
-            })],
+                    // If branch is not taken, do nothing.
+                    Ok(())
+                },
+                psudo_str,
+            )],
         );
 
         plan

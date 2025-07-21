@@ -49,12 +49,18 @@ impl MicroOpGenerator for TrapOp {
                         emu.r[6] = emu.saved_ssp;
                     }
                     Ok(())
-                }),
+                },
+                    "
+                    if PSR[15] == 1
+                        Saved_USP <- R6
+                        R6 <- Saved_SSP"
+                        .to_owned(),
+                ),
                 micro_op!(MSG format!("TRAP x{:02X} - switching to supervisor mode", self.trap_vector.get())),
                 MicroOp::new_custom(|emu| {
                     emu.set_priv_level(PrivilegeLevel::Supervisor);
                     Ok(())
-                }),
+                }, "PSR[15] <- 0".to_owned()),
                 micro_op!(ALU_OUT <- R(6) + IMM(-1)), // Decrement stack pointer (R6--)
                 micro_op!(R(6) <- AluOut),
 

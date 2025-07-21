@@ -25,13 +25,18 @@ impl MicroOpGenerator for RtiOp {
         plan.insert(
             CycleState::FetchOperands,
             vec![
-                MicroOp::new_custom(|emu| {
-                    if emu.memory[PSR_ADDR].index(15).get() == 1 {
-                        Err(Exception::PrivilegeViolation)
-                    } else {
-                        Ok(())
-                    }
-                }),
+                MicroOp::new_custom(
+                    |emu| {
+                        if emu.memory[PSR_ADDR].index(15).get() == 1 {
+                            Err(Exception::PrivilegeViolation)
+                        } else {
+                            Ok(())
+                        }
+                    },
+                    "if (PSR[15] == 1)
+                        ; Initiate a privilege mode exception"
+                        .to_owned(),
+                ),
                 micro_op!(MAR <- R(6)), // Set MAR to current SSP (R6)
                                         // First memory read happens implicitly: MDR <- MEM[MAR] (gets PC)
             ],
@@ -56,11 +61,16 @@ impl MicroOpGenerator for RtiOp {
                 micro_op!(PSR <- MDR),               // Restore PSR
                 micro_op!(ALU_OUT <- R(6) + IMM(2)), // Calculate new SSP
                 micro_op!(R(6) <- AluOut),           // Update SSP (R6 += 2)
-                MicroOp::new_custom(|emu| {
-                    emu.saved_ssp = emu.r[6];
-                    emu.r[6] = emu.saved_usp;
-                    Ok(())
-                }),
+                MicroOp::new_custom(
+                    |emu| {
+                        emu.saved_ssp = emu.r[6];
+                        emu.r[6] = emu.saved_usp;
+                        Ok(())
+                    },
+                    "Saved_SSP <- R6
+                    R6 <- Saved_USP"
+                        .to_owned(),
+                ),
             ],
         );
 

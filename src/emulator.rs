@@ -1,19 +1,24 @@
 #![allow(clippy::unusual_byte_groupings)] // so we can group bits by instruction parts
 #![allow(clippy::reversed_empty_ranges)] // We want to use ranges for bis like we have in class (big:small)
 
+/// Run the low level ops
 pub mod executor;
+/// Manage the low level ops that each instruction is broken down into
 pub mod micro_op;
+/// Spec for each op so they can be executed
 pub mod ops;
+/// Convert a seris of lines of lc3 code into emulator cells reporting errors
 pub mod parse;
 #[cfg(test)]
+/// Tests for emulation layer
 mod tests;
 
-use std::{collections::HashSet, ops::Range};
+use std::{any::Any, collections::HashSet, ops::Range};
 
 pub use ops::{CpuState, OpCode};
 use parse::ParseOutput;
 
-use crate::emulator::parse::CompilationArtifacts;
+use crate::emulator::{executor::CpuPhaseState, parse::CompilationArtifacts};
 
 /// The amount of steps to skip when os skips are enabled and we are in OS memory space
 pub const MAX_OS_STEPS: usize = 1000;
@@ -80,6 +85,9 @@ pub struct Emulator {
     /// Each instruction relys on its own struct of the instruction after the decode stage
     pub cpu_state: CpuState,
 
+    /// In a phase this does the heavy lifting in terms of running the micro ops.
+    pub execute_state: executor::CpuPhaseState,
+
     // Saved stack pointers. These are used when going between os service routines and user code.
     // For example when trap is executed from user code saved_usp <- R6 && R6 <- saved_ssp
     // and when RTI is executed saved_ssp <- R6 && R6 <- saved_usp
@@ -112,6 +120,7 @@ impl Emulator {
             ir: EmulatorCell::new(0),
             output: String::new(),
             cpu_state: CpuState::Fetch,
+            execute_state: CpuPhaseState::new(Vec::new()), // this is empty before we execute the first op
             alu: Alu::default(),
             write_bit: false,
             exception: None,
@@ -299,9 +308,11 @@ impl EmulatorCell {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-/// User: Can run code as long as it is not:
+/// User: Can run code, read and write as long as it is not:
 ///  - RTI
 ///  - reading or writing outside of 0x3000..=0xFDFF
+///     (excluding alowing reads in x0000 - x00FF Trap vector table)
+///  
 ///
 /// Supervisor: Can read or write anywhere
 pub enum PrivilegeLevel {
@@ -483,13 +494,83 @@ impl Emulator {
             ));
         }
 
-        self.mar.set(pc_value);
-        // Implicit memory read: MDR <- Mem[MAR] happens here conceptually
-        self.mdr.set(self.memory[self.mar.get() as usize].get());
-        self.ir.set(self.mdr.get());
+        // Get the micro-op generator for the instruction
+        let opcode = OpCode::from_instruction(EmulatorCell::new(instruction))
+            .expect("Failed to decode instruction");
+        let micro_op_gen: &dyn MicroOpGenerator = match &opcode {
+            OpCode::Add(op) => op,
+            OpCode::And(op) => op,
+            OpCode::Br(op) => op,
+            OpCode::Jmp(op) => op,
+            OpCode::Jsr(op) => op,
+            OpCode::Ld(op) => op,
+            OpCode::Ldi(op) => op,
+            OpCode::Ldr(op) => op,
+            OpCode::Lea(op) => op,
+            OpCode::Not(op) => op,
+            OpCode::Rti(op) => op,
+            OpCode::St(op) => op,
+            OpCode::Sti(op) => op,
+            OpCode::Str(op) => op,
+            OpCode::Trap(op) => op,
+        };
 
-        // Increment PC
-        self.pc.set(pc_value.wrapping_add(1));
+        // Get the plan for the specific instruction phases
+        let mut op_plan_map = micro_op_gen.generate_plan();
+
+        // Create the full 6-phase execution plan
+        let full_plan = vec![
+            // Phase 0: Fetch
+            vec![
+                micro_op!(-> Fetch),
+                micro_op!(MAR <- PC),
+                micro_op!(ALU_OUT <- PC + C(1)),
+                micro_op!(PC <- AluOut),
+            ],
+            // Phase 1: Decode
+            vec![
+                micro_op!(-> Decode),
+                micro_op!(IR <- MDR),
+                micro_op!(MSG format!("Instruction decoded: {}", opcode)),
+            ],
+            // Phase 2: EvaluateAddress
+            {
+                let mut v = vec![micro_op!(-> EvaluateAddress)];
+                v.extend(
+                    op_plan_map
+                        .remove(&CycleState::EvaluateAddress)
+                        .unwrap_or_default(),
+                );
+                v
+            },
+            // Phase 3: FetchOperands
+            {
+                let mut v = vec![micro_op!(-> FetchOperands)];
+                v.extend(
+                    op_plan_map
+                        .remove(&CycleState::FetchOperands)
+                        .unwrap_or_default(),
+                );
+                v
+            },
+            // Phase 4: Execute
+            {
+                let mut v = vec![micro_op!(-> Execute)];
+                v.extend(op_plan_map.remove(&CycleState::Execute).unwrap_or_default());
+                v
+            },
+            // Phase 5: StoreResult
+            {
+                let mut v = vec![micro_op!(-> StoreResult)];
+                v.extend(
+                    op_plan_map
+                        .remove(&CycleState::StoreResult)
+                        .unwrap_or_default(),
+                );
+                v
+            },
+        ];
+        self.execute_state = CpuPhaseState::new(full_plan);
 
         Ok(())
     }
@@ -657,11 +738,6 @@ impl Emulator {
     pub fn micro_step(&mut self) {
         tracing::trace!(memory_size = self.memory.len(), "Entering micro_step");
 
-        debug_assert!(
-            self.memory.len() == 0x10000,
-            "Memory size is not initialized with full addressable range"
-        );
-
         debug_assert!(self.running(), "attermpting run but not running");
         // --- Check for and Handle Exceptions First ---
         if let Some(exc) = self.exception.clone() {
@@ -687,21 +763,10 @@ impl Emulator {
         );
 
         // --- Execute Current CPU State Phase ---
-        let current_state = self.cpu_state.clone(); // Clone to allow modification within match arms
-        let (n, z, p) = self.get_nzp();
-        tracing::debug!(
-            state = format!("{:?}", current_state),
-            pc = format!("0x{:04X}", self.pc.get()),
-            ir = format!("0x{:04X}", self.ir.get()),
-            n = n,
-            z = z,
-            p = p,
-            "Executing CPU state phase"
-        );
 
         let result: Result<(), String>;
 
-        match current_state {
+        match self.cpu_state {
             CpuState::Fetch => {
                 tracing::debug!("Executing FETCH phase");
                 result = self.fetch();
@@ -744,7 +809,7 @@ impl Emulator {
                     }
                 }
             }
-            CpuState::EvaluateAddress(mut op) => {
+            CpuState::EvaluateAddress(op) => {
                 tracing::debug!(
                     opcode = format!("{:?}", op),
                     "Executing EVALUATE_ADDRESS phase"
@@ -767,7 +832,7 @@ impl Emulator {
                     );
                 }
             }
-            CpuState::FetchOperands(mut op) => {
+            CpuState::FetchOperands(op) => {
                 tracing::debug!(
                     opcode = format!("{:?}", op),
                     "Executing FETCH_OPERANDS phase"
@@ -787,7 +852,7 @@ impl Emulator {
                     }
                 }
             }
-            CpuState::ExecuteOperation(mut op) => {
+            CpuState::ExecuteOperation(op) => {
                 tracing::debug!(
                     opcode = format!("{:?}", op),
                     "Executing EXECUTE_OPERATION phase"
@@ -810,7 +875,7 @@ impl Emulator {
                     );
                 }
             }
-            CpuState::StoreResult(mut op) => {
+            CpuState::StoreResult(op) => {
                 tracing::debug!(opcode = format!("{:?}", op), "Executing STORE_RESULT phase");
                 result = self.store_result(&mut op);
                 tracing::trace!(

@@ -15,7 +15,6 @@ pub enum CycleState {
     FetchOperands,
     Execute,
     StoreResult,
-    Halted,
 }
 
 impl fmt::Display for CycleState {
@@ -27,7 +26,6 @@ impl fmt::Display for CycleState {
             CycleState::FetchOperands => write!(f, "Fetch Operands"),
             CycleState::Execute => write!(f, "Execute"),
             CycleState::StoreResult => write!(f, "Store Result"),
-            CycleState::Halted => write!(f, "Halted"),
         }
     }
 }
@@ -136,27 +134,33 @@ type CustomMicroOpFunction = Box<dyn Fn(&mut Emulator) -> Result<(), Exception>>
 
 /// A single, atomic CPU operation.
 pub enum MicroOp {
+    /// Transfer data from source to destination
     Transfer {
         source: DataSource,
         destination: DataDestination,
     },
+    /// transfer op1 and op2 to the alu populating the alu out with the result of the operation
     Alu {
         operation: MAluOp,
         operand1: DataSource,
         operand2: DataSource,
     },
+    /// Run memory writes and reads for the given phase
     PhaseTransition(CycleState),
+    /// Set flags that can be read by the machine (Write flag for memory bus etc)
     SetFlag(MachineFlag),
+    /// special op to provide metadata on ops.
     Message(String),
-    Custom(CustomMicroOpFunction),
+    /// Do somthing not covered by other ops (if statement or messing with the psr)
+    Custom(CustomMicroOpFunction, String),
 }
 
 impl MicroOp {
-    pub fn new_custom<F>(f: F) -> Self
+    pub fn new_custom<F>(f: F, display_code: String) -> Self
     where
         F: Fn(&mut Emulator) -> Result<(), Exception> + 'static,
     {
-        MicroOp::Custom(Box::new(f))
+        MicroOp::Custom(Box::new(f), display_code)
     }
 }
 
@@ -180,7 +184,7 @@ impl fmt::Display for MicroOp {
             MicroOp::PhaseTransition(phase) => write!(f, "-> {phase}"),
             MicroOp::SetFlag(flag) => write!(f, "{flag}"),
             MicroOp::Message(msg) => write!(f, "[{msg}]"),
-            MicroOp::Custom(_) => write!(f, "Custom"),
+            MicroOp::Custom(_, s) => write!(f, "{s}"),
         }
     }
 }

@@ -316,7 +316,7 @@ impl CpuPhaseState {
                 tracing::trace!("Message: {}", msg);
             }
 
-            MicroOp::Custom(f) => match f(emulator) {
+            MicroOp::Custom(f, _) => match f(emulator) {
                 Ok(()) => (),
                 Err(err) => {
                     emulator.exception = Some(err.clone());
