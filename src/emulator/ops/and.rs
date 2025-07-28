@@ -1,7 +1,7 @@
-use crate::emulator::{BitAddressable, Emulator};
+use crate::emulator::BitAddressable;
 
 use crate::emulator::micro_op::{CycleState, MicroOp, MicroOpGenerator};
-use crate::emulator::{AluOp, EmulatorCell};
+use crate::emulator::EmulatorCell;
 use crate::micro_op;
 use std::collections::HashMap;
 

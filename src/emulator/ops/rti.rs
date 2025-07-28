@@ -1,6 +1,6 @@
 use crate::emulator::micro_op::{CycleState, MicroOp, MicroOpGenerator};
 use crate::emulator::{
-    area_from_address, BitAddressable, Emulator, EmulatorCell, Exception, PrivilegeLevel, PSR_ADDR,
+    BitAddressable, EmulatorCell, Exception, PSR_ADDR,
 };
 use crate::micro_op;
 use std::collections::HashMap;

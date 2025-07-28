@@ -14,7 +14,7 @@ pub mod parse;
 /// Tests for emulation layer
 mod tests;
 
-use std::{any::Any, collections::HashSet, ops::Range};
+use std::{collections::HashSet, ops::Range};
 
 pub use ops::{CpuState, OpCode};
 use parse::ParseOutput;
