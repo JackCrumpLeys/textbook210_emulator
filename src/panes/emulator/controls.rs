@@ -66,7 +66,7 @@ impl PaneDisplay for ControlsPane {
                 if ui.add(micro_step_button).clicked() {
                     let old_running = emulator.running();
                     emulator.start_running(); // Temporarily set to running
-                    emulator.micro_step();
+                    let _ = emulator.micro_step();
                     if emulator.skip_os_emulation {
                         let mut os_steps = 0; // Counter for OS steps skipped in this action
 

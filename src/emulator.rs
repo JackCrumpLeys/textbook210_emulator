@@ -315,7 +315,7 @@ impl EmulatorCell {
 /// User: Can run code, read and write as long as it is not:
 ///  - RTI
 ///  - reading or writing outside of 0x3000..=0xFDFF
-///     (excluding alowing reads in x0000 - x00FF Trap vector table)
+///    (excluding alowing reads in x0000 - x00FF Trap vector table)
 ///  
 ///
 /// Supervisor: Can read or write anywhere
@@ -380,18 +380,6 @@ pub enum Exception {
 }
 
 impl Exception {
-    fn new_privilege_violation() -> Self {
-        Exception::PrivilegeViolation
-    }
-
-    fn new_illegal_instruction() -> Self {
-        Exception::IllegalInstruction
-    }
-
-    fn new_access_control_violation() -> Self {
-        Exception::AccessControlViolation
-    }
-
     fn get_handler_address(&self) -> usize {
         // Base address of the Interrupt Vector Table
         const IVT_BASE: usize = 0x0100;
@@ -461,7 +449,7 @@ impl Emulator {
                     }
 
                     changed = true;
-                    self.micro_step();
+                    let _ = self.micro_step();
                     i += 1;
 
                     if i >= self.speed {
@@ -492,7 +480,7 @@ impl Emulator {
 
         // Check read permission for PC address
         if !memory_area.can_read(&self.priv_level()) {
-            self.exception = Some(Exception::new_access_control_violation());
+            self.exception = Some(Exception::AccessControlViolation);
             return Err(format!(
                 "Fetch Access Violation: Cannot read PC address 0x{pc_value:04X}"
             ));
@@ -584,7 +572,7 @@ impl Emulator {
         match OpCode::from_instruction(self.ir) {
             Some(op) => Ok(op),
             None => {
-                self.exception = Some(Exception::new_illegal_instruction());
+                self.exception = Some(Exception::IllegalInstruction);
                 Err(format!(
                     "Decode Error: Illegal opcode in IR=0x{:04X}",
                     self.ir.get()
@@ -642,7 +630,7 @@ impl Emulator {
     }
 
     /// **Micro Step:** Execute one phase of the instruction cycle.
-    pub fn micro_step(&mut self) {
+    pub fn micro_step(&mut self) -> Result<(), String> {
         tracing::trace!(cpu_state = ?self.cpu_state, "Entering micro_step");
 
         debug_assert!(self.running(), "attermpting run but not running");
@@ -659,10 +647,10 @@ impl Emulator {
         }
 
         if matches!(self.cpu_state, CpuState::Fetch) {
-            self.fetch();
+            self.fetch()?;
         }
         if matches!(self.cpu_state, CpuState::Decode) {
-            self.decode();
+            self.decode()?;
         }
 
         // Give devices a chance to do their things
@@ -678,11 +666,13 @@ impl Emulator {
 
         // --- Execute Current CPU State Phase ---
 
-        self.step_phase();
+        self.step_phase()?;
 
         if self.execute_state.is_instruction_complete() {
             self.cpu_state = CpuState::Fetch;
         }
+
+        Ok(())
     }
 
     /// **Step:** Execute one full instruction cycle (multiple micro-steps).
@@ -693,11 +683,11 @@ impl Emulator {
 
         // Execute micro-steps until we return to the Fetch state, completing one instruction.
         if matches!(self.cpu_state, CpuState::Fetch) {
-            self.micro_step(); // Step over  Fetch
+            let _ = self.micro_step(); // Step over  Fetch
         }
         while !matches!(self.cpu_state, CpuState::Fetch) && self.running() {
             // Continue micro-stepping until Fetch is reached or an exception occurs
-            self.micro_step();
+            let _ = self.micro_step(); // we ignore becuase it should already set an exeption
         }
 
         // Check if somehow not running anymore (e.g. HALT)

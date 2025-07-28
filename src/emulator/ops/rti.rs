@@ -1,7 +1,5 @@
 use crate::emulator::micro_op::{CycleState, MicroOp, MicroOpGenerator};
-use crate::emulator::{
-    BitAddressable, EmulatorCell, Exception, PSR_ADDR,
-};
+use crate::emulator::{BitAddressable, EmulatorCell, Exception, PSR_ADDR};
 use crate::micro_op;
 use std::collections::HashMap;
 
@@ -9,13 +7,7 @@ use super::Op;
 
 #[derive(Debug, Clone)]
 /// This is executed by the os on service routines to return control to the callee
-pub struct RtiOp {
-    // No specific data needed during decode for RTI itself.
-    // State needed for execution will be read directly from Emulator state.
-    popped_pc: EmulatorCell,
-    popped_psr: EmulatorCell,
-    is_valid_rti: bool, // Flag set during evaluate_address if preconditions met
-}
+pub struct RtiOp;
 
 impl MicroOpGenerator for RtiOp {
     fn generate_plan(&self) -> HashMap<CycleState, Vec<MicroOp>> {
@@ -83,11 +75,7 @@ impl MicroOpGenerator for RtiOp {
 impl Op for RtiOp {
     fn decode(_ir: EmulatorCell) -> Self {
         // RTI has a fixed opcode (1000) and no operands in the instruction itself.
-        Self {
-            popped_pc: EmulatorCell::new(0),
-            popped_psr: EmulatorCell::new(0),
-            is_valid_rti: false, // Start assuming invalid until checked
-        }
+        Self
     }
 }
 use std::fmt;

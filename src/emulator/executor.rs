@@ -211,7 +211,7 @@ impl Emulator {
             let addr_cell = EmulatorCell::new(addr as u16);
             let area = area_from_address(&addr_cell);
             if !area.can_write(&self.priv_level()) {
-                self.exception = Some(Exception::new_access_control_violation());
+                self.exception = Some(Exception::AccessControlViolation);
                 return Err("Access control violation during memory write".to_string());
             }
 
@@ -233,7 +233,7 @@ impl Emulator {
             let addr_cell = EmulatorCell::new(addr as u16);
             let area = area_from_address(&addr_cell);
             if !area.can_read(&self.priv_level()) {
-                self.exception = Some(Exception::new_access_control_violation());
+                self.exception = Some(Exception::AccessControlViolation);
                 return Err("Access control violation during memory read".to_string());
             }
 
@@ -328,7 +328,7 @@ impl Emulator {
                             // Check write permissions
                             let area = area_from_address(&self.mar);
                             if !area.can_write(&self.priv_level()) {
-                                self.exception = Some(Exception::new_access_control_violation());
+                                self.exception = Some(Exception::AccessControlViolation);
                                 return Err(
                                     "Access control violation during memory write".to_string()
                                 );

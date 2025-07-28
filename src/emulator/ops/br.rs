@@ -80,7 +80,7 @@ impl MicroOpGenerator for BrOp {
                         if target_area.can_read(&emu.priv_level()) {
                             emu.pc.set(target_address.get());
                         } else {
-                            return Err(Exception::new_access_control_violation());
+                            return Err(Exception::AccessControlViolation);
                         }
                     }
                     // If branch is not taken, do nothing.
