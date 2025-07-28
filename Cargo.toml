@@ -30,7 +30,7 @@ log = "0.4"
 egui_dock = { git = "https://github.com/JackCrumpLeys/egui_dock" }
 rustc-hash = "*"
 indexmap = "2.7"
-tracing = "0.1"
+tracing = {version = "0.1", features=["release_max_level_off"]}
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-test = "0.2"
 tracing-web = "0.1"

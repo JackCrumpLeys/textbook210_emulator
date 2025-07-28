@@ -46,19 +46,6 @@ impl Op for LeaOp {
             effective_address: EmulatorCell::new(0), // Initialize
         }
     }
-
-    fn evaluate_address(&mut self, machine_state: &mut Emulator) {
-        // Calculate effective address: PC + SEXT(PCoffset9)
-        let current_pc = machine_state.pc;
-        let effective_addr_val = current_pc.get().wrapping_add(self.pc_offset.get());
-        self.effective_address.set(effective_addr_val);
-    }
-
-    fn store_result(&mut self, machine_state: &mut Emulator) {
-        // Load the calculated effective address into the destination register.
-        let dr_index = self.dr.get() as usize;
-        machine_state.r[dr_index] = self.effective_address;
-    }
 }
 
 impl std::fmt::Display for LeaOp {

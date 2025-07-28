@@ -57,47 +57,6 @@ impl Op for StrOp {
             is_valid_store: false,
         }
     }
-
-    fn evaluate_address(&mut self, machine_state: &mut Emulator) {
-        // Calculate effective address: BaseR + SEXT(offset6)
-        let base_r_value = machine_state.r[self.base_r.get() as usize];
-        let effective_addr_val = base_r_value.get().wrapping_add(self.offset6.get());
-        self.effective_address.set(effective_addr_val);
-
-        // Check memory write permissions
-        let target_area = area_from_address(&self.effective_address);
-        if target_area.can_write(&machine_state.priv_level()) {
-            self.is_valid_store = true;
-        } else {
-            // Privilege violation: Cannot write to this memory location
-            machine_state.exception = Some(Exception::new_access_control_violation());
-            self.is_valid_store = false;
-            tracing::warn!(
-                address = format!("0x{:04X}", self.effective_address.get()),
-                "STR Privilege Violation: Cannot write to address"
-            );
-        }
-    }
-
-    fn fetch_operands(&mut self, machine_state: &mut Emulator) -> bool {
-        // Fetch the value from the source register (SR) if the store address is valid.
-        if self.is_valid_store {
-            self.value_to_store = machine_state.r[self.sr.get() as usize];
-        }
-        false
-    }
-
-    fn store_result(&mut self, machine_state: &mut Emulator) {
-        // Set up MAR and MDR for the memory write if the store is valid.
-        if self.is_valid_store {
-            // Set MAR to the final destination address.
-            machine_state.mar = self.effective_address;
-            // Set MDR to the value fetched from SR during fetch_operands.
-            machine_state.mdr = self.value_to_store;
-            // Signal the main loop to perform the memory write (Mem[MAR] <- MDR).
-            machine_state.write_bit = true;
-        }
-    }
 }
 use std::fmt;
 

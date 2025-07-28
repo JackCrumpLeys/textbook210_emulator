@@ -1,5 +1,5 @@
 use crate::emulator::micro_op::{CycleState, MicroOp, MicroOpGenerator};
-use crate::emulator::{AluOp, BitAddressable, Emulator, EmulatorCell};
+use crate::emulator::{BitAddressable, EmulatorCell};
 use crate::micro_op;
 use std::collections::HashMap;
 use std::fmt;
@@ -114,76 +114,6 @@ impl Op for AddOp {
                 AddOp::Immidiate { dr, sr1, imm5 }
             }
             _ => unreachable!("Bit 5 can only be 0 or 1"),
-        }
-    }
-    // Fetch Operands: Get values from registers/immediate and store temporarily in Emulator state.
-    fn fetch_operands(&mut self, machine_state: &mut Emulator) -> bool {
-        let span = tracing::trace_span!("ADD_fetch_operands", op = ?self);
-        let _enter = span.enter();
-
-        let mut new_op = None;
-
-        match *self {
-            AddOp::Register { dr, sr1, sr2 } => {
-                let op1 = machine_state.r[sr1.get() as usize];
-                let op2 = machine_state.r[sr2.get() as usize];
-                // Transition to the Ready state with fetched operands
-                new_op = Some(AddOp::Ready { dr, op1, op2 });
-            }
-            AddOp::Immidiate { dr, sr1, imm5 } => {
-                let op1 = machine_state.r[sr1.get() as usize];
-                // Sign extend imm5 (5 bits) using the BitAddressable helper method
-                let op2 = imm5.sext(4);
-                // Transition to the Ready state with fetched operands
-                new_op = Some(AddOp::Ready { dr, op1, op2 });
-            }
-            AddOp::Ready { .. } => {
-                // This state implies operands might have been fetched differently,
-                // but based on the typical instruction cycle, fetch_operands
-                // shouldn't encounter this state if called correctly.
-                tracing::warn!("ADD: Encountered Ready state during fetch_operands phase. This might indicate unexpected state flow.");
-                debug_assert!(false, "Unexpected state flow");
-            }
-        }
-        if let Some(op) = new_op {
-            *self = op;
-        }
-
-        false
-    }
-
-    // Execute: Perform the addition using the fetched operands.
-    fn execute_operation(&mut self, machine_state: &mut Emulator) {
-        let span = tracing::trace_span!("ADD_execute", op = ?self);
-        let _enter = span.enter();
-
-        if let AddOp::Ready { op1, op2, .. } = self {
-            machine_state.alu.op = Some(AluOp::Add(*op1, *op2)); // handled between states
-        } else {
-            // Should be in the Ready state by now
-            debug_assert!(
-                false,
-                "ADD execute_operation called before operands were fetched (not in Ready state)"
-            );
-        }
-    }
-
-    // Store Result: Write the result from the ALU back to the destination register and update flags.
-    fn store_result(&mut self, machine_state: &mut Emulator) {
-        let span = tracing::trace_span!("ADD_store_result", op = ?self);
-        let _enter = span.enter();
-
-        if let AddOp::Ready { dr, .. } = self {
-            let result = machine_state.alu.alu_out.get();
-            let dr_idx = dr.get() as usize;
-            machine_state.r[dr_idx].set(result);
-            machine_state.update_flags(dr_idx);
-        } else {
-            // Should ideally be in the Ready state by now
-            debug_assert!(
-                false,
-                "ADD store_result called before operands were fetched (not in Ready state)"
-            );
         }
     }
 }

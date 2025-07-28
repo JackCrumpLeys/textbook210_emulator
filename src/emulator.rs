@@ -4,6 +4,7 @@
 /// Run the low level ops
 pub mod executor;
 /// Manage the low level ops that each instruction is broken down into
+#[macro_use]
 pub mod micro_op;
 /// Spec for each op so they can be executed
 pub mod ops;
@@ -18,7 +19,11 @@ use std::{any::Any, collections::HashSet, ops::Range};
 pub use ops::{CpuState, OpCode};
 use parse::ParseOutput;
 
-use crate::emulator::{executor::CpuPhaseState, parse::CompilationArtifacts};
+use crate::emulator::{
+    executor::CpuPhaseState,
+    micro_op::{CycleState, MicroOpGenerator},
+    parse::CompilationArtifacts,
+};
 
 /// The amount of steps to skip when os skips are enabled and we are in OS memory space
 pub const MAX_OS_STEPS: usize = 1000;
@@ -38,7 +43,6 @@ pub const PSR_ADDR: usize = 0xFFFC;
 /// Machine control register, when MCR[15] = 1 the program is running. To halt it is cleared.
 pub const MCR_ADDR: usize = 0xFFFE;
 
-#[derive(Debug, Clone)]
 pub struct Emulator {
     // --- not involved in the state machine ---
     /// How many cycles to run per update call
@@ -86,7 +90,7 @@ pub struct Emulator {
     pub cpu_state: CpuState,
 
     /// In a phase this does the heavy lifting in terms of running the micro ops.
-    pub execute_state: executor::CpuPhaseState,
+    pub execute_state: CpuPhaseState,
 
     // Saved stack pointers. These are used when going between os service routines and user code.
     // For example when trap is executed from user code saved_usp <- R6 && R6 <- saved_ssp
@@ -495,7 +499,7 @@ impl Emulator {
         }
 
         // Get the micro-op generator for the instruction
-        let opcode = OpCode::from_instruction(EmulatorCell::new(instruction))
+        let opcode = OpCode::from_instruction(self.memory[pc_value as usize])
             .expect("Failed to decode instruction");
         let micro_op_gen: &dyn MicroOpGenerator = match &opcode {
             OpCode::Add(op) => op,
@@ -589,103 +593,6 @@ impl Emulator {
         }
     }
 
-    /// **Evaluate Address Phase:** Calculate effective address for memory access or jump/branch targets.
-    fn evaluate_address(&mut self, op: &mut OpCode) -> Result<(), String> {
-        op.evaluate_address(self);
-        if self.exception.is_some() {
-            Err("Exception occurred during address evaluation".to_string())
-        } else {
-            Ok(())
-        }
-    }
-
-    pub fn step_read_memory(&mut self) {
-        if self.mar.changed() {
-            let mar_val = self.mar.get();
-            let mem_area = area_from_address(&self.mar);
-            // Generally we have already checked the privilege level in the address evaluation phase but to be as
-            // thorough as possible, we check again here.
-            if mem_area.can_read(&self.priv_level()) {
-                self.mdr.set(self.memory[mar_val as usize].get());
-            } else {
-                self.exception = Some(Exception::new_access_control_violation());
-            }
-        }
-    }
-
-    pub fn step_write_memory(&mut self) -> Result<(), String> {
-        if self.mdr.changed() && self.write_bit {
-            let mar_val = self.mar.get();
-            let mem_area = area_from_address(&self.mar);
-            // Generally we have already checked the privilege level in the address evaluation phase but to be as
-            if mem_area.can_write(&self.priv_level()) {
-                self.memory[mar_val as usize].set(self.mdr.get());
-            } else {
-                self.exception = Some(Exception::new_access_control_violation());
-                return Err(format!(
-                    "Fetch Operands Access Violation: Cannot write to MAR=0x{mar_val:04X}"
-                ));
-            }
-        }
-        self.write_bit = false;
-        Ok(())
-    }
-
-    /// **Fetch Operands Phase:** Read operands from registers or memory (via MAR/MDR).
-    fn fetch_operands(&mut self, op: &mut OpCode) -> Result<(), String> {
-        op.fetch_operands(self); // becuase this can run multiple times it manags the memory itself
-
-        if self.exception.is_some() {
-            Err("Exception occurred during operand fetch".to_string())
-        } else {
-            Ok(())
-        }
-    }
-
-    /// **Execute Operation Phase:** Perform the core computation (ALU, PC update, etc.).
-    fn execute_operation(&mut self, op: &mut OpCode) -> Result<(), String> {
-        op.execute_operation(self);
-
-        // Execute the ALU operation if one was set up by the Op's method
-        if let Some(alu_op) = self.alu.op.take() {
-            self.alu.alu_out = alu_op.execute();
-        }
-
-        if self.exception.is_some() {
-            Err("Exception occurred during execution".to_string())
-        } else {
-            Ok(())
-        }
-    }
-
-    /// **Store Result Phase:** Write result back to register or set up memory write.
-    fn store_result(&mut self, op: &mut OpCode) -> Result<(), String> {
-        // Clear write bit before the operation potentially sets it
-        self.write_bit = false;
-        op.store_result(self);
-
-        // If write_bit was set by op.store_result(), perform the memory write
-        if self.write_bit {
-            let mar_val = self.mar.get();
-            let mem_area = area_from_address(&self.mar);
-            if mem_area.can_write(&self.priv_level()) {
-                self.memory[mar_val as usize].set(self.mdr.get());
-            } else {
-                self.exception = Some(Exception::new_access_control_violation());
-                return Err(format!(
-                    "Store Result Access Violation: Cannot write to MAR=0x{mar_val:04X}"
-                ));
-            }
-            self.write_bit = false; // Reset after write
-        }
-
-        if self.exception.is_some() {
-            Err("Exception occurred during result store".to_string())
-        } else {
-            Ok(())
-        }
-    }
-
     /// **Handle Exception:** Switch to supervisor mode, save state, jump to handler.
     fn handle_exception(&mut self, exception: Exception) {
         tracing::warn!("Handling Exception: {:?}", exception);
@@ -736,7 +643,7 @@ impl Emulator {
 
     /// **Micro Step:** Execute one phase of the instruction cycle.
     pub fn micro_step(&mut self) {
-        tracing::trace!(memory_size = self.memory.len(), "Entering micro_step");
+        tracing::trace!(cpu_state = ?self.cpu_state, "Entering micro_step");
 
         debug_assert!(self.running(), "attermpting run but not running");
         // --- Check for and Handle Exceptions First ---
@@ -749,6 +656,13 @@ impl Emulator {
             self.handle_exception(exc);
             // After handling, the state is reset, so we can return Ok and the next micro_step will fetch the handler.
             tracing::debug!("Exception handled, returning from micro_step");
+        }
+
+        if matches!(self.cpu_state, CpuState::Fetch) {
+            self.fetch();
+        }
+        if matches!(self.cpu_state, CpuState::Decode) {
+            self.decode();
         }
 
         // Give devices a chance to do their things
@@ -764,170 +678,10 @@ impl Emulator {
 
         // --- Execute Current CPU State Phase ---
 
-        let result: Result<(), String>;
+        self.step_phase();
 
-        match self.cpu_state {
-            CpuState::Fetch => {
-                tracing::debug!("Executing FETCH phase");
-                result = self.fetch();
-                tracing::trace!(
-                    success = result.is_ok(),
-                    pc = format!("0x{:04X}", self.pc.get()),
-                    mar = format!("0x{:04X}", self.mar.get()),
-                    mdr = format!("0x{:04X}", self.mdr.get()),
-                    ir = format!("0x{:04X}", self.ir.get()),
-                    "Fetch phase complete"
-                );
-                if result.is_ok() {
-                    tracing::debug!("Fetch succeeded, transitioning to DECODE");
-                    self.cpu_state = CpuState::Decode;
-                } else {
-                    tracing::error!(error = result.as_ref().err().unwrap(), "Fetch failed");
-                }
-            }
-            CpuState::Decode => {
-                tracing::debug!(
-                    ir = format!("0x{:04X}", self.ir.get()),
-                    "Executing DECODE phase"
-                );
-                match self.decode() {
-                    Ok(op) => {
-                        tracing::debug!(
-                            opcode = format!("{:?}", op),
-                            "Decode succeeded, transitioning to EVALUATE_ADDRESS"
-                        );
-                        self.cpu_state = CpuState::EvaluateAddress(op);
-                        result = Ok(());
-                    }
-                    Err(e) => {
-                        tracing::error!(
-                            error = e,
-                            ir = format!("0x{:04X}", self.ir.get()),
-                            "Decode failed with illegal instruction"
-                        );
-                        result = Err(e); // Decode already set the exception
-                    }
-                }
-            }
-            CpuState::EvaluateAddress(op) => {
-                tracing::debug!(
-                    opcode = format!("{:?}", op),
-                    "Executing EVALUATE_ADDRESS phase"
-                );
-                result = self.evaluate_address(&mut op);
-                tracing::trace!(
-                    success = result.is_ok(),
-                    mar = format!("0x{:04X}", self.mar.get()),
-                    "Address evaluation complete"
-                );
-                if result.is_ok() {
-                    tracing::debug!(
-                        "Address evaluation succeeded, transitioning to FETCH_OPERANDS"
-                    );
-                    self.cpu_state = CpuState::FetchOperands(op);
-                } else {
-                    tracing::error!(
-                        error = result.as_ref().err().unwrap(),
-                        "Address evaluation failed"
-                    );
-                }
-            }
-            CpuState::FetchOperands(op) => {
-                tracing::debug!(
-                    opcode = format!("{:?}", op),
-                    "Executing FETCH_OPERANDS phase"
-                );
-                match self.fetch_operands(&mut op) {
-                    Ok(()) => {
-                        tracing::debug!(
-                            "Operand fetch succeeded, transitioning to EXECUTE_OPERATION"
-                        );
-
-                        self.cpu_state = CpuState::ExecuteOperation(op);
-                        result = Ok(());
-                    }
-                    Err(e) => {
-                        tracing::error!(error = e, "Operand fetch failed");
-                        result = Err(e); // fetch_operands set the exception
-                    }
-                }
-            }
-            CpuState::ExecuteOperation(op) => {
-                tracing::debug!(
-                    opcode = format!("{:?}", op),
-                    "Executing EXECUTE_OPERATION phase"
-                );
-                result = self.execute_operation(&mut op);
-                if result.is_ok() {
-                    tracing::debug!("Operation execution succeeded, transitioning to STORE_RESULT");
-                    if let Some(alu_op) = &self.alu.op {
-                        tracing::trace!(
-                            alu_op = format!("{:?}", alu_op),
-                            alu_out = format!("0x{:04X}", self.alu.alu_out.get()),
-                            "ALU operation result"
-                        );
-                    }
-                    self.cpu_state = CpuState::StoreResult(op);
-                } else {
-                    tracing::error!(
-                        error = result.as_ref().err().unwrap(),
-                        "Operation execution failed"
-                    );
-                }
-            }
-            CpuState::StoreResult(op) => {
-                tracing::debug!(opcode = format!("{:?}", op), "Executing STORE_RESULT phase");
-                result = self.store_result(&mut op);
-                tracing::trace!(
-                    success = result.is_ok(),
-                    write_bit = self.write_bit,
-                    mar = format!("0x{:04X}", self.mar.get()),
-                    mdr = format!("0x{:04X}", self.mdr.get()),
-                    "Store result complete"
-                );
-                if result.is_ok() {
-                    // Instruction complete, go back to Fetch
-                    tracing::debug!("Result store succeeded, cycling back to FETCH");
-                    self.cpu_state = CpuState::Fetch;
-                    let (n, z, p) = self.get_nzp();
-                    tracing::trace!(
-                        r0 = format!("0x{:04X}", self.r[0].get()),
-                        r1 = format!("0x{:04X}", self.r[1].get()),
-                        r2 = format!("0x{:04X}", self.r[2].get()),
-                        r3 = format!("0x{:04X}", self.r[3].get()),
-                        r4 = format!("0x{:04X}", self.r[4].get()),
-                        r5 = format!("0x{:04X}", self.r[5].get()),
-                        r6 = format!("0x{:04X}", self.r[6].get()),
-                        r7 = format!("0x{:04X}", self.r[7].get()),
-                        n = n,
-                        z = z,
-                        p = p,
-                        "CPU state after instruction completion"
-                    );
-                } else {
-                    tracing::error!(
-                        error = result.as_ref().err().unwrap(),
-                        "Result store failed"
-                    );
-                }
-
-                let write_result = self.step_write_memory();
-                tracing::trace!(success = write_result.is_ok(), "Memory write step complete");
-                if let Err(e) = &write_result {
-                    tracing::error!(error = e, "Memory write step failed");
-                    debug_assert!(false, "write STEP NOT OK AAAAAAAAAAAA");
-                }
-            }
-        }
-
-        // If any phase resulted in an error (and set an exception),
-        // the exception check at the start of the *next* micro_step will handle it.
-        if let Err(e) = &result {
-            // Don't log redundantly if it's just reporting an already set exception
-            if self.exception.is_none() {
-                tracing::error!("Micro_step failed: {}", e);
-                debug_assert!(false, "Micro_step failed: {e}"); // If we did not set exeption somthing fishy is going on
-            }
+        if self.execute_state.is_instruction_complete() {
+            self.cpu_state = CpuState::Fetch;
         }
     }
 

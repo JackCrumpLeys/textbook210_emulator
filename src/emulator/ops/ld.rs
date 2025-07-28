@@ -58,56 +58,6 @@ impl Op for LdOp {
             is_valid_load: false,
         }
     }
-
-    fn evaluate_address(&mut self, machine_state: &mut Emulator) {
-        // Calculate effective address: PC + SEXT(PCoffset9)
-        // PC was already incremented during the fetch phase
-        let current_pc = machine_state.pc;
-        let effective_addr_val = current_pc.get().wrapping_add(self.pc_offset.get());
-        self.effective_address.set(effective_addr_val);
-
-        // Check memory read permissions
-        let target_area = area_from_address(&self.effective_address);
-        if target_area.can_read(&machine_state.priv_level()) {
-            // Mark the load as valid, MAR will be set in fetch_operands
-            self.is_valid_load = true;
-        } else {
-            // Privilege violation: Cannot read from this memory location
-            machine_state.exception = Some(Exception::new_access_control_violation());
-            self.is_valid_load = false;
-            tracing::warn!(
-                address = format!("0x{:04X}", self.effective_address.get()),
-                "LD Privilege Violation: Cannot read from address"
-            );
-        }
-    }
-
-    fn fetch_operands(&mut self, machine_state: &mut Emulator) -> bool {
-        // If the address is valid (checked in evaluate_address), set MAR
-        // for the memory read that will happen implicitly *after* this phase.
-        if self.is_valid_load {
-            machine_state.mar = self.effective_address;
-        }
-        // The actual memory read (MDR <- Mem[MAR]) happens after this phase if MAR is set.
-
-        false
-    }
-
-    fn store_result(&mut self, machine_state: &mut Emulator) {
-        // Only perform the register write if the load address was valid
-        if self.is_valid_load {
-            // MDR contains the value read from memory (implicitly loaded after fetch_operands)
-            let value_loaded = machine_state.mdr;
-            let dr_index = self.dr.get() as usize;
-
-            // Write the loaded value into the destination register
-            machine_state.r[dr_index] = value_loaded;
-
-            // Update condition codes based on the value written to the register
-            machine_state.update_flags(dr_index);
-        }
-        // If !is_valid_load, an exception was set in evaluate_address, and the store is skipped.
-    }
 }
 
 use std::fmt;

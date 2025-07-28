@@ -82,50 +82,6 @@ impl Op for JsrOp {
             is_valid_jump: false,
         }
     }
-
-    fn evaluate_address(&mut self, machine_state: &mut Emulator) {
-        // PC has already been incremented in fetch phase
-        let return_pc = machine_state.pc; // This is the address of the *next* instruction
-
-        // Save return address in R7
-        machine_state.r[7] = return_pc;
-
-        // Calculate target address based on mode
-        match &self.mode {
-            JsrMode::Relative { pc_offset } => {
-                // Target is PC + offset
-                self.target_address =
-                    EmulatorCell::new(return_pc.get().wrapping_add(pc_offset.get()));
-            }
-            JsrMode::Register { base_r } => {
-                // Target is the value in the base register
-                let base_r_index = base_r.get() as usize;
-                self.target_address = machine_state.r[base_r_index];
-            }
-        }
-
-        // Check memory permissions for the target address
-        let target_area = area_from_address(&self.target_address);
-        if target_area.can_read(&machine_state.priv_level()) {
-            self.is_valid_jump = true;
-        } else {
-            // Privilege violation: Cannot jump to non-readable memory
-            machine_state.exception = Some(Exception::new_access_control_violation());
-            self.is_valid_jump = false;
-            tracing::warn!(
-                "JSR/JSRR Privilege Violation: Attempted jump to non-readable address 0x{:04X}",
-                self.target_address.get()
-            );
-        }
-    }
-
-    fn execute_operation(&mut self, machine_state: &mut Emulator) {
-        // Only update PC if the jump is valid (checked in evaluate_address)
-        if self.is_valid_jump {
-            machine_state.pc.set(self.target_address.get());
-        }
-        // If !is_valid_jump, an exception should already be set.
-    }
 }
 
 use std::fmt;

@@ -142,9 +142,8 @@ fn test_full_program_execution() {
 
         // Execute the program with a maximum number of steps
         tracing::debug!("Beginning program execution");
-        let max_steps = 500; // Prevent infinite loops
         machine_state.start_running();
-        let result = machine_state.run(Some(max_steps));
+        let result = machine_state.run(None);
 
         tracing::debug!("Program execution completed");
         tracing::debug!("Result: {:?}", result);

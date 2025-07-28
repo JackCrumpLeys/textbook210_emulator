@@ -50,40 +50,6 @@ impl Op for StOp {
             is_valid_store: false,
         }
     }
-
-    fn evaluate_address(&mut self, machine_state: &mut Emulator) {
-        // Calculate effective address: PC + SEXT(PCoffset9)
-        // PC was already incremented during the fetch phase
-        let current_pc = machine_state.pc;
-        let effective_addr_val = current_pc.get().wrapping_add(self.pc_offset.get());
-        self.effective_address.set(effective_addr_val);
-
-        // Check memory write permissions
-        let target_area = area_from_address(&self.effective_address);
-        if target_area.can_write(&machine_state.priv_level()) {
-            self.is_valid_store = true;
-        } else {
-            // Privilege violation: Cannot write to this memory location
-            machine_state.exception = Some(Exception::new_access_control_violation());
-            self.is_valid_store = false;
-            tracing::warn!(
-                address = format!("0x{:04X}", self.effective_address.get()),
-                "ST Privilege Violation: Cannot write to address"
-            );
-        }
-    }
-
-    fn store_result(&mut self, machine_state: &mut Emulator) {
-        if self.is_valid_store {
-            // Set MAR to the target address
-            machine_state.mar = self.effective_address;
-            // Fetch the value from the source register into MDR
-            let sr_index = self.sr.get() as usize;
-            machine_state.mdr = machine_state.r[sr_index];
-            // we are writing mem[mar] <- mdr
-            machine_state.write_bit = true;
-        }
-    }
 }
 use std::fmt;
 

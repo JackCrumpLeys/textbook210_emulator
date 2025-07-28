@@ -114,68 +114,6 @@ impl Op for AndOp {
             _ => unreachable!("Bit 5 can only be 0 or 1"),
         }
     }
-
-    fn fetch_operands(&mut self, machine_state: &mut Emulator) -> bool {
-        let span = tracing::trace_span!("AND_fetch_operands", op = ?self);
-        let _enter = span.enter();
-
-        let mut new_op = None;
-
-        match *self {
-            AndOp::Register { dr, sr1, sr2 } => {
-                let op1 = machine_state.r[sr1.get() as usize];
-                let op2 = machine_state.r[sr2.get() as usize];
-                new_op = Some(AndOp::Ready { dr, op1, op2 });
-            }
-            AndOp::Immediate { dr, sr1, imm5 } => {
-                let op1 = machine_state.r[sr1.get() as usize];
-                // Sign extend imm5 (5 bits) using the BitAddressable helper method
-                let op2 = imm5.sext(4);
-                new_op = Some(AndOp::Ready { dr, op1, op2 });
-            }
-            AndOp::Ready { .. } => {
-                tracing::error!("AND: Encountered Ready state during fetch_operands phase. This might indicate unexpected state flow.");
-                debug_assert!(false, "Unexpected state flow");
-            }
-        }
-        if let Some(op) = new_op {
-            *self = op;
-        }
-
-        false
-    }
-
-    fn execute_operation(&mut self, machine_state: &mut Emulator) {
-        let span = tracing::trace_span!("AND_execute_operation", op = ?self);
-        let _enter = span.enter();
-
-        if let AndOp::Ready { op1, op2, .. } = self {
-            machine_state.alu.op = Some(AluOp::And(*op1, *op2));
-        } else {
-            debug_assert!(
-                false,
-                "AND execute_operation called before operands were fetched (not in Ready state)"
-            );
-        }
-    }
-
-    fn store_result(&mut self, machine_state: &mut Emulator) {
-        let span = tracing::trace_span!("AND_store_result", op = ?self);
-        let _enter = span.enter();
-
-        if let AndOp::Ready { dr, .. } = self {
-            let result = machine_state.alu.alu_out.get();
-
-            let dr_idx = dr.get() as usize;
-            machine_state.r[dr_idx].set(result);
-            machine_state.update_flags(dr_idx);
-        } else {
-            debug_assert!(
-                false,
-                "AND store_result called before operands were fetched (not in Ready state)"
-            );
-        }
-    }
 }
 
 use std::fmt;

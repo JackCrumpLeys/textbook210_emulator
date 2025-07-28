@@ -48,33 +48,6 @@ impl Op for JmpOp {
             is_valid_jump: false,                 // Initialize to false
         }
     }
-
-    fn evaluate_address(&mut self, machine_state: &mut Emulator) {
-        let base_r_index = self.base_r.get() as usize;
-        self.target_address = machine_state.r[base_r_index]; // Get address from register
-
-        // Check memory permissions for the target address
-        let target_area = area_from_address(&self.target_address);
-        if target_area.can_read(&machine_state.priv_level()) {
-            self.is_valid_jump = true;
-        } else {
-            // Privilege violation: Cannot jump to non-readable memory
-            machine_state.exception = Some(Exception::new_access_control_violation());
-            self.is_valid_jump = false;
-            tracing::warn!(
-                "JMP/RET Privilege Violation: Attempted jump to non-readable address 0x{:04X} from BaseR R{}",
-                self.target_address.get(), base_r_index
-            );
-        }
-    }
-
-    fn execute_operation(&mut self, machine_state: &mut Emulator) {
-        // Only update PC if the jump is valid (checked in evaluate_address)
-        if self.is_valid_jump {
-            machine_state.pc.set(self.target_address.get());
-        }
-        // If !is_valid_jump, an exception should already be set,
-    }
 }
 
 use std::fmt;
