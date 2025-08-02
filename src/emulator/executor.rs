@@ -2,7 +2,8 @@ use crate::emulator::micro_op::{
     CycleState, DataDestination, DataSource, MAluOp, MachineFlag, MicroOp,
 };
 use crate::emulator::{
-    area_from_address, AluOp, CpuState, Emulator, EmulatorCell, Exception, OpCode, PSR_ADDR,
+    area_from_address, AluOp, CpuState, Emulator, EmulatorCell, Exception, OpCode, KBDR_ADDR,
+    KBSR_ADDR, PSR_ADDR,
 };
 use std::fmt::{self};
 
@@ -223,6 +224,7 @@ impl Emulator {
             }
 
             self.execute_state.memory_write_pending = false;
+            return Ok(());
         }
 
         // Check if there's a pending memory read (MAR was set in previous phase)
@@ -247,6 +249,10 @@ impl Emulator {
                 );
             } else {
                 return Err(format!("Memory read address out of bounds: 0x{addr:04X}"));
+            }
+
+            if addr == KBDR_ADDR {
+                self.memory[KBSR_ADDR].set(0x0000);
             }
 
             self.execute_state.memory_read_pending = false;
