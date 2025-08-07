@@ -23,44 +23,27 @@ impl PaneDisplay for IoPane {
                 .max_height(terminal_height)
                 .stick_to_bottom(true)
                 .show(ui, |ui| {
-                    // Use a clone to allow simultaneous mutable access to emulator
-                    // and immutable access to its output for TextEdit.
-                    let output_clone = &mut emulator.output.clone();
-                    let response = ui.add(
-                        egui::TextEdit::multiline(output_clone)
+                    ui.add(
+                        egui::TextEdit::multiline(&mut emulator.output)
                             .desired_width(f32::INFINITY)
                             .desired_rows(10)
+                            .interactive(false)
                             .font(egui::TextStyle::Monospace),
                     );
-
-                    if response.changed() && emulator.output.len() < output_clone.len() {
-                        emulator.set_in_char(output_clone.chars().last().unwrap());
-                    }
                 });
 
-            // Regular input field (kept for compatibility)
             ui.horizontal(|ui| {
                 ui.label(">");
-                let response = ui.add(
+                ui.add(
                     egui::TextEdit::singleline(&mut self.terminal_input)
                         .desired_width(ui.available_width())
-                        .hint_text("Type here and press Enter...")
+                        .hint_text("Type here to send input to the emulator...")
                         .font(egui::TextStyle::Monospace),
                 );
 
-                // Check for input submission via Enter key or losing focus
-                let input_submitted =
-                    response.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
-
-                if input_submitted && !self.terminal_input.is_empty() {
-                    if let Some(c) = self.terminal_input.chars().next() {
-                        // Update the emulator's last pressed key
-                        emulator.set_in_char(c);
-                        // Echo the character to output for visual feedback
-                        emulator.output.push(c);
-                        // Clear the input field
-                        self.terminal_input.clear();
-                    }
+                if self.terminal_input.len() >= 1 {
+                    emulator.set_in_char(self.terminal_input.chars().last().unwrap());
+                    self.terminal_input.clear();
                 }
             });
 

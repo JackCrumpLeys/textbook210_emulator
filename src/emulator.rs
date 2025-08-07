@@ -226,8 +226,10 @@ impl Emulator {
     /// Input one char so that the os can read it.
     // TODO: change this if/when we do interuption based input
     pub fn set_in_char(&mut self, c: char) {
-        self.memory[KBDR_ADDR].set(c as u16);
-        self.memory[KBSR_ADDR].set(0x8000); // indicates new char avalible
+        if c.is_ascii() {
+            self.memory[KBDR_ADDR].set(c as u16);
+            self.memory[KBSR_ADDR].set(0x8000); // indicates new char avalible
+        }
     }
 
     /// Given a register we update flages based on value
