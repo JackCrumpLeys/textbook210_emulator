@@ -1,7 +1,7 @@
 use crate::emulator::Emulator;
 use crate::panes::{Pane, PaneDisplay, PaneTree, RealPane};
 use crate::theme::ThemeSettings;
-use egui::{Key, OutputCommand, RichText};
+use egui::{OutputCommand, RichText};
 use serde::{Deserialize, Serialize};
 
 use super::EmulatorPane;
@@ -41,7 +41,7 @@ impl PaneDisplay for IoPane {
                         .font(egui::TextStyle::Monospace),
                 );
 
-                if self.terminal_input.len() >= 1 {
+                if !self.terminal_input.is_empty() {
                     emulator.set_in_char(self.terminal_input.chars().last().unwrap());
                     self.terminal_input.clear();
                 }

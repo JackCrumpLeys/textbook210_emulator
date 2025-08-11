@@ -1,10 +1,35 @@
 use std::fmt;
 use std::{collections::HashMap, sync::Arc};
 
+use egui::text::LayoutJob;
+use egui::{RichText, Style, WidgetText};
+
 use crate::emulator::{Emulator, Exception};
+use crate::theme::ThemeSettings;
 
 // Re-export EmulatorCell for convenience
 pub use super::EmulatorCell;
+
+pub trait EguiDisplay {
+    fn display(&self, theme: &ThemeSettings, s: &Style) -> impl Into<WidgetText>;
+}
+
+#[inline(always)] // hopefully rust can optimise this kind of list creation and returning. idk tho
+fn add_widget_text(text: Vec<WidgetText>, s: &Style) -> WidgetText {
+    let mut job = LayoutJob::default();
+    let text: Vec<WidgetText> = text.into_iter().collect();
+    for a in text {
+        let a_clone = a.clone();
+        for section in a
+            .into_layout_job(s, egui::FontSelection::Default, egui::Align::BOTTOM)
+            .sections
+            .clone()
+        {
+            job.append(&a_clone.text()[section.byte_range], 0.0, section.format);
+        }
+    }
+    job.into()
+}
 
 /// The 6 phases of the instruction cycle, for display purposes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -27,6 +52,12 @@ impl fmt::Display for CycleState {
             CycleState::Execute => write!(f, "Execute"),
             CycleState::StoreResult => write!(f, "Store Result"),
         }
+    }
+}
+
+impl EguiDisplay for CycleState {
+    fn display(&self, _: &ThemeSettings, _: &Style) -> impl Into<WidgetText> {
+        RichText::new(format!("{}", self))
     }
 }
 
@@ -86,6 +117,26 @@ impl fmt::Display for DataSource {
     }
 }
 
+impl EguiDisplay for DataSource {
+    fn display(&self, theme: &ThemeSettings, _: &Style) -> impl Into<WidgetText> {
+        RichText::new(format!("{}", self)).color(match self {
+            DataSource::Register(_) => theme.register_name_color,
+            DataSource::PC => theme.register_special_purpose_name_color,
+            DataSource::IR => theme.register_special_purpose_name_color,
+            DataSource::MAR => theme.register_special_purpose_name_color,
+            DataSource::MDR => theme.register_special_purpose_name_color,
+            DataSource::PSR => theme.register_device_name_color,
+            DataSource::AluOut => theme.register_special_purpose_name_color,
+            DataSource::Temp => theme.register_special_purpose_name_color,
+
+            DataSource::Immediate(_) => theme.editor_literal_color,
+            DataSource::PCOffset(_) => theme.editor_literal_color,
+            DataSource::TrapVector(_) => theme.editor_literal_color,
+            DataSource::Constant(_) => theme.editor_literal_color,
+        })
+    }
+}
+
 /// Represents a destination for data.
 #[derive(Debug, Clone)]
 pub enum DataDestination {
@@ -113,6 +164,20 @@ impl fmt::Display for DataDestination {
         }
     }
 }
+impl EguiDisplay for DataDestination {
+    fn display(&self, theme: &ThemeSettings, _: &Style) -> impl Into<WidgetText> {
+        RichText::new(format!("{}", self)).color(match self {
+            DataDestination::Register(_) => theme.register_name_color,
+            DataDestination::PC => theme.register_special_purpose_name_color,
+            DataDestination::IR => theme.register_special_purpose_name_color,
+            DataDestination::MAR => theme.register_special_purpose_name_color,
+            DataDestination::MDR => theme.register_special_purpose_name_color,
+            DataDestination::PSR => theme.register_device_name_color,
+            DataDestination::AluOut => theme.register_special_purpose_name_color,
+            DataDestination::Temp => theme.register_special_purpose_name_color,
+        })
+    }
+}
 
 /// Flags that can be set by a micro-op.
 #[derive(Debug, Clone, Copy)]
@@ -124,8 +189,31 @@ pub enum MachineFlag {
 impl fmt::Display for MachineFlag {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            MachineFlag::UpdateCondCodes(reg) => write!(f, "SET_CC(R{reg})"),
+            MachineFlag::UpdateCondCodes(reg) => {
+                write!(f, "SET_CC({})", DataSource::Register(*reg))
+            }
             MachineFlag::WriteMemory => write!(f, "WRITE_MEM"),
+        }
+    }
+}
+impl EguiDisplay for MachineFlag {
+    fn display(&self, theme: &ThemeSettings, s: &Style) -> impl Into<WidgetText> {
+        match self {
+            MachineFlag::UpdateCondCodes(reg) => add_widget_text(
+                vec![
+                    RichText::new("SET_CC(")
+                        .color(theme.editor_directive_color)
+                        .into(),
+                    DataSource::Register(*reg).display(theme, s).into(),
+                    RichText::new(")")
+                        .color(theme.editor_directive_color)
+                        .into(),
+                ],
+                s,
+            ),
+            MachineFlag::WriteMemory => RichText::new("WRITE_MEM")
+                .color(theme.editor_directive_color)
+                .into(),
         }
     }
 }
@@ -185,6 +273,77 @@ impl fmt::Display for MicroOp {
             MicroOp::SetFlag(flag) => write!(f, "{flag}"),
             MicroOp::Message(msg) => write!(f, "[{msg}]"),
             MicroOp::Custom(_, s) => write!(f, "{s}"),
+        }
+    }
+}
+
+impl EguiDisplay for MicroOp {
+    fn display(&self, theme: &ThemeSettings, s: &Style) -> impl Into<WidgetText> {
+        match self {
+            MicroOp::Transfer {
+                source,
+                destination,
+            } => add_widget_text(
+                vec![
+                    destination.display(theme, s).into(),
+                    RichText::new(" <- ")
+                        .color(theme.cpu_state_data_flow_color)
+                        .into(),
+                    source.display(theme, s).into(),
+                ],
+                s,
+            ),
+            MicroOp::Alu {
+                operation,
+                operand1,
+                operand2,
+            } => match operation {
+                MAluOp::Not => add_widget_text(
+                    vec![
+                        RichText::new("ALU_OUT")
+                            .color(theme.register_special_purpose_name_color)
+                            .into(),
+                        RichText::new(" <- ")
+                            .color(theme.cpu_state_data_flow_color)
+                            .into(),
+                        RichText::new("NOT ").color(theme.opcode_color).into(),
+                        operand1.display(theme, s).into(),
+                    ],
+                    s,
+                ),
+                _ => add_widget_text(
+                    vec![
+                        RichText::new("ALU_OUT")
+                            .color(theme.register_special_purpose_name_color)
+                            .into(),
+                        RichText::new(" <- ")
+                            .color(theme.cpu_state_data_flow_color)
+                            .into(),
+                        operand1.display(theme, s).into(),
+                        RichText::new(format!(" {} ", operation))
+                            .color(theme.editor_directive_color)
+                            .into(),
+                        operand2.display(theme, s).into(),
+                    ],
+                    s,
+                ),
+            },
+            MicroOp::PhaseTransition(phase) => add_widget_text(
+                vec![
+                    RichText::new("-> ")
+                        .color(theme.cpu_state_data_flow_color)
+                        .into(),
+                    phase.display(theme, s).into(),
+                ],
+                s,
+            ),
+            MicroOp::SetFlag(flag) => flag.display(theme, s).into(),
+            MicroOp::Message(msg) => RichText::new(format!("[{}]", msg))
+                .color(theme.editor_comment_color)
+                .into(),
+            MicroOp::Custom(_, s_custom) => RichText::new(s_custom)
+                .color(theme.editor_directive_color)
+                .into(),
         }
     }
 }
