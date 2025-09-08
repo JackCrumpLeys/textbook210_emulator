@@ -25,8 +25,9 @@ impl MicroOpGenerator for RtiOp {
                             Ok(())
                         }
                     },
-                    "if (PSR[15] == 1)
-                        ; Initiate a privilege mode exception"
+                    "
+if (PSR[15] == 1)
+    ; Initiate a privilege mode exception"
                         .to_owned(),
                 ),
                 micro_op!(MAR <- R(6)), // Set MAR to current SSP (R6)
@@ -61,9 +62,12 @@ impl MicroOpGenerator for RtiOp {
                         }
                         Ok(())
                     },
-                    "Saved_SSP <- R6
-                    R6 <- Saved_USP"
-                        .to_owned(),
+                    "\
+if (PSR[15] == 1) {
+    Saved_SSP <- R6
+    R6 <- Saved_USP
+}"
+                    .to_owned(),
                 ),
             ],
         );

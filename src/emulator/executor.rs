@@ -12,15 +12,15 @@ pub struct CpuPhaseState {
     /// The complete execution plan for the current instruction (6 phases)
     execution_plan: Vec<Vec<MicroOp>>,
     /// Current phase index (0-5)
-    current_phase: usize,
+    pub current_phase: usize,
     /// Current micro-op index within the current phase
-    micro_op_index: usize,
+    pub micro_op_index: usize,
     /// Flag indicating if the instruction is complete
     instruction_complete: bool,
     /// Flag indicating if a memory read is pending between phases
-    memory_read_pending: bool,
+    pub memory_read_pending: bool,
     /// Flag indicating if a memory write is pending between phases
-    memory_write_pending: bool,
+    pub memory_write_pending: bool,
     temp_register: EmulatorCell,
 }
 
