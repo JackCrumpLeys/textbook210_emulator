@@ -57,7 +57,7 @@ impl fmt::Display for CycleState {
 
 impl EguiDisplay for CycleState {
     fn display(&self, _: &ThemeSettings, _: &Style) -> impl Into<WidgetText> {
-        RichText::new(format!("{}", self))
+        RichText::new(format!("{self}"))
     }
 }
 
@@ -119,7 +119,7 @@ impl fmt::Display for DataSource {
 
 impl EguiDisplay for DataSource {
     fn display(&self, theme: &ThemeSettings, _: &Style) -> impl Into<WidgetText> {
-        RichText::new(format!("{}", self)).color(match self {
+        RichText::new(format!("{self}")).color(match self {
             DataSource::Register(_) => theme.register_name_color,
             DataSource::PC => theme.register_special_purpose_name_color,
             DataSource::IR => theme.register_special_purpose_name_color,
@@ -166,7 +166,7 @@ impl fmt::Display for DataDestination {
 }
 impl EguiDisplay for DataDestination {
     fn display(&self, theme: &ThemeSettings, _: &Style) -> impl Into<WidgetText> {
-        RichText::new(format!("{}", self)).color(match self {
+        RichText::new(format!("{self}")).color(match self {
             DataDestination::Register(_) => theme.register_name_color,
             DataDestination::PC => theme.register_special_purpose_name_color,
             DataDestination::IR => theme.register_special_purpose_name_color,
@@ -320,7 +320,7 @@ impl EguiDisplay for MicroOp {
                             .color(theme.cpu_state_data_flow_color)
                             .into(),
                         operand1.display(theme, s).into(),
-                        RichText::new(format!(" {} ", operation))
+                        RichText::new(format!(" {operation} "))
                             .color(theme.editor_directive_color)
                             .into(),
                         operand2.display(theme, s).into(),
@@ -338,7 +338,7 @@ impl EguiDisplay for MicroOp {
                 s,
             ),
             MicroOp::SetFlag(flag) => flag.display(theme, s).into(),
-            MicroOp::Message(msg) => RichText::new(format!("[{}]", msg))
+            MicroOp::Message(msg) => RichText::new(format!("[{msg}]"))
                 .color(theme.editor_comment_color)
                 .into(),
             MicroOp::Custom(_, s_custom) => RichText::new(s_custom)

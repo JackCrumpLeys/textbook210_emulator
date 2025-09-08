@@ -252,7 +252,7 @@ impl eframe::App for EmulatorApp {
         #[cfg(target_arch = "wasm32")]
         if self.curr_bad_fps_prompt_open {
             // TODO: use a modal
-            egui::Window::new("Bad fps detected").collapsible(false).show(ctx, |ui| {
+            egui::Modal::new("Bad fps detected".into()).show(ctx, |ui| {
                 ui.horizontal_wrapped(|ui| {
                     use egui::{Hyperlink, RichText};
 

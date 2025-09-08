@@ -172,7 +172,7 @@ fn test_full_program_execution() {
             direct_addr = format!("0x{:04X}", direct_result_address),
             actual_direct = format!(
                 "0x{:04X}",
-                machine_state.memory[direct_result_address as usize].get()
+                machine_state.memory[direct_result_address].get()
             ),
             expected_register = format!("0x{:04X}", expected_register_result),
             register_addr = format!("0x{:04X}", register_store_address),
@@ -184,14 +184,14 @@ fn test_full_program_execution() {
             indirect_addr = format!("0x{:04X}", indirect_result_address),
             actual_indirect = format!(
                 "0x{:04X}",
-                machine_state.memory[indirect_result_address as usize].get()
+                machine_state.memory[indirect_result_address].get()
             ),
             "Final machine state"
         );
 
         // Verify direct storage result
         assert_eq!(
-            machine_state.memory[direct_result_address as usize].get(),
+            machine_state.memory[direct_result_address].get(),
             expected_direct_result,
             "Direct result should be stored correctly in memory"
         );
@@ -205,7 +205,7 @@ fn test_full_program_execution() {
 
         // Verify indirect store result
         assert_eq!(
-            machine_state.memory[indirect_result_address as usize].get(),
+            machine_state.memory[indirect_result_address].get(),
             expected_indirect_result,
             "Indirect result should be stored correctly in memory"
         );

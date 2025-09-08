@@ -120,12 +120,12 @@ impl PaneDisplay for ControlsPane {
             // --- System Reset Group ---
 
             // Reset Emulator State Button (Visually Distinct)
-            // TODO: Add a confirmation dialog for this action in a future iteration.
             let reset_button = egui::Button::new("🔄 Reset Emulator State")
                 .fill(theme.accent_color_negative)
                 .min_size(egui::vec2(ui.available_width() - theme.item_spacing.x * 2.0, 0.0)); // Full width button
 
             if ui.add(reset_button).clicked() {
+                let old_artifacts = emulator.metadata.clone();
                 let current_skip_os = emulator.skip_os_emulation; // Preserve this setting
                 let current_speed = emulator.speed; // Preserve speed setting
 
@@ -134,13 +134,11 @@ impl PaneDisplay for ControlsPane {
                 emulator.speed = current_speed; // Restore
 
 
-                // Reload last compiled program if available
-                let artifacts = &mut emulator.metadata;
-                if !artifacts.last_compiled_source.is_empty()
-                    && artifacts.error.is_none()
+                if !old_artifacts.last_compiled_source.is_empty()
+                    && old_artifacts.error.is_none()
                 {
-                    let last_compiled_source = artifacts.last_compiled_source.clone();
-                    match Emulator::parse_program(&last_compiled_source, Some(artifacts)) {
+                    let last_compiled_source = old_artifacts.last_compiled_source.clone();
+                    match Emulator::parse_program(&last_compiled_source.join("\n"), Some(&mut emulator.metadata)) {
                         Ok(ParseOutput {
                             machine_code,
                             orig_address,

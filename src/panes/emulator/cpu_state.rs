@@ -175,6 +175,24 @@ impl CpuStatePane {
             CpuState::ExecuteOperation(_) => 4,
             CpuState::StoreResult(_) => 5,
         };
+        let mut instr_txt = emulator
+            .metadata
+            .address_to_line
+            .get(&(emulator.pc.get() as usize - 1))
+            .map(|x| {
+                emulator
+                    .metadata
+                    .last_compiled_source
+                    .get(*x - 1)
+                    .unwrap()
+                    .clone()
+            })
+            .unwrap_or(format!("{:#04X}", emulator.ir.get()));
+        ui.add(
+            egui::TextEdit::singleline(&mut instr_txt)
+                .code_editor()
+                .interactive(false),
+        );
         // Display cycle list
         ui.label(RichText::new("CPU Pipeline Stages:").strong());
         for (i, cycle_name_str) in cycle_names.iter().enumerate() {
@@ -189,13 +207,12 @@ impl CpuStatePane {
                     RichText::new(format!("   {cycle_name_str}")).color(theme.secondary_text_color),
                 );
             }
-        }
-        ui.separator();
 
-        ui.add_space(theme.item_spacing.y);
-
-        for micro_op in emulator.execute_state.current_phase_ops() {
-            ui.label(micro_op.display(theme, &ui.ctx().style()).into());
+            ui.separator();
+            for micro_op in emulator.execute_state.phase_ops(i).iter().skip(1) {
+                ui.label(micro_op.display(theme, &ui.ctx().style()).into());
+            }
+            ui.separator();
         }
     }
 }

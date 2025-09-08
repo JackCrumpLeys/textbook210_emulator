@@ -14,15 +14,17 @@ use super::Emulator;
 /// Compilation artifacts for the emulator. This struct holds information about the last compiled source code, line-to-address mappings, labels, and more.
 pub struct CompilationArtifacts {
     /// the most recently compiled source code
-    pub last_compiled_source: String,
+    pub last_compiled_source: Vec<String>,
     /// the most recent line to address mappings
     pub line_to_address: HashMap<usize, usize>,
+    /// the most recent address to line mappings
+    pub address_to_line: HashMap<usize, usize>,
     /// all labels and their corresponding addresses (NOTE labels can be overwritten)
-    pub labels: HashMap<String, u16>,
+    pub labels: HashMap<String, usize>,
     /// all addresses and their corresponding labels (NOTE labels can be overwritten)
-    pub addr_to_label: HashMap<u16, String>,
+    pub addr_to_label: HashMap<usize, String>,
     /// last compiled orig address of the source code
-    pub orig_address: u16,
+    pub orig_address: usize,
     /// latest compilation error
     pub error: Option<ParseError>,
 }
@@ -500,9 +502,10 @@ pub struct ParseOutput {
     /// where the corresponding instruction or data starts.
     pub line_to_address: HashMap<usize, usize>,
     /// Map from label names to their corresponding memory addresses.
-    pub labels: HashMap<String, u16>,
+    pub labels: HashMap<String, usize>,
     /// The starting memory address specified by the .ORIG directive.
-    pub orig_address: u16,
+    pub orig_address: usize,
+    address_to_line: HashMap<usize, usize>,
 }
 
 pub struct Parser {
@@ -522,8 +525,9 @@ impl Parser {
         let mut machine_code = vec![];
         let mut labels = HashMap::new();
         let mut line_to_address: HashMap<usize, usize> = HashMap::new();
-        let mut orig_address: u16 = 0x3000;
-        let mut address: u16 = 0x3000;
+        let mut address_to_line: HashMap<usize, usize> = HashMap::new();
+        let mut orig_address: usize = 0x3000;
+        let mut address: usize = 0x3000;
         let mut orig_set = false;
 
         // First pass: collect labels and determine addresses
@@ -538,12 +542,14 @@ impl Parser {
             &mut machine_code,
             &labels,
             &mut line_to_address,
+            &mut address_to_line,
             &mut address,
         )?;
 
         Ok(ParseOutput {
             machine_code,
             line_to_address,
+            address_to_line,
             labels,
             orig_address,
         })
@@ -552,14 +558,14 @@ impl Parser {
     // First pass: collect labels and calculate addresses
     fn first_pass(
         &mut self,
-        labels: &mut HashMap<String, u16>,
-        address: &mut u16,
-        orig_address: &mut u16,
+        labels: &mut HashMap<String, usize>,
+        address: &mut usize,
+        orig_address: &mut usize,
         orig_set: &mut bool,
     ) -> Result<(), (String, TokenSpan)> {
         while self.position < self.tokens.len() {
             let token_span = self.tokens[self.position].clone();
-            let line = token_span.line + 1;
+            let line = token_span.line;
 
             // Keep track of current line for error reporting
             match &token_span.token {
@@ -641,8 +647,8 @@ impl Parser {
                             let addr_token = &self.tokens[self.position + 1];
                             match &addr_token.token {
                                 Token::HexValue(addr) => {
-                                    *orig_address = *addr;
-                                    *address = *addr;
+                                    *orig_address = *addr as usize;
+                                    *address = *addr as usize;
                                     *orig_set = true;
                                     tracing::debug!(
                                         "Line {}: Set origin address to {:04X}",
@@ -651,8 +657,8 @@ impl Parser {
                                     );
                                 }
                                 Token::Immediate(addr) => {
-                                    *orig_address = *addr;
-                                    *address = *addr;
+                                    *orig_address = *addr as usize;
+                                    *address = *addr as usize;
                                     *orig_set = true;
                                     tracing::debug!(
                                         "Line {}: Set origin address to {:04X}",
@@ -740,7 +746,7 @@ impl Parser {
                                 block_size
                             );
 
-                            *address = address.checked_add(block_size).ok_or((
+                            *address = address.checked_add(block_size as usize).ok_or((
                                 format!("Address overflow past 0xFFFF on line {line}"),
                                 token_span,
                             ))?;
@@ -768,7 +774,7 @@ impl Parser {
                             let string_token = &self.tokens[self.position + 1];
                             match &string_token.token {
                                 Token::StringLiteral(content) => {
-                                    let string_size = content.chars().count() as u16 + 1; // +1 for null terminator
+                                    let string_size = content.chars().count() + 1; // +1 for null terminator
                                     tracing::trace!(
                                         "Line {}: Directive .STRINGZ \"{}\" (size {})",
                                         line,
@@ -851,30 +857,25 @@ impl Parser {
         Ok(())
     }
 
-    // Second pass: generate machine code
     fn second_pass(
         &mut self,
         machine_code: &mut Vec<u16>,
-        labels: &HashMap<String, u16>,
+        labels: &HashMap<String, usize>,
         line_to_address: &mut HashMap<usize, usize>,
-        address: &mut u16,
+        address_to_line: &mut HashMap<usize, usize>, // New param for reverse mapping
+        address: &mut usize,
     ) -> Result<(), (String, TokenSpan)> {
-        let mut current_line = 1;
-        let mut line_has_address_mapping = false;
-
         while self.position < self.tokens.len() {
             let token_span = self.tokens[self.position].clone();
-            let line = token_span.line + 1;
+            let line = token_span.line;
             let current_address = *address;
 
-            // Track new line - record the starting address for this line
-            if current_line != line {
-                current_line = line;
-                line_to_address.insert(line, current_address as usize);
-                line_has_address_mapping = true;
-            } else if !line_has_address_mapping {
-                line_to_address.insert(line, current_address as usize);
-                line_has_address_mapping = true;
+            // If a token on this line can generate code or is a label for code,
+            // map the line number to its starting address. We use the `entry`
+            // API to ensure this mapping is only inserted once per line.
+            // We exclude EOL tokens as they don't represent the start of a logical line.
+            if !matches!(token_span.token, Token::EOL) {
+                line_to_address.entry(line).or_insert(current_address);
             }
 
             match &token_span.token {
@@ -897,12 +898,8 @@ impl Parser {
                             if self.position + 1 < self.tokens.len() {
                                 let addr_token = &self.tokens[self.position + 1];
                                 match &addr_token.token {
-                                    Token::HexValue(addr) => {
-                                        *address = *addr;
-                                    }
-                                    Token::Immediate(addr) => {
-                                        *address = *addr;
-                                    }
+                                    Token::HexValue(addr) => *address = *addr as usize,
+                                    Token::Immediate(addr) => *address = *addr as usize,
                                     _ => {} // Already validated in first pass
                                 }
                             }
@@ -926,7 +923,7 @@ impl Parser {
                                 Token::HexValue(hex) => *hex,
                                 Token::LabelRef(label) => {
                                     if let Some(&label_addr) = labels.get(label) {
-                                        label_addr
+                                        label_addr as u16
                                     } else {
                                         return Err((
                                             format!("Unknown label: {label}"),
@@ -942,12 +939,9 @@ impl Parser {
                                 }
                             };
 
-                            tracing::trace!(
-                                "Line {}: .FILL value {:04X} at {:04X}",
-                                line,
-                                value,
-                                *address
-                            );
+                            // Map the address of this word back to the source line
+                            address_to_line.insert(*address, line);
+
                             machine_code.push(value);
                             *address += 1;
                             self.position += 2; // Skip directive and value
@@ -972,8 +966,9 @@ impl Parser {
                                 }
                             };
 
-                            tracing::trace!("Line {}: .BLKW {} at {:04X}", line, count, *address);
                             for _ in 0..count {
+                                // Map each generated address back to the source line
+                                address_to_line.insert(*address, line);
                                 machine_code.push(0); // Fill with zeros
                                 *address += 1;
                             }
@@ -990,20 +985,15 @@ impl Parser {
                             let string_token = &self.tokens[self.position + 1];
                             match &string_token.token {
                                 Token::StringLiteral(content) => {
-                                    tracing::trace!(
-                                        "Line {}: .STRINGZ at {:04X}: \"{}\"",
-                                        line,
-                                        *address,
-                                        content
-                                    );
-
                                     // Process each character
                                     for c in content.chars() {
+                                        address_to_line.insert(*address, line);
                                         machine_code.push(c as u16);
                                         *address += 1;
                                     }
 
                                     // Add null terminator
+                                    address_to_line.insert(*address, line);
                                     machine_code.push(0);
                                     *address += 1;
                                 }
@@ -1049,6 +1039,10 @@ impl Parser {
                         current_address,
                         labels,
                     )?;
+
+                    // Map the address of this instruction back to the source line
+                    address_to_line.insert(current_address, line);
+
                     machine_code.push(instruction);
                     *address += 1;
 
@@ -1060,8 +1054,6 @@ impl Parser {
                 }
 
                 Token::EOL => {
-                    // Reset the line_has_address_mapping flag for the next line
-                    line_has_address_mapping = false;
                     self.position += 1;
                 }
 
@@ -1080,8 +1072,8 @@ impl Parser {
         op: &OpToken,
         token_span: &TokenSpan,
         operands: &[TokenSpan],
-        current_address: u16,
-        labels: &HashMap<String, u16>,
+        current_address: usize,
+        labels: &HashMap<String, usize>,
     ) -> Result<u16, (String, TokenSpan)> {
         let token_span = token_span.clone();
         match op {
@@ -1415,8 +1407,8 @@ impl Parser {
     fn parse_offset(
         &self,
         token: &TokenSpan,
-        current_address: u16,
-        labels: &HashMap<String, u16>,
+        current_address: usize,
+        labels: &HashMap<String, usize>,
         width: u8,
     ) -> Result<u16, (String, TokenSpan)> {
         match &token.token {
@@ -1477,7 +1469,7 @@ pub enum ParseError {
 
 impl Emulator {
     /// Flash memory with parsed program at the given origin address
-    pub fn flash_memory(&mut self, cells: Vec<u16>, start_address: u16) {
+    pub fn flash_memory(&mut self, cells: Vec<u16>, start_address: usize) {
         let span = tracing::info_span!(
             "flash_memory",
             cells_count = cells.len(),
@@ -1492,7 +1484,7 @@ impl Emulator {
         );
 
         for (i, instruction) in cells.iter().enumerate() {
-            let addr = (start_address as usize) + i;
+            let addr = start_address + i;
             if addr >= self.memory.len() {
                 tracing::error!("Address {:04X} is out of memory bounds", addr);
                 break;
@@ -1529,6 +1521,7 @@ impl Emulator {
         tracing::trace!("parsed output: {:?}", out);
         if let Ok(ParseOutput {
             line_to_address,
+            address_to_line,
             labels,
             orig_address,
             ..
@@ -1537,15 +1530,19 @@ impl Emulator {
             if let Some(artifacts) = artifacts {
                 // Update compilation artifacts
                 artifacts.line_to_address = line_to_address.clone();
+                artifacts.address_to_line = address_to_line.clone();
                 artifacts.labels.extend(labels.clone());
                 artifacts
                     .addr_to_label
                     .extend(labels.iter().map(|(v, k)| (*k, v.clone())));
                 artifacts.orig_address = *orig_address;
                 artifacts.error = None;
-                artifacts.last_compiled_source = program.to_string();
+                artifacts.last_compiled_source = program
+                    .split("\n")
+                    .map(|st| st.to_string())
+                    .collect::<Vec<String>>();
                 tracing::debug!("compilation artifacts updated");
-                tracing::trace!("compilation artifacts: \n{:#?}", artifacts);
+                tracing::debug!("compilation artifacts: \n{:#?}", artifacts);
             }
         } else {
             if let Some(artifacts) = artifacts {

@@ -212,7 +212,7 @@ impl PaneDisplay for MemoryPane {
                         paint_bg(ui);
 
                         // Try to find a label for this address
-                        let label = artifacts.addr_to_label.get(&(row_index as u16));
+                        let label = artifacts.addr_to_label.get(&row_index);
 
                         let display = match label {
                             Some(lbl) => lbl.to_string(),

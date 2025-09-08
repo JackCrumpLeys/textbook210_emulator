@@ -56,8 +56,13 @@ impl CpuPhaseState {
 
     /// Get the micro-ops for the current phase
     pub fn current_phase_ops(&self) -> &[MicroOp] {
-        if self.current_phase < self.execution_plan.len() {
-            &self.execution_plan[self.current_phase]
+        self.phase_ops(self.current_phase)
+    }
+
+    /// Get the micro-ops for a phase
+    pub fn phase_ops(&self, i: usize) -> &[MicroOp] {
+        if i < self.execution_plan.len() {
+            &self.execution_plan[i]
         } else {
             &[]
         }
