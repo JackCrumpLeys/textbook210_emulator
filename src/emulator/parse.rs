@@ -254,7 +254,16 @@ impl<'a> Lexer<'a> {
                 // Numbers or identifiers
                 _ => {
                     if c.is_numeric() || *c == '#' || *c == 'x' || *c == 'X' || *c == '-' {
-                        self.tokenize_number()
+                        match self.tokenize_number() {
+                            Ok(num_token) => Ok(num_token),
+                            Err(err) => {
+                                // Mabye it is a lable starting with x
+                                match self.tokenize_word() {
+                                    Ok(str_token) => Ok(str_token),
+                                    Err(_) => Err(err), // It makes more sense to return the origanal error
+                                }
+                            }
+                        }
                     } else if c.is_alphabetic() || *c == '.' || *c == '_' {
                         self.tokenize_word()
                     } else {
@@ -1507,7 +1516,17 @@ impl Emulator {
         let lexer = Lexer::new(program);
         let tokens = lexer
             .tokenize()
-            .map_err(|(str, line)| ParseError::TokenizeError(str, line))?;
+            .map_err(|(str, line)| ParseError::TokenizeError(str, line));
+
+        let tokens = match tokens {
+            Ok(tokens) => tokens,
+            Err(err) => {
+                if let Some(artifacts) = artifacts {
+                    artifacts.error = Some(err.clone());
+                }
+                return Err(err);
+            }
+        };
 
         tracing::debug!("tokenization complete: {} tokens", tokens.len());
         tracing::trace!("tokens: {:?}", tokens);

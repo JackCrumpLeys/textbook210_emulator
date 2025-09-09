@@ -604,16 +604,6 @@ USER_START      .FILL x3000  ; default user program start
 ; so then pushing we will actually store at 0x2FFF)
 OS_SP       .FILL x3000
 
-; Temporary storage for registers
-OS_R0       .BLKW 1
-OS_R1       .BLKW 1
-OS_R2       .BLKW 1
-OS_R3       .BLKW 1
-OS_R4       .BLKW 1
-OS_R5       .BLKW 1
-OS_R6       .BLKW 1
-OS_R7       .BLKW 1
-OS_PSR_TMP  .BLKW 1
 SEED        .FILL xABCD  ; seed for random number generation
 
 ;-----------------------------------------------------------------------------
@@ -649,18 +639,23 @@ TRAP_GETC
         RTI
 
 TRAP_OUT
-        ST R1, OS_R1         ; save R1
+        ADD R6, R6, #-1      ; push R1
+        STR R1, R6, #0
 TRAP_OUT_WAIT
         LDI R1, OS_DSR       ; wait for the display to be ready
         BRzp TRAP_OUT_WAIT
         STI R0, OS_DDR       ; write the character and return
-        LD R1, OS_R1         ; restore R1
+        LDR R1, R6, #0       ; pop R1
+        ADD R6, R6, #1
         RTI
 
 TRAP_PUTS
-        ST R0, OS_R0         ; save R0, R1, and R7
-        ST R1, OS_R1
-        ST R7, OS_R7
+        ADD R6, R6, #-1      ; push R0
+        STR R0, R6, #0
+        ADD R6, R6, #-1      ; push R1
+        STR R1, R6, #0
+        ADD R6, R6, #-1      ; push R7
+        STR R7, R6, #0
         ADD R1, R0, #0       ; move string pointer (R0) into R1
 
 TRAP_PUTS_LOOP
@@ -671,23 +666,30 @@ TRAP_PUTS_LOOP
         BRnzp TRAP_PUTS_LOOP
 
 TRAP_PUTS_DONE
-        LD R0, OS_R0         ; restore R0, R1, and R7
-        LD R1, OS_R1
-        LD R7, OS_R7
+        LDR R7, R6, #0       ; pop R7
+        ADD R6, R6, #1
+        LDR R1, R6, #0       ; pop R1
+        ADD R6, R6, #1
+        LDR R0, R6, #0       ; pop R0
+        ADD R6, R6, #1
         RTI
 
 TRAP_IN
-        ST R7, OS_R7         ; save R7 (no need to save R0, since overwrite later
+        ADD R6, R6, #-1      ; push R7
+        STR R7, R6, #0
         LEA R0, TRAP_IN_MSG  ; prompt for input
         PUTS
         GETC                 ; read a character
         OUT                  ; echo back to monitor
-        ST R0, OS_R0         ; save the character
+        ADD R6, R6, #-1      ; push R0 (the character)
+        STR R0, R6, #0
         AND R0, R0, #0       ; write a linefeed, too
         ADD R0, R0, #10
         OUT
-        LD R0, OS_R0         ; restore the character
-        LD R7, OS_R7         ; restore R7
+        LDR R0, R6, #0       ; pop R0
+        ADD R6, R6, #1
+        LDR R7, R6, #0       ; pop R7
+        ADD R6, R6, #1
         RTI
 
 TRAP_PUTSP ; TODO: I want to focus on what we are doing in class
@@ -695,11 +697,16 @@ TRAP_PUTSP ; TODO: I want to focus on what we are doing in class
 
 
 TRAP_PUTSP_DONE
-        LD R0, OS_R0         ; restore R0, R1, R2, R3, and R7
-        LD R1, OS_R1
-        LD R2, OS_R2
-        LD R3, OS_R3
-        LD R7, OS_R7
+        LDR R7, R6, #0       ; pop R7
+        ADD R6, R6, #1
+        LDR R3, R6, #0       ; pop R3
+        ADD R6, R6, #1
+        LDR R2, R6, #0       ; pop R2
+        ADD R6, R6, #1
+        LDR R1, R6, #0       ; pop R1
+        ADD R6, R6, #1
+        LDR R0, R6, #0       ; pop R0
+        ADD R6, R6, #1
         RTI
 
 TRAP_HALT
@@ -724,9 +731,12 @@ SCREEN_LINES .FILL #24
 
 ; Keyboard interrupt handler
 KBDINT
-        ST R0, OS_R0
-        ST R1, OS_R1
-        ST R7, OS_R7
+        ADD R6, R6, #-1      ; push R0
+        STR R0, R6, #0
+        ADD R6, R6, #-1      ; push R1
+        STR R1, R6, #0
+        ADD R6, R6, #-1      ; push R7
+        STR R7, R6, #0
 
         ; Read the key to clear the interrupt
         LDI R0, OS_KBDR
@@ -734,9 +744,12 @@ KBDINT
         ; You could do something with the key here
         ; For now, we just acknowledge the interrupt
 
-        LD R0, OS_R0
-        LD R1, OS_R1
-        LD R7, OS_R7
+        LDR R7, R6, #0       ; pop R7
+        ADD R6, R6, #1
+        LDR R1, R6, #0       ; pop R1
+        ADD R6, R6, #1
+        LDR R0, R6, #0       ; pop R0
+        ADD R6, R6, #1
         RTI
 
 ;------------------------------------------------------------------------------
