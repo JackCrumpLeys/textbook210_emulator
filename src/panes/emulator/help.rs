@@ -230,9 +230,9 @@ fn render_general_help_ui(ui: &mut Ui) {
         (
             "Debugging",
             &[
-                "Set breakpoints by clicking the '🛑' button next to a line in the editor.",
                 "The 'CPU State' pane shows registers, flags, and the current instruction cycle.",
-                "The 'Memory' pane allows you to inspect and modify memory contents.",
+                "The 'Memory' pane allows you to inspect and modify memory content and set break points.",
+                "Set breakpoints by clicking the '🛑' button next to a line in the memory view.",
             ],
         ),
         (
@@ -684,6 +684,16 @@ impl HelpPane {
 
         render_collapsible_section_with_id(
             ui,
+            "Micro-operation Explanation",
+            "micro_op_explanation",
+            |ui, theme| {
+                self.render_micro_op_explanation_table(ui, theme);
+            },
+            theme,
+        );
+
+        render_collapsible_section_with_id(
+            ui,
             "Arithmetic & Logic",
             "arithmetic_logic",
             |ui, theme| {
@@ -732,6 +742,188 @@ impl HelpPane {
             },
             theme,
         );
+    }
+
+    fn render_micro_op_explanation_table(&mut self, ui: &mut Ui, theme: &ThemeSettings) {
+        ui_section_heading(ui, "Micro-operation Reference", theme);
+        ui_simple_label(
+            ui,
+            "Understanding the micro-operations that make up each instruction cycle phase:",
+        );
+        ui.add_space(8.0);
+
+        let micro_op_explanations = [
+            (
+                "Transfer Operations",
+                vec![
+                    (
+                        "R(n) <- R(m)",
+                        "Copy the value from register m to register n",
+                    ),
+                    (
+                        "PC <- R(n)",
+                        "Set the Program Counter to the value in register n",
+                    ),
+                    (
+                        "MAR <- R(n)",
+                        "Set Memory Address Register to value in register n (triggers memory read)",
+                    ),
+                    (
+                        "MDR <- R(n)",
+                        "Set Memory Data Register to value in register n",
+                    ),
+                    (
+                        "R(n) <- MDR",
+                        "Copy value from Memory Data Register to register n",
+                    ),
+                    ("R(n) <- PC", "Copy Program Counter value to register n"),
+                    ("R(n) <- AluOut", "Copy ALU result to register n"),
+                    ("TEMP <- R(n)", "Store register value in temporary storage"),
+                    ("R(n) <- IMM(x)", "Load immediate value x into register n"),
+                    ("R(n) <- C(x)", "Load constant value x into register n"),
+                ],
+            ),
+            (
+                "ALU Operations",
+                vec![
+                    (
+                        "ALU_OUT <- R(a) + R(b)",
+                        "Add values from two registers, store result in ALU output",
+                    ),
+                    (
+                        "ALU_OUT <- R(a) + IMM(x)",
+                        "Add register value and immediate, store in ALU output",
+                    ),
+                    (
+                        "ALU_OUT <- R(a) & R(b)",
+                        "Bitwise AND two register values, store in ALU output",
+                    ),
+                    (
+                        "ALU_OUT <- NOT R(a)",
+                        "Bitwise complement of register value, store in ALU output",
+                    ),
+                    ("ALU_OUT <- PC + C(1)", "Increment Program Counter by 1"),
+                    (
+                        "ALU_OUT <- PC + PCOFFSET(x)",
+                        "Add PC-relative offset to Program Counter",
+                    ),
+                ],
+            ),
+            (
+                "Memory Operations",
+                vec![
+                    (
+                        "SET_FLAG(WriteMemory)",
+                        "Trigger memory write operation using MAR and MDR",
+                    ),
+                    (
+                        "MAR <- address",
+                        "Set memory address for read/write (implicit read follows)",
+                    ),
+                    ("MDR <- data", "Set data to write to memory"),
+                ],
+            ),
+            (
+                "Control Flow",
+                vec![
+                    ("-> Fetch", "Transition to Fetch phase"),
+                    ("-> Decode", "Transition to Decode phase"),
+                    ("-> EvaluateAddress", "Transition to Evaluate Address phase"),
+                    ("-> FetchOperands", "Transition to Fetch Operands phase"),
+                    ("-> Execute", "Transition to Execute phase"),
+                    ("-> StoreResult", "Transition to Store Result phase"),
+                ],
+            ),
+            (
+                "Condition Codes & Flags",
+                vec![
+                    (
+                        "SET_CC(n)",
+                        "Update condition codes (N, Z, P) based on register n",
+                    ),
+                    ("WRITE_MEM", "Flag indicating memory write should occur"),
+                ],
+            ),
+            (
+                "System Operations",
+                vec![
+                    ("PSR <- value", "Update Processor Status Register"),
+                    (
+                        "Custom operations",
+                        "Conditional logic, privilege checks, stack operations",
+                    ),
+                ],
+            ),
+        ];
+
+        for (category, operations) in micro_op_explanations {
+            ui_strong_label(ui, category, theme);
+            egui::Frame::group(ui.style())
+                .inner_margin(egui::Margin::same(8))
+                .show(ui, |ui| {
+                    egui::Grid::new(format!("micro_op_table_{}", category))
+                        .num_columns(2)
+                        .striped(true)
+                        .show(ui, |ui| {
+                            for (operation, description) in operations {
+                                ui.label(
+                                    RichText::new(operation)
+                                        .monospace()
+                                        .color(theme.help_monospace_color),
+                                );
+                                ui.label(description);
+                                ui.end_row();
+                            }
+                        });
+                });
+            ui.add_space(12.0);
+        }
+
+        ui_strong_label(ui, "Execution Flow", theme);
+        egui::Frame::group(ui.style())
+            .inner_margin(egui::Margin::same(8))
+            .show(ui, |ui| {
+                ui_simple_label(
+                    ui,
+                    "Each LC-3 instruction follows a 6-phase execution cycle:",
+                );
+                ui.add_space(4.0);
+
+                let phases = [
+                    (
+                        "1. Fetch",
+                        "Load instruction from memory at PC address into IR",
+                    ),
+                    ("2. Decode", "Identify opcode and extract operand fields"),
+                    (
+                        "3. Evaluate Address",
+                        "Calculate memory addresses for operands (if needed)",
+                    ),
+                    (
+                        "4. Fetch Operands",
+                        "Read operands from registers or memory",
+                    ),
+                    (
+                        "5. Execute",
+                        "Perform the actual operation (ALU, branches, etc.)",
+                    ),
+                    (
+                        "6. Store Result",
+                        "Write results back to registers or memory",
+                    ),
+                ];
+
+                for (phase, description) in phases {
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            RichText::new(phase)
+                                .strong()
+                                .color(theme.help_sub_heading_color),
+                        );
+                        ui.label(description);
+                    });
+                }
+            });
     }
 
     // --- Individual Instruction Rendering Functions ---

@@ -53,22 +53,28 @@ impl PaneDisplay for ControlsPane {
                         emulator.stop_running();
                     }
                 } else {
-                    let run_button =
-                        if emulator.pc.get() != 0x200 && emulator.halted {
-                            egui::Button::new("▶ Reset & Run").fill(theme.accent_color_primary)
-                        }
-                        else {
-                            egui::Button::new("▶ Run").fill(theme.accent_color_primary)
-                        };
-
-                    if ui.add(run_button).clicked() {
+                    if ui.add(egui::Button::new("▶ Reset & Run").fill(theme.accent_color_primary)).clicked() {
                         if emulator.halted {
                             emulator.halted = false;
                             *emulator = emulator.soft_reset();
                         }
                         emulator.start_running();
                     }
-                }
+                        if emulator.pc.get() != 0x200 && emulator.halted {
+                            if ui.add(egui::Button::new("▶ Run").fill(theme.accent_color_primary)).clicked() {
+                                if emulator.halted {
+                                    emulator.halted = false;                        }
+                                emulator.start_running();
+                            }
+
+                        } else if ui.add(egui::Button::new("▶ Run").fill(theme.accent_color_primary)).clicked() {
+                            if emulator.halted {
+                                emulator.halted = false;
+                            }
+                            emulator.start_running();
+                        }
+                        };
+
 
                 // Micro Step Button
                 let micro_step_button = egui::Button::new("⤵ Micro Step")
