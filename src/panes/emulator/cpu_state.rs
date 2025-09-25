@@ -178,7 +178,7 @@ impl CpuStatePane {
         let mut instr_txt = emulator
             .metadata
             .address_to_line
-            .get(&(emulator.pc.get() as usize - 1))
+            .get(&emulator.currently_executing)
             .map(|x| {
                 emulator
                     .metadata

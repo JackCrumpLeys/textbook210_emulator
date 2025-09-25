@@ -59,8 +59,9 @@ impl MicroOpGenerator for BrOp {
         } else {
             format!(
                 "IF {if_cond}
-                        ALU_OUT <- PC + SEXT(PCoffset9)
-                        PC <- ALU_OUT"
+                        ALU_OUT <- PC + SEXT({})
+                        PC <- ALU_OUT",
+                self.pc_offset.get()
             )
         };
 

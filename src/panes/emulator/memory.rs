@@ -160,8 +160,9 @@ impl PaneDisplay for MemoryPane {
 
                     let memory_cell = &mut emulator.memory[row_index];
                     let is_pc_line = pc_addr == row_index;
+                    let is_curr_line = emulator.currently_executing == row_index;
 
-                    let bg = if is_pc_line {
+                    let bg = if is_curr_line {
                         Some(theme.accent_color_positive)
                     } else if let Some(hl) = self.highlighted.get_mut(&row_index) {
                         *hl -= 0.01; // Botch

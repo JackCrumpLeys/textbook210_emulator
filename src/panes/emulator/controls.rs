@@ -54,8 +54,18 @@ impl PaneDisplay for ControlsPane {
                     }
                 } else {
                     let run_button =
-                        egui::Button::new("▶ Run").fill(theme.accent_color_primary);
+                        if emulator.pc.get() != 0x200 && emulator.halted {
+                            egui::Button::new("▶ Reset & Run").fill(theme.accent_color_primary)
+                        }
+                        else {
+                            egui::Button::new("▶ Run").fill(theme.accent_color_primary)
+                        };
+
                     if ui.add(run_button).clicked() {
+                        if emulator.halted {
+                            emulator.halted = false;
+                            *emulator = emulator.soft_reset();
+                        }
                         emulator.start_running();
                     }
                 }

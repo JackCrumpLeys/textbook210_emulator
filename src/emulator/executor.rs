@@ -3,7 +3,7 @@ use crate::emulator::micro_op::{
 };
 use crate::emulator::{
     area_from_address, AluOp, CpuState, Emulator, EmulatorCell, Exception, OpCode, KBDR_ADDR,
-    KBSR_ADDR, PSR_ADDR,
+    KBSR_ADDR, MCR_ADDR, PSR_ADDR,
 };
 use std::fmt::{self};
 
@@ -224,11 +224,15 @@ impl Emulator {
             if addr < self.memory.len() {
                 self.memory[addr].set(value);
                 tracing::trace!("Implicit memory write: [0x{:04X}] <- 0x{:04X}", addr, value);
+                if value == 0 && addr == MCR_ADDR {
+                    self.halted = true;
+                }
             } else {
                 return Err(format!("Memory write address out of bounds: 0x{addr:04X}"));
             }
 
             self.execute_state.memory_write_pending = false;
+            self.execute_state.memory_read_pending = false;
             return Ok(());
         }
 
@@ -330,23 +334,23 @@ impl Emulator {
                         self.update_flags(*reg_num as usize);
                     }
                     MachineFlag::WriteMemory => {
-                        self.write_bit = true;
+                        self.execute_state.memory_write_pending = true;
                         // Perform the memory write if MAR and MDR are set
                         if self.mar.get() != 0 {
                             let addr = self.mar.get() as usize;
                             let value = self.mdr.get();
 
                             // Check write permissions
-                            let area = area_from_address(&self.mar);
-                            if !area.can_write(&self.priv_level()) {
-                                self.exception = Some(Exception::AccessControlViolation);
-                                return Err(
-                                    "Access control violation during memory write".to_string()
-                                );
-                            }
+                            // let area = area_from_address(&self.mar);
+                            // if !area.can_write(&self.priv_level()) {
+                            //     self.exception = Some(Exception::AccessControlViolation);
+                            //     return Err(
+                            //         "Access control violation during memory write".to_string()
+                            //     );
+                            // }
 
                             if addr < self.memory.len() {
-                                self.memory[addr].set(value);
+                                // self.memory[addr].set(value);
                                 tracing::trace!("Memory write: [0x{:04X}] = 0x{:04X}", addr, value);
                             } else {
                                 return Err(format!(
@@ -707,6 +711,7 @@ mod tests {
         let plan = vec![vec![
             micro_op!(-> Execute),
             micro_op!(SET_FLAG(WriteMemory)),
+            micro_op!(-> Execute), // write
         ]];
 
         let phase_state = CpuPhaseState::new(plan);
@@ -714,7 +719,6 @@ mod tests {
         emulator.step_instruction().unwrap();
 
         assert_eq!(emulator.memory[0x4000].get(), 0xBEEF);
-        assert!(emulator.write_bit);
     }
 
     #[test]

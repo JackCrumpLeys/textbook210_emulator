@@ -58,6 +58,9 @@ pub struct Emulator {
     /// Some associated data for the most recent set of compiled programs
     pub metadata: CompilationArtifacts,
     pub breakpoints: HashSet<usize>,
+    pub currently_executing: usize,
+    /// Has the machine been halted by the OS/program
+    pub halted: bool,
     // -----------------------------------------
 
     // Why in a Box? Becuase array sits on stack and takes alot of memory.
@@ -100,9 +103,6 @@ pub struct Emulator {
     /// The last known R6 used in user code
     pub saved_usp: EmulatorCell,
 
-    /// write bit (if this is set after the store stage mem[mar] <- mdr)
-    pub write_bit: bool,
-
     /// If our stste machine has reached an exeption state than this stores the particulars
     pub exception: Option<Exception>,
 }
@@ -110,10 +110,12 @@ pub struct Emulator {
 impl Emulator {
     pub fn new() -> Emulator {
         let mut emulator = Self {
+            halted: false,
             speed: 1,
             ticks_between_updates: 2,
             tick: 0,
             skip_os_emulation: true,
+            currently_executing: 0,
             metadata: CompilationArtifacts::default(),
             breakpoints: HashSet::new(),
             memory: Box::new([EmulatorCell::new(0); 65536]),
@@ -126,7 +128,6 @@ impl Emulator {
             cpu_state: CpuState::Fetch,
             execute_state: CpuPhaseState::new(Vec::new()), // this is empty before we execute the first op
             alu: Alu::default(),
-            write_bit: false,
             exception: None,
             saved_ssp: EmulatorCell::new(0),
             saved_usp: EmulatorCell::new(0),
@@ -163,6 +164,19 @@ impl Emulator {
             0 => PrivilegeLevel::Supervisor,
             1 => PrivilegeLevel::User,
             _ => unreachable!(),
+        }
+    }
+
+    /// Reset all registers and set PC to x200
+    pub fn soft_reset(&self) -> Self {
+        Self {
+            output: self.output.clone(),
+            pc: EmulatorCell::new(0x200),
+            speed: self.speed,
+            skip_os_emulation: self.skip_os_emulation,
+            memory: self.memory.clone(),
+            metadata: self.metadata.clone(),
+            ..Default::default()
         }
     }
 
@@ -479,6 +493,8 @@ impl Emulator {
     fn fetch(&mut self) -> Result<(), String> {
         let pc_value = self.pc.get();
         let memory_area = area_from_address(&self.pc);
+
+        self.currently_executing = pc_value as usize;
 
         // Check read permission for PC address
         if !memory_area.can_read(&self.priv_level()) {
