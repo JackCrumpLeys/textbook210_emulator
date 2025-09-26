@@ -174,29 +174,22 @@ fn render_collapsible_section_with_id(
     add_contents: impl FnOnce(&mut Ui, &mut ThemeSettings),
     theme: &mut ThemeSettings,
 ) {
-    let header = egui::collapsing_header::CollapsingState::load_with_default_open(
-        ui.ctx(),
-        ui.make_persistent_id(id_salt),
-        true,
-    );
+    ui.push_id(id_salt, |ui| {
+        let text_color = theme.help_collapsible_header_text_color;
+        let header = egui::collapsing_header::CollapsingHeader::new(
+            RichText::new(title).strong().color(text_color),
+        );
 
-    let frame_color = theme.help_collapsible_header_bg_color;
-    let text_color = theme.help_collapsible_header_text_color;
-
-    egui::Frame::new()
-        .fill(frame_color)
-        .inner_margin(egui::Margin::same(4))
-        .show(ui, |ui| {
-            header
-                .show_header(ui, |ui| {
-                    ui.label(RichText::new(title).strong().color(text_color));
-                })
-                .body(|ui| {
+        egui::Frame::new()
+            .inner_margin(egui::Margin::same(4))
+            .show(ui, |ui| {
+                header.show(ui, |ui| {
                     egui::Frame::new()
                         .inner_margin(egui::Margin::same(4))
                         .show(ui, |ui| add_contents(ui, theme));
                 });
-        });
+            });
+    });
 }
 
 // --- General Help UI ---
@@ -631,30 +624,32 @@ fn render_binary_representation_view(
 }
 
 fn render_micro_op_plan<T: micro_op::MicroOpGenerator>(ui: &mut Ui, op: &T, theme: &ThemeSettings) {
-    ui.label(RichText::new("Micro-operation Plan:").strong());
-    let plan = op.generate_plan();
-    let mut phases = vec![
-        CycleState::Fetch,
-        CycleState::Decode,
-        CycleState::EvaluateAddress,
-        CycleState::FetchOperands,
-        CycleState::Execute,
-        CycleState::StoreResult,
-    ];
-    phases.retain(|p| plan.contains_key(p) && !plan[p].is_empty());
+    ui.collapsing("micro-operation plan", |ui| {
+        ui.label(RichText::new("Micro-operation Plan:").strong());
+        let plan = op.generate_plan();
+        let mut phases = vec![
+            CycleState::Fetch,
+            CycleState::Decode,
+            CycleState::EvaluateAddress,
+            CycleState::FetchOperands,
+            CycleState::Execute,
+            CycleState::StoreResult,
+        ];
+        phases.retain(|p| plan.contains_key(p) && !plan[p].is_empty());
 
-    egui::Frame::group(ui.style()).show(ui, |ui| {
-        for phase in phases {
-            if let Some(ops) = plan.get(&phase) {
-                ui.label(RichText::new(format!("{phase}:")).strong());
-                ui.indent(phase, |ui| {
-                    for micro_op in ops {
-                        // The EguiDisplay trait is perfect for this.
-                        ui.label(micro_op.display(theme, ui.style()).into());
-                    }
-                });
+        egui::Frame::group(ui.style()).show(ui, |ui| {
+            for phase in phases {
+                if let Some(ops) = plan.get(&phase) {
+                    ui.label(RichText::new(format!("{phase}:")).strong());
+                    ui.indent(phase, |ui| {
+                        for micro_op in ops {
+                            // The EguiDisplay trait is perfect for this.
+                            ui.label(micro_op.display(theme, ui.style()).into());
+                        }
+                    });
+                }
             }
-        }
+        });
     });
 }
 
@@ -665,14 +660,16 @@ fn render_instruction_card(
     theme: &mut ThemeSettings,
     add_content: impl FnOnce(&mut Ui, &mut ThemeSettings),
 ) {
-    ui.add_space(8.0);
-    ui.separator();
-    ui_sub_heading(ui, title, theme);
-    ui_simple_label(ui, description);
-    ui.add_space(4.0);
+    ui.push_id(title, |ui| {
+        ui.add_space(8.0);
+        ui.separator();
+        ui_sub_heading(ui, title, theme);
+        ui_simple_label(ui, description);
+        ui.add_space(4.0);
 
-    egui::Frame::group(ui.style()).show(ui, |ui| {
-        add_content(ui, theme);
+        egui::Frame::group(ui.style()).show(ui, |ui| {
+            add_content(ui, theme);
+        });
     });
 }
 

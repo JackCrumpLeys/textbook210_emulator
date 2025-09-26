@@ -32,11 +32,17 @@ impl MicroOpGenerator for LdiOp {
             vec![
                 micro_op!(MAR <- AluOut),
                 // First memory read happens implicitly: MDR <- MEM[MAR]
-                micro_op!(-> Execute),
-                micro_op!(MAR <- MDR),
             ],
         );
         // Then second fetch happens with MDR as new address
+
+        plan.insert(
+            CycleState::Execute,
+            vec![
+                micro_op!(MAR <- MDR),
+                // Second memory read happens implicitly: MDR <- MEM[MAR]
+            ],
+        );
 
         // Store Result phase - move final loaded value to destination register
         plan.insert(

@@ -42,6 +42,7 @@ impl PaneDisplay for EditorPane {
 
             editor_frame.show(ui, |ui| {
                 egui_code_editor::CodeEditor::default()
+                    .with_ui_fontsize(ui)
                     .with_syntax(
                         egui_code_editor::Syntax::new("lc3_assembly")
                             .with_comment(";")

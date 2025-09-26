@@ -1,4 +1,3 @@
-use crate::emulator::parse::ParseOutput;
 use crate::emulator::{Emulator, MAX_OS_STEPS};
 use crate::panes::{Pane, PaneDisplay, PaneTree, RealPane};
 use crate::theme::ThemeSettings;
@@ -53,21 +52,17 @@ impl PaneDisplay for ControlsPane {
                         emulator.stop_running();
                     }
                 } else {
-                    if ui.add(egui::Button::new("▶ Reset & Run").fill(theme.accent_color_primary)).clicked() {
-                        if emulator.halted {
-                            emulator.halted = false;
-                            *emulator = emulator.soft_reset();
-                        }
-                        emulator.start_running();
-                    }
-                        if emulator.pc.get() != 0x200 && emulator.halted {
-                            if ui.add(egui::Button::new("▶ Run").fill(theme.accent_color_primary)).clicked() {
-                                if emulator.halted {
-                                    emulator.halted = false;                        }
-                                emulator.start_running();
-                            }
 
-                        } else if ui.add(egui::Button::new("▶ Run").fill(theme.accent_color_primary)).clicked() {
+                        if emulator.pc.get() != 0x200 && emulator.halted
+                            && ui.add(egui::Button::new("▶ Reset & Run").fill(theme.accent_color_primary)).clicked() {
+                                                    if emulator.halted {
+                                                        emulator.halted = false;
+                                                        *emulator = emulator.soft_reset();
+                                                    }
+                                                    emulator.start_running();
+                                                }
+
+                        if ui.add(egui::Button::new("▶ Run").fill(theme.accent_color_primary)).clicked() {
                             if emulator.halted {
                                 emulator.halted = false;
                             }
@@ -141,7 +136,6 @@ impl PaneDisplay for ControlsPane {
                 .min_size(egui::vec2(ui.available_width() - theme.item_spacing.x * 2.0, 0.0)); // Full width button
 
             if ui.add(reset_button).clicked() {
-                let old_artifacts = emulator.metadata.clone();
                 let current_skip_os = emulator.skip_os_emulation; // Preserve this setting
                 let current_speed = emulator.speed; // Preserve speed setting
 
@@ -150,27 +144,9 @@ impl PaneDisplay for ControlsPane {
                 emulator.speed = current_speed; // Restore
 
 
-                if !old_artifacts.last_compiled_source.is_empty()
-                    && old_artifacts.error.is_none()
-                {
-                    let last_compiled_source = old_artifacts.last_compiled_source.clone();
-                    match Emulator::parse_program(&last_compiled_source.join("\n"), Some(&mut emulator.metadata)) {
-                        Ok(ParseOutput {
-                            machine_code,
-                            orig_address,
-                            ..
-                        }) => {
-                            emulator.flash_memory(machine_code, orig_address);
-                        }
-                        Err(_) => {
-                            // Parsing failed, emulator remains in its fresh default state.
-                            // Log this error or show a notification if possible.
-                            eprintln!("Error: Failed to re-parse last compiled program during reset.");
-                        }
-                    }
-                }
+
             }
-            ui.small("Resets CPU, memory, and devices. Tries to reload the last successfully compiled program. Execution speed and Skip OS settings are preserved.");
+            ui.small("Resets CPU, memory, and devices. Execution speed and Skip OS settings are preserved.");
         });
     }
 

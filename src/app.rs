@@ -181,11 +181,11 @@ impl Default for EmulatorApp {
 
         let ed_id = dock_state
             .main_surface_mut()
-            .split_below(root_id, 0.666, vec![terminal_pane]);
+            .split_below(root_id, 0.5, vec![terminal_pane]);
 
         let mem_id = dock_state
             .main_surface_mut()
-            .split_right(ed_id[1], 0.333, vec![memory_pane]);
+            .split_right(ed_id[1], 0.2, vec![memory_pane]);
 
         let _reg_id = dock_state
             .main_surface_mut()
