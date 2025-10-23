@@ -54,7 +54,7 @@ impl PaneDisplay for ControlsPane {
                 } else {
 
                         if emulator.pc.get() != 0x200 && emulator.halted
-                            && ui.add(egui::Button::new("▶ Reset & Run").fill(theme.accent_color_primary)).clicked() {
+                            && ui.add(egui::Button::new("▶ Reset & Run").fill(theme.accent_color_primary)).on_hover_text("Set PC=0x200 and reset all the other registers to 0. Memory stays intact. MCR[15] is set to 1 (run state).").clicked() {
                                                     if emulator.halted {
                                                         emulator.halted = false;
                                                         *emulator = emulator.soft_reset();
@@ -62,7 +62,7 @@ impl PaneDisplay for ControlsPane {
                                                     emulator.start_running();
                                                 }
 
-                        if ui.add(egui::Button::new("▶ Run").fill(theme.accent_color_primary)).clicked() {
+                        if ui.add(egui::Button::new("▶ Run").fill(theme.accent_color_primary)).on_hover_text("MCR[15] is set to 1 (run state).").clicked() {
                             if emulator.halted {
                                 emulator.halted = false;
                             }

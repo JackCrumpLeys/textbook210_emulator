@@ -34,6 +34,9 @@ MESSAGE: .STRINGZ "Hello, World!"
 
 impl PaneDisplay for EditorPane {
     fn render(&mut self, ui: &mut egui::Ui, emulator: &mut Emulator, theme: &mut ThemeSettings) {
+        if emulator.metadata.last_compiled_source.is_empty() {
+            self.last_compilation_was_successful = false;
+        }
         egui::ScrollArea::vertical().show(ui, |ui| {
             // Make the code editor borderless and fill the available width
             let editor_frame = egui::Frame::new()

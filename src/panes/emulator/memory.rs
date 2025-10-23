@@ -131,6 +131,7 @@ impl PaneDisplay for MemoryPane {
             }
         }
 
+        let mut animation_needed = false;
         table
             .header(20.0, |mut ui| {
                 ui.col(|ui| {
@@ -166,6 +167,7 @@ impl PaneDisplay for MemoryPane {
                         Some(theme.accent_color_positive)
                     } else if let Some(hl) = self.highlighted.get_mut(&row_index) {
                         *hl -= 0.01; // Botch
+                        animation_needed = true;
                         Some(egui::Color32::from_rgba_unmultiplied(
                             100,
                             50,
@@ -306,6 +308,9 @@ impl PaneDisplay for MemoryPane {
                     });
                 });
             });
+        if animation_needed {
+            ui.ctx().request_repaint();
+        }
     }
 
     fn title(&self) -> String {
