@@ -332,10 +332,10 @@ impl eframe::App for EmulatorApp {
         DockArea::new(&mut self.dock_state)
             .show_add_buttons(true)
             .show_add_popup(true)
-            // .show_leaf_close_all_buttons(false)
-            // .draggable_tabs(false)
+            .show_leaf_close_all_buttons(false)
+            .draggable_tabs(false)
             .style(Style::from_egui(ctx.style().as_ref()))
-            // .allowed_splits(AllowedSplits::None)
+            .allowed_splits(AllowedSplits::None)
             .show(ctx, &mut self.tree_behavior);
 
         if let Some((nodei, sur)) = self.tree_behavior.last_added {
