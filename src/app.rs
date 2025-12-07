@@ -6,7 +6,7 @@ use crate::{
     theme::{BaseThemeChoice, ThemeSettings},
 };
 use egui::Theme;
-use egui_dock::{DockArea, DockState, NodeIndex, Style, SurfaceIndex, TabViewer};
+use egui_dock::{AllowedSplits, DockArea, DockState, NodeIndex, Style, SurfaceIndex, TabViewer};
 use lazy_static::lazy_static;
 
 lazy_static! {

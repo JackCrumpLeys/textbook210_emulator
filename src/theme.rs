@@ -500,12 +500,6 @@ impl ThemeSettings {
         style.visuals.widgets.active.corner_radius = self.widget_rounding;
         style.visuals.widgets.active.expansion = 1.0; // No expansion on active by default
 
-        let mut disabled_widget_style = style.visuals.widgets.inactive; // Start from inactive
-        disabled_widget_style.fg_stroke = self.fg_widget_stroke_disabled;
-        disabled_widget_style.bg_fill = self.widget_fill_disabled;
-        disabled_widget_style.bg_stroke = self.bg_widget_stroke_disabled;
-        // style.visuals.widgets.disabled = disabled_widget_style; // If egui adds this field
-
         // Open (e.g., a combo box that is open)
         style.visuals.widgets.open = style.visuals.widgets.active; // Often same as active
 

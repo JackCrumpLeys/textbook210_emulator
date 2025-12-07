@@ -553,7 +553,6 @@ macro_rules! micro_op {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::micro_op;
 
     #[test]
     fn test_micro_op_macro() {
