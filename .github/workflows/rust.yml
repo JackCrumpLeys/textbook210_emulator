@@ -153,7 +153,7 @@ jobs:
           cargo install cross
 
       - name: Install mac toolchain for x86 mac
-        if: matrix.TARGET == x86_64-apple-darwin
+        if: matrix.TARGET == 'x86_64-apple-darwin'
         run: rustup target add x86_64-apple-darwin
       
       - name: Build
