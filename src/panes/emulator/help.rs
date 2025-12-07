@@ -1,11 +1,11 @@
 use crate::{
     emulator::{
-        Emulator, EmulatorCell,
         micro_op::{self, CycleState, EguiDisplay},
         ops::{
             AddOp, AndOp, BrOp, JmpOp, JsrOp, LdOp, LdiOp, LdrOp, LeaOp, NotOp, Op, RtiOp, StOp,
             StiOp, StrOp, TrapOp,
         },
+        Emulator, EmulatorCell,
     },
     panes::{Pane, PaneDisplay, PaneTree, RealPane},
     theme::ThemeSettings,

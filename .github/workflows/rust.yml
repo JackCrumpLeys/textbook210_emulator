@@ -148,7 +148,7 @@ jobs:
           cargo install cross --git https://github.com/cross-rs/cross
 
       - name: Install cross for mac and windows
-        if: ${{ !contains(matrix.TARGET, 'linux') && !(matrix.TARGET == 'x86_64-apple-darwin') }}
+        if: ${{ !contains(matrix.TARGET, 'linux') }}
         run: |
           cargo install cross
 

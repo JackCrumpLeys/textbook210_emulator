@@ -358,7 +358,7 @@ impl<'a> Lexer<'a> {
         // Check for # prefix (decimal immediate)
         if Some(&'#') == self.chars.peek() {
             self.advance(); // Skip the #
-        // Omit # from the result as we'll parse as decimal
+                            // Omit # from the result as we'll parse as decimal
         } else if self.chars.peek().is_some_and(|c| c == &'x' || c == &'X') {
             is_hex = true;
             self.advance(); // Skip the x or X

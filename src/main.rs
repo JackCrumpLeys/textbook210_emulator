@@ -13,7 +13,7 @@ fn main() -> eframe::Result {
     use eframe::UserEvent;
     use tools_for_210::app::LAST_PAINT_ID;
     use tracing::Level;
-    use tracing_subscriber::{EnvFilter, filter::Directive};
+    use tracing_subscriber::{filter::Directive, EnvFilter};
     use winit::{
         event_loop::{ControlFlow, EventLoop},
         platform::pump_events::{EventLoopExtPumpEvents, PumpStatus},
@@ -78,10 +78,10 @@ fn main() -> eframe::Result {
 fn main() {
     use std::cell::RefCell;
     use std::rc::Rc;
-    use tracing_subscriber::EnvFilter;
     use tracing_subscriber::fmt::format::Pretty;
-    use tracing_web::{MakeWebConsoleWriter, performance_layer};
-    use wasm_bindgen::{JsCast, prelude::Closure};
+    use tracing_subscriber::EnvFilter;
+    use tracing_web::{performance_layer, MakeWebConsoleWriter};
+    use wasm_bindgen::{prelude::Closure, JsCast};
 
     let fmt_layer = tracing_subscriber::fmt::layer()
         .with_ansi(false) // Only partially supported across browsers
