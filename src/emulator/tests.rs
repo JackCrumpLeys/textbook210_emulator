@@ -1,6 +1,6 @@
 use tracing_test::traced_test;
 
-use crate::emulator::{parse::ParseOutput, BitAddressable, Emulator, EmulatorCell};
+use crate::emulator::{BitAddressable, Emulator, EmulatorCell, parse::ParseOutput};
 
 #[traced_test]
 #[test]

@@ -1,11 +1,11 @@
 use crate::{
     emulator::{
+        Emulator, EmulatorCell,
         micro_op::{self, CycleState, EguiDisplay},
         ops::{
             AddOp, AndOp, BrOp, JmpOp, JsrOp, LdOp, LdiOp, LdrOp, LeaOp, NotOp, Op, RtiOp, StOp,
             StiOp, StrOp, TrapOp,
         },
-        Emulator, EmulatorCell,
     },
     panes::{Pane, PaneDisplay, PaneTree, RealPane},
     theme::ThemeSettings,
@@ -676,7 +676,10 @@ fn render_instruction_card(
 impl HelpPane {
     fn render_instruction_reference_ui(&mut self, ui: &mut Ui, theme: &mut ThemeSettings) {
         ui_main_title(ui, "Interactive Instruction Reference", theme);
-        ui_simple_label(ui, "Select an instruction category to explore. Adjust instruction fields to see how they affect the generated machine code and the underlying micro-operations.");
+        ui_simple_label(
+            ui,
+            "Select an instruction category to explore. Adjust instruction fields to see how they affect the generated machine code and the underlying micro-operations.",
+        );
         ui.add_space(4.0);
 
         render_collapsible_section_with_id(
@@ -941,7 +944,7 @@ impl HelpPane {
                     ui_register_selector(ui, &mut fields.sr1, "SR1 (Source)");
                     ui_immediate_selector(ui, &mut fields.imm5, 5, "imm5 (Immediate)");
                     (
-                        format!("ADD R{}, R{}, #{}" , fields.dr, fields.sr1, fields.imm5),
+                        format!("ADD R{}, R{}, #{}", fields.dr, fields.sr1, fields.imm5),
                         AddOp::decode(EmulatorCell::new(
                             (0b0001 << 12)
                                 | ((fields.dr as u16) << 9)
@@ -972,19 +975,59 @@ impl HelpPane {
 
                 let segments = if fields.imm_mode {
                     vec![
-                        BinarySegment { text: "0001".to_string(), color: theme.opcode_color, description: "Opcode for ADD" },
-                        BinarySegment { text: format_binary(fields.dr as u16, 3), color: theme.help_operand_color, description: "DR: Destination Register" },
-                        BinarySegment { text: format_binary(fields.sr1 as u16, 3), color: theme.help_operand_color, description: "SR1: Source Register 1" },
-                        BinarySegment { text: "1".to_string(), color: theme.help_binary_layout_fixed_bits_color, description: "Mode: 1 for immediate" },
-                        BinarySegment { text: format_binary(fields.imm5 as u16, 5), color: theme.help_immediate_color, description: "imm5: 5-bit immediate value" },
+                        BinarySegment {
+                            text: "0001".to_string(),
+                            color: theme.opcode_color,
+                            description: "Opcode for ADD",
+                        },
+                        BinarySegment {
+                            text: format_binary(fields.dr as u16, 3),
+                            color: theme.help_operand_color,
+                            description: "DR: Destination Register",
+                        },
+                        BinarySegment {
+                            text: format_binary(fields.sr1 as u16, 3),
+                            color: theme.help_operand_color,
+                            description: "SR1: Source Register 1",
+                        },
+                        BinarySegment {
+                            text: "1".to_string(),
+                            color: theme.help_binary_layout_fixed_bits_color,
+                            description: "Mode: 1 for immediate",
+                        },
+                        BinarySegment {
+                            text: format_binary(fields.imm5 as u16, 5),
+                            color: theme.help_immediate_color,
+                            description: "imm5: 5-bit immediate value",
+                        },
                     ]
                 } else {
                     vec![
-                        BinarySegment { text: "0001".to_string(), color: theme.opcode_color, description: "Opcode for ADD" },
-                        BinarySegment { text: format_binary(fields.dr as u16, 3), color: theme.help_operand_color, description: "DR: Destination Register" },
-                        BinarySegment { text: format_binary(fields.sr1 as u16, 3), color: theme.help_operand_color, description: "SR1: Source Register 1" },
-                        BinarySegment { text: "000".to_string(), color: theme.help_binary_layout_fixed_bits_color, description: "Mode: 0 for register, plus unused bits" },
-                        BinarySegment { text: format_binary(fields.sr2 as u16, 3), color: theme.help_operand_color, description: "SR2: Source Register 2" },
+                        BinarySegment {
+                            text: "0001".to_string(),
+                            color: theme.opcode_color,
+                            description: "Opcode for ADD",
+                        },
+                        BinarySegment {
+                            text: format_binary(fields.dr as u16, 3),
+                            color: theme.help_operand_color,
+                            description: "DR: Destination Register",
+                        },
+                        BinarySegment {
+                            text: format_binary(fields.sr1 as u16, 3),
+                            color: theme.help_operand_color,
+                            description: "SR1: Source Register 1",
+                        },
+                        BinarySegment {
+                            text: "000".to_string(),
+                            color: theme.help_binary_layout_fixed_bits_color,
+                            description: "Mode: 0 for register, plus unused bits",
+                        },
+                        BinarySegment {
+                            text: format_binary(fields.sr2 as u16, 3),
+                            color: theme.help_operand_color,
+                            description: "SR2: Source Register 2",
+                        },
                     ]
                 };
                 render_binary_representation_view(ui, segments, theme);
@@ -1010,7 +1053,7 @@ impl HelpPane {
                     ui_register_selector(ui, &mut fields.sr1, "SR1 (Source)");
                     ui_immediate_selector(ui, &mut fields.imm5, 5, "imm5 (Immediate)");
                     (
-                        format!("AND R{}, R{}, #{}" , fields.dr, fields.sr1, fields.imm5),
+                        format!("AND R{}, R{}, #{}", fields.dr, fields.sr1, fields.imm5),
                         AndOp::decode(EmulatorCell::new(
                             (0b0101 << 12)
                                 | ((fields.dr as u16) << 9)
@@ -1041,19 +1084,59 @@ impl HelpPane {
 
                 let segments = if fields.imm_mode {
                     vec![
-                        BinarySegment { text: "0101".to_string(), color: theme.opcode_color, description: "Opcode for AND" },
-                        BinarySegment { text: format_binary(fields.dr as u16, 3), color: theme.help_operand_color, description: "DR: Destination Register" },
-                        BinarySegment { text: format_binary(fields.sr1 as u16, 3), color: theme.help_operand_color, description: "SR1: Source Register 1" },
-                        BinarySegment { text: "1".to_string(), color: theme.help_binary_layout_fixed_bits_color, description: "Mode: 1 for immediate" },
-                        BinarySegment { text: format_binary(fields.imm5 as u16, 5), color: theme.help_immediate_color, description: "imm5: 5-bit immediate value" },
+                        BinarySegment {
+                            text: "0101".to_string(),
+                            color: theme.opcode_color,
+                            description: "Opcode for AND",
+                        },
+                        BinarySegment {
+                            text: format_binary(fields.dr as u16, 3),
+                            color: theme.help_operand_color,
+                            description: "DR: Destination Register",
+                        },
+                        BinarySegment {
+                            text: format_binary(fields.sr1 as u16, 3),
+                            color: theme.help_operand_color,
+                            description: "SR1: Source Register 1",
+                        },
+                        BinarySegment {
+                            text: "1".to_string(),
+                            color: theme.help_binary_layout_fixed_bits_color,
+                            description: "Mode: 1 for immediate",
+                        },
+                        BinarySegment {
+                            text: format_binary(fields.imm5 as u16, 5),
+                            color: theme.help_immediate_color,
+                            description: "imm5: 5-bit immediate value",
+                        },
                     ]
                 } else {
                     vec![
-                        BinarySegment { text: "0101".to_string(), color: theme.opcode_color, description: "Opcode for AND" },
-                        BinarySegment { text: format_binary(fields.dr as u16, 3), color: theme.help_operand_color, description: "DR: Destination Register" },
-                        BinarySegment { text: format_binary(fields.sr1 as u16, 3), color: theme.help_operand_color, description: "SR1: Source Register 1" },
-                        BinarySegment { text: "000".to_string(), color: theme.help_binary_layout_fixed_bits_color, description: "Mode: 0 for register, plus unused bits" },
-                        BinarySegment { text: format_binary(fields.sr2 as u16, 3), color: theme.help_operand_color, description: "SR2: Source Register 2" },
+                        BinarySegment {
+                            text: "0101".to_string(),
+                            color: theme.opcode_color,
+                            description: "Opcode for AND",
+                        },
+                        BinarySegment {
+                            text: format_binary(fields.dr as u16, 3),
+                            color: theme.help_operand_color,
+                            description: "DR: Destination Register",
+                        },
+                        BinarySegment {
+                            text: format_binary(fields.sr1 as u16, 3),
+                            color: theme.help_operand_color,
+                            description: "SR1: Source Register 1",
+                        },
+                        BinarySegment {
+                            text: "000".to_string(),
+                            color: theme.help_binary_layout_fixed_bits_color,
+                            description: "Mode: 0 for register, plus unused bits",
+                        },
+                        BinarySegment {
+                            text: format_binary(fields.sr2 as u16, 3),
+                            color: theme.help_operand_color,
+                            description: "SR2: Source Register 2",
+                        },
                     ]
                 };
                 render_binary_representation_view(ui, segments, theme);
@@ -1127,9 +1210,7 @@ impl HelpPane {
                 ui_offset_selector(ui, &mut fields.offset9, 9, "PCoffset9");
                 let syntax = format!("LD R{}, LABEL ; (offset={})", fields.dr, fields.offset9);
                 let op = LdOp::decode(EmulatorCell::new(
-                    (0b0010 << 12)
-                        | ((fields.dr as u16) << 9)
-                        | (fields.offset9 as u16 & 0x1FF),
+                    (0b0010 << 12) | ((fields.dr as u16) << 9) | (fields.offset9 as u16 & 0x1FF),
                 ));
 
                 ui.separator();
@@ -1138,9 +1219,21 @@ impl HelpPane {
                 ui.separator();
 
                 let segments = vec![
-                    BinarySegment { text: "0010".to_string(), color: theme.opcode_color, description: "Opcode for LD" },
-                    BinarySegment { text: format_binary(fields.dr as u16, 3), color: theme.help_operand_color, description: "DR: Destination Register" },
-                    BinarySegment { text: format_binary(fields.offset9 as u16, 9), color: theme.help_offset_color, description: "PCoffset9: 9-bit PC-relative offset" },
+                    BinarySegment {
+                        text: "0010".to_string(),
+                        color: theme.opcode_color,
+                        description: "Opcode for LD",
+                    },
+                    BinarySegment {
+                        text: format_binary(fields.dr as u16, 3),
+                        color: theme.help_operand_color,
+                        description: "DR: Destination Register",
+                    },
+                    BinarySegment {
+                        text: format_binary(fields.offset9 as u16, 9),
+                        color: theme.help_offset_color,
+                        description: "PCoffset9: 9-bit PC-relative offset",
+                    },
                 ];
                 render_binary_representation_view(ui, segments, theme);
                 ui.separator();
@@ -1161,9 +1254,7 @@ impl HelpPane {
                 ui_offset_selector(ui, &mut fields.offset9, 9, "PCoffset9");
                 let syntax = format!("LDI R{}, LABEL ; (offset={})", fields.dr, fields.offset9);
                 let op = LdiOp::decode(EmulatorCell::new(
-                    (0b1010 << 12)
-                        | ((fields.dr as u16) << 9)
-                        | (fields.offset9 as u16 & 0x1FF),
+                    (0b1010 << 12) | ((fields.dr as u16) << 9) | (fields.offset9 as u16 & 0x1FF),
                 ));
 
                 ui.separator();
@@ -1172,9 +1263,21 @@ impl HelpPane {
                 ui.separator();
 
                 let segments = vec![
-                    BinarySegment { text: "1010".to_string(), color: theme.opcode_color, description: "Opcode for LDI" },
-                    BinarySegment { text: format_binary(fields.dr as u16, 3), color: theme.help_operand_color, description: "DR: Destination Register" },
-                    BinarySegment { text: format_binary(fields.offset9 as u16, 9), color: theme.help_offset_color, description: "PCoffset9: 9-bit PC-relative offset" },
+                    BinarySegment {
+                        text: "1010".to_string(),
+                        color: theme.opcode_color,
+                        description: "Opcode for LDI",
+                    },
+                    BinarySegment {
+                        text: format_binary(fields.dr as u16, 3),
+                        color: theme.help_operand_color,
+                        description: "DR: Destination Register",
+                    },
+                    BinarySegment {
+                        text: format_binary(fields.offset9 as u16, 9),
+                        color: theme.help_offset_color,
+                        description: "PCoffset9: 9-bit PC-relative offset",
+                    },
                 ];
                 render_binary_representation_view(ui, segments, theme);
                 ui.separator();
@@ -1194,7 +1297,10 @@ impl HelpPane {
                 ui_register_selector(ui, &mut fields.dr, "DR (Destination)");
                 ui_register_selector(ui, &mut fields.base_r, "BaseR (Base Register)");
                 ui_immediate_selector(ui, &mut fields.offset6, 6, "offset6");
-                let syntax = format!("LDR R{}, R{}, #{}" , fields.dr, fields.base_r, fields.offset6);
+                let syntax = format!(
+                    "LDR R{}, R{}, #{}",
+                    fields.dr, fields.base_r, fields.offset6
+                );
                 let op = LdrOp::decode(EmulatorCell::new(
                     (0b0110 << 12)
                         | ((fields.dr as u16) << 9)
@@ -1208,10 +1314,26 @@ impl HelpPane {
                 ui.separator();
 
                 let segments = vec![
-                    BinarySegment { text: "0110".to_string(), color: theme.opcode_color, description: "Opcode for LDR" },
-                    BinarySegment { text: format_binary(fields.dr as u16, 3), color: theme.help_operand_color, description: "DR: Destination Register" },
-                    BinarySegment { text: format_binary(fields.base_r as u16, 3), color: theme.help_operand_color, description: "BaseR: Base Register" },
-                    BinarySegment { text: format_binary(fields.offset6 as u16, 6), color: theme.help_offset_color, description: "offset6: 6-bit offset" },
+                    BinarySegment {
+                        text: "0110".to_string(),
+                        color: theme.opcode_color,
+                        description: "Opcode for LDR",
+                    },
+                    BinarySegment {
+                        text: format_binary(fields.dr as u16, 3),
+                        color: theme.help_operand_color,
+                        description: "DR: Destination Register",
+                    },
+                    BinarySegment {
+                        text: format_binary(fields.base_r as u16, 3),
+                        color: theme.help_operand_color,
+                        description: "BaseR: Base Register",
+                    },
+                    BinarySegment {
+                        text: format_binary(fields.offset6 as u16, 6),
+                        color: theme.help_offset_color,
+                        description: "offset6: 6-bit offset",
+                    },
                 ];
                 render_binary_representation_view(ui, segments, theme);
                 ui.separator();
@@ -1232,9 +1354,7 @@ impl HelpPane {
                 ui_offset_selector(ui, &mut fields.offset9, 9, "PCoffset9");
                 let syntax = format!("LEA R{}, LABEL ; (offset={})", fields.dr, fields.offset9);
                 let op = LeaOp::decode(EmulatorCell::new(
-                    (0b1110 << 12)
-                        | ((fields.dr as u16) << 9)
-                        | (fields.offset9 as u16 & 0x1FF),
+                    (0b1110 << 12) | ((fields.dr as u16) << 9) | (fields.offset9 as u16 & 0x1FF),
                 ));
 
                 ui.separator();
@@ -1243,9 +1363,21 @@ impl HelpPane {
                 ui.separator();
 
                 let segments = vec![
-                    BinarySegment { text: "1110".to_string(), color: theme.opcode_color, description: "Opcode for LEA" },
-                    BinarySegment { text: format_binary(fields.dr as u16, 3), color: theme.help_operand_color, description: "DR: Destination Register" },
-                    BinarySegment { text: format_binary(fields.offset9 as u16, 9), color: theme.help_offset_color, description: "PCoffset9: 9-bit PC-relative offset" },
+                    BinarySegment {
+                        text: "1110".to_string(),
+                        color: theme.opcode_color,
+                        description: "Opcode for LEA",
+                    },
+                    BinarySegment {
+                        text: format_binary(fields.dr as u16, 3),
+                        color: theme.help_operand_color,
+                        description: "DR: Destination Register",
+                    },
+                    BinarySegment {
+                        text: format_binary(fields.offset9 as u16, 9),
+                        color: theme.help_offset_color,
+                        description: "PCoffset9: 9-bit PC-relative offset",
+                    },
                 ];
                 render_binary_representation_view(ui, segments, theme);
                 ui.separator();
@@ -1266,9 +1398,7 @@ impl HelpPane {
                 ui_offset_selector(ui, &mut fields.offset9, 9, "PCoffset9");
                 let syntax = format!("ST R{}, LABEL ; (offset={})", fields.sr1, fields.offset9);
                 let op = StOp::decode(EmulatorCell::new(
-                    (0b0011 << 12)
-                        | ((fields.sr1 as u16) << 9)
-                        | (fields.offset9 as u16 & 0x1FF),
+                    (0b0011 << 12) | ((fields.sr1 as u16) << 9) | (fields.offset9 as u16 & 0x1FF),
                 ));
 
                 ui.separator();
@@ -1277,9 +1407,21 @@ impl HelpPane {
                 ui.separator();
 
                 let segments = vec![
-                    BinarySegment { text: "0011".to_string(), color: theme.opcode_color, description: "Opcode for ST" },
-                    BinarySegment { text: format_binary(fields.sr1 as u16, 3), color: theme.help_operand_color, description: "SR: Source Register" },
-                    BinarySegment { text: format_binary(fields.offset9 as u16, 9), color: theme.help_offset_color, description: "PCoffset9: 9-bit PC-relative offset" },
+                    BinarySegment {
+                        text: "0011".to_string(),
+                        color: theme.opcode_color,
+                        description: "Opcode for ST",
+                    },
+                    BinarySegment {
+                        text: format_binary(fields.sr1 as u16, 3),
+                        color: theme.help_operand_color,
+                        description: "SR: Source Register",
+                    },
+                    BinarySegment {
+                        text: format_binary(fields.offset9 as u16, 9),
+                        color: theme.help_offset_color,
+                        description: "PCoffset9: 9-bit PC-relative offset",
+                    },
                 ];
                 render_binary_representation_view(ui, segments, theme);
                 ui.separator();
@@ -1300,9 +1442,7 @@ impl HelpPane {
                 ui_offset_selector(ui, &mut fields.offset9, 9, "PCoffset9");
                 let syntax = format!("STI R{}, LABEL ; (offset={})", fields.sr1, fields.offset9);
                 let op = StiOp::decode(EmulatorCell::new(
-                    (0b1011 << 12)
-                        | ((fields.sr1 as u16) << 9)
-                        | (fields.offset9 as u16 & 0x1FF),
+                    (0b1011 << 12) | ((fields.sr1 as u16) << 9) | (fields.offset9 as u16 & 0x1FF),
                 ));
 
                 ui.separator();
@@ -1311,9 +1451,21 @@ impl HelpPane {
                 ui.separator();
 
                 let segments = vec![
-                    BinarySegment { text: "1011".to_string(), color: theme.opcode_color, description: "Opcode for STI" },
-                    BinarySegment { text: format_binary(fields.sr1 as u16, 3), color: theme.help_operand_color, description: "SR: Source Register" },
-                    BinarySegment { text: format_binary(fields.offset9 as u16, 9), color: theme.help_offset_color, description: "PCoffset9: 9-bit PC-relative offset" },
+                    BinarySegment {
+                        text: "1011".to_string(),
+                        color: theme.opcode_color,
+                        description: "Opcode for STI",
+                    },
+                    BinarySegment {
+                        text: format_binary(fields.sr1 as u16, 3),
+                        color: theme.help_operand_color,
+                        description: "SR: Source Register",
+                    },
+                    BinarySegment {
+                        text: format_binary(fields.offset9 as u16, 9),
+                        color: theme.help_offset_color,
+                        description: "PCoffset9: 9-bit PC-relative offset",
+                    },
                 ];
                 render_binary_representation_view(ui, segments, theme);
                 ui.separator();
@@ -1333,7 +1485,10 @@ impl HelpPane {
                 ui_register_selector(ui, &mut fields.sr1, "SR (Source)");
                 ui_register_selector(ui, &mut fields.base_r, "BaseR (Base Register)");
                 ui_immediate_selector(ui, &mut fields.offset6, 6, "offset6");
-                let syntax = format!("STR R{}, R{}, #{}" , fields.sr1, fields.base_r, fields.offset6);
+                let syntax = format!(
+                    "STR R{}, R{}, #{}",
+                    fields.sr1, fields.base_r, fields.offset6
+                );
                 let op = StrOp::decode(EmulatorCell::new(
                     (0b0111 << 12)
                         | ((fields.sr1 as u16) << 9)
@@ -1347,10 +1502,26 @@ impl HelpPane {
                 ui.separator();
 
                 let segments = vec![
-                    BinarySegment { text: "0111".to_string(), color: theme.opcode_color, description: "Opcode for STR" },
-                    BinarySegment { text: format_binary(fields.sr1 as u16, 3), color: theme.help_operand_color, description: "SR: Source Register" },
-                    BinarySegment { text: format_binary(fields.base_r as u16, 3), color: theme.help_operand_color, description: "BaseR: Base Register" },
-                    BinarySegment { text: format_binary(fields.offset6 as u16, 6), color: theme.help_offset_color, description: "offset6: 6-bit offset" },
+                    BinarySegment {
+                        text: "0111".to_string(),
+                        color: theme.opcode_color,
+                        description: "Opcode for STR",
+                    },
+                    BinarySegment {
+                        text: format_binary(fields.sr1 as u16, 3),
+                        color: theme.help_operand_color,
+                        description: "SR: Source Register",
+                    },
+                    BinarySegment {
+                        text: format_binary(fields.base_r as u16, 3),
+                        color: theme.help_operand_color,
+                        description: "BaseR: Base Register",
+                    },
+                    BinarySegment {
+                        text: format_binary(fields.offset6 as u16, 6),
+                        color: theme.help_offset_color,
+                        description: "offset6: 6-bit offset",
+                    },
                 ];
                 render_binary_representation_view(ui, segments, theme);
                 ui.separator();
@@ -1376,14 +1547,22 @@ impl HelpPane {
                 ui_offset_selector(ui, &mut fields.offset9, 9, "PCoffset9");
 
                 let mut syntax = "BR".to_string();
-                if fields.n_bit { syntax.push('n'); }
-                if fields.z_bit { syntax.push('z'); }
-                if fields.p_bit { syntax.push('p'); }
-                if syntax == "BR" { syntax.push_str(" (unconditional)"); }
+                if fields.n_bit {
+                    syntax.push('n');
+                }
+                if fields.z_bit {
+                    syntax.push('z');
+                }
+                if fields.p_bit {
+                    syntax.push('p');
+                }
+                if syntax == "BR" {
+                    syntax.push_str(" (unconditional)");
+                }
                 syntax.push_str(&format!(" LABEL ; (offset={})", fields.offset9));
 
                 let op = BrOp::decode(EmulatorCell::new(
-                        ((fields.n_bit as u16 )<< 11)
+                    ((fields.n_bit as u16) << 11)
                         | ((fields.z_bit as u16) << 10)
                         | ((fields.p_bit as u16) << 9)
                         | (fields.offset9 as u16 & 0x1FF),
@@ -1395,11 +1574,31 @@ impl HelpPane {
                 ui.separator();
 
                 let segments = vec![
-                    BinarySegment { text: "0000".to_string(), color: theme.opcode_color, description: "Opcode for BR" },
-                    BinarySegment { text: if fields.n_bit { "1" } else { "0" }.to_string(), color: theme.help_strong_label_color, description: "n: branch if negative" },
-                    BinarySegment { text: if fields.z_bit { "1" } else { "0" }.to_string(), color: theme.help_strong_label_color, description: "z: branch if zero" },
-                    BinarySegment { text: if fields.p_bit { "1" } else { "0" }.to_string(), color: theme.help_strong_label_color, description: "p: branch if positive" },
-                    BinarySegment { text: format_binary(fields.offset9 as u16, 9), color: theme.help_offset_color, description: "PCoffset9: 9-bit PC-relative offset" },
+                    BinarySegment {
+                        text: "0000".to_string(),
+                        color: theme.opcode_color,
+                        description: "Opcode for BR",
+                    },
+                    BinarySegment {
+                        text: if fields.n_bit { "1" } else { "0" }.to_string(),
+                        color: theme.help_strong_label_color,
+                        description: "n: branch if negative",
+                    },
+                    BinarySegment {
+                        text: if fields.z_bit { "1" } else { "0" }.to_string(),
+                        color: theme.help_strong_label_color,
+                        description: "z: branch if zero",
+                    },
+                    BinarySegment {
+                        text: if fields.p_bit { "1" } else { "0" }.to_string(),
+                        color: theme.help_strong_label_color,
+                        description: "p: branch if positive",
+                    },
+                    BinarySegment {
+                        text: format_binary(fields.offset9 as u16, 9),
+                        color: theme.help_offset_color,
+                        description: "PCoffset9: 9-bit PC-relative offset",
+                    },
                 ];
                 render_binary_representation_view(ui, segments, theme);
                 ui.separator();
@@ -1564,13 +1763,19 @@ impl HelpPane {
             |ui, theme| {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("trapvect8:").strong());
-                    ui.add(egui::DragValue::new(&mut fields.trapvector).hexadecimal(2, false, true));
+                    ui.add(
+                        egui::DragValue::new(&mut fields.trapvector).hexadecimal(2, false, true),
+                    );
                 });
 
                 let trap_options = [
                     (0x20, "GETC", "Read a single character from the keyboard."),
                     (0x21, "OUT", "Write a character to the console."),
-                    (0x22, "PUTS", "Write a null-terminated string to the console."),
+                    (
+                        0x22,
+                        "PUTS",
+                        "Write a null-terminated string to the console.",
+                    ),
                     (0x23, "IN", "Print a prompt and read a character."),
                     (0x25, "HALT", "Halt program execution."),
                 ];
@@ -1581,7 +1786,9 @@ impl HelpPane {
                 }
 
                 let syntax = format!("TRAP x{:02X}", fields.trapvector);
-                let op = TrapOp::decode(EmulatorCell::new((0b1111 << 12) | (fields.trapvector as u16)));
+                let op = TrapOp::decode(EmulatorCell::new(
+                    (0b1111 << 12) | (fields.trapvector as u16),
+                ));
 
                 ui.separator();
                 ui.label(RichText::new("Example Syntax:").strong());
@@ -1589,9 +1796,21 @@ impl HelpPane {
                 ui.separator();
 
                 let segments = vec![
-                    BinarySegment { text: "1111".to_string(), color: theme.opcode_color, description: "Opcode for TRAP" },
-                    BinarySegment { text: "0000".to_string(), color: theme.help_binary_layout_fixed_bits_color, description: "Unused bits" },
-                    BinarySegment { text: format_binary(fields.trapvector as u16, 8), color: theme.help_operand_color, description: "trapvect8: 8-bit trap vector number" },
+                    BinarySegment {
+                        text: "1111".to_string(),
+                        color: theme.opcode_color,
+                        description: "Opcode for TRAP",
+                    },
+                    BinarySegment {
+                        text: "0000".to_string(),
+                        color: theme.help_binary_layout_fixed_bits_color,
+                        description: "Unused bits",
+                    },
+                    BinarySegment {
+                        text: format_binary(fields.trapvector as u16, 8),
+                        color: theme.help_operand_color,
+                        description: "trapvect8: 8-bit trap vector number",
+                    },
                 ];
                 render_binary_representation_view(ui, segments, theme);
                 ui.separator();
@@ -1613,8 +1832,16 @@ impl HelpPane {
                 ui.separator();
 
                 let segments = vec![
-                    BinarySegment { text: "1000".to_string(), color: theme.opcode_color, description: "Opcode for RTI" },
-                    BinarySegment { text: "000000000000".to_string(), color: theme.help_binary_layout_fixed_bits_color, description: "Unused bits" },
+                    BinarySegment {
+                        text: "1000".to_string(),
+                        color: theme.opcode_color,
+                        description: "Opcode for RTI",
+                    },
+                    BinarySegment {
+                        text: "000000000000".to_string(),
+                        color: theme.help_binary_layout_fixed_bits_color,
+                        description: "Unused bits",
+                    },
                 ];
                 render_binary_representation_view(ui, segments, theme);
                 ui.separator();

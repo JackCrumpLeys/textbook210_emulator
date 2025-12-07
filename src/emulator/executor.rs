@@ -2,8 +2,8 @@ use crate::emulator::micro_op::{
     CycleState, DataDestination, DataSource, MAluOp, MachineFlag, MicroOp,
 };
 use crate::emulator::{
-    area_from_address, AluOp, CpuState, Emulator, EmulatorCell, Exception, OpCode, KBDR_ADDR,
-    KBSR_ADDR, MCR_ADDR, PSR_ADDR,
+    AluOp, CpuState, Emulator, EmulatorCell, Exception, KBDR_ADDR, KBSR_ADDR, MCR_ADDR, OpCode,
+    PSR_ADDR, area_from_address,
 };
 use std::fmt::{self};
 

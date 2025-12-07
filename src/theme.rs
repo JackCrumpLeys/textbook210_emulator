@@ -517,9 +517,9 @@ impl ThemeSettings {
         style.spacing.scroll.bar_inner_margin = 2.0;
         style.spacing.scroll.bar_outer_margin = 0.0;
         style.visuals.widgets.inactive.bg_fill = self.scrollbar_handle_color; // Scrollbar handle color (using inactive as a proxy)
-                                                                              // For more detailed scrollbar theming, egui might need more fields or custom drawing.
-                                                                              // The current scrollbar theming in egui is somewhat limited via Style.
-                                                                              // These are best guesses for influencing scrollbars:
+        // For more detailed scrollbar theming, egui might need more fields or custom drawing.
+        // The current scrollbar theming in egui is somewhat limited via Style.
+        // These are best guesses for influencing scrollbars:
         style.visuals.widgets.hovered.bg_fill = self.scrollbar_handle_hovered_color; // Potentially for hovered handle
         style.visuals.widgets.active.bg_fill = self.scrollbar_handle_active_color; // Potentially for active handle
 

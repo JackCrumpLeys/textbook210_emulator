@@ -148,10 +148,14 @@ jobs:
           cargo install cross --git https://github.com/cross-rs/cross
 
       - name: Install cross for mac and windows
-        if: ${{ !contains(matrix.TARGET, 'linux') }}
+        if: ${{ !contains(matrix.TARGET, 'linux') && !(matrix.TARGET == x86_64-apple-darwin) }}
         run: |
           cargo install cross
 
+      - name: Install mac toolchain for x86 mac
+        if: matrix.TARGET == x86_64-apple-darwin
+        run: rustup target add x86_64-apple-darwin
+      
       - name: Build
         run: |
           cross build --verbose --release --target=${{ matrix.TARGET }}

@@ -358,7 +358,7 @@ impl<'a> Lexer<'a> {
         // Check for # prefix (decimal immediate)
         if Some(&'#') == self.chars.peek() {
             self.advance(); // Skip the #
-                            // Omit # from the result as we'll parse as decimal
+        // Omit # from the result as we'll parse as decimal
         } else if self.chars.peek().is_some_and(|c| c == &'x' || c == &'X') {
             is_hex = true;
             self.advance(); // Skip the x or X
@@ -679,7 +679,7 @@ impl Parser {
                                     return Err((
                                         format!("Invalid .ORIG address at line {line}"),
                                         token_span,
-                                    ))
+                                    ));
                                 }
                             }
 
@@ -744,7 +744,7 @@ impl Parser {
                                     return Err((
                                         format!("Invalid .BLKW size at line {line}"),
                                         token_span,
-                                    ))
+                                    ));
                                 }
                             };
 
@@ -800,7 +800,7 @@ impl Parser {
                                     return Err((
                                         format!("Invalid .STRINGZ value at line {line}"),
                                         token_span,
-                                    ))
+                                    ));
                                 }
                             }
 
@@ -811,7 +811,7 @@ impl Parser {
                             return Err((
                                 format!("Unknown directive: {dir_name} at line {line}"),
                                 token_span,
-                            ))
+                            ));
                         }
                     }
                 }
@@ -1454,11 +1454,9 @@ impl Parser {
         let max_value = (1 << (width - 1)) - 1;
 
         if value < min_value || value > max_value {
-            Err(
-                format!(
-                    "Immediate value {value} out of range for {width}-bit field [{min_value}, {max_value}]"
-                )
-            )
+            Err(format!(
+                "Immediate value {value} out of range for {width}-bit field [{min_value}, {max_value}]"
+            ))
         } else {
             // For negative values, we need to properly represent in 2's complement
             if value < 0 {

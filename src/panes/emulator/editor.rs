@@ -1,5 +1,5 @@
-use crate::emulator::parse::{ParseError, ParseOutput};
 use crate::emulator::Emulator;
+use crate::emulator::parse::{ParseError, ParseOutput};
 use crate::panes::{Pane, PaneDisplay, PaneTree, RealPane};
 use crate::theme::ThemeSettings;
 use serde::{Deserialize, Serialize};

@@ -1,5 +1,5 @@
 use crate::emulator::micro_op::{CycleState, MicroOp, MicroOpGenerator};
-use crate::emulator::{area_from_address, BitAddressable, Emulator, EmulatorCell, Exception};
+use crate::emulator::{BitAddressable, Emulator, EmulatorCell, Exception, area_from_address};
 use std::collections::HashMap;
 
 use super::Op;
